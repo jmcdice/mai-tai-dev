@@ -24,7 +24,7 @@ Mai-Tai is designed with security as a core principle:
 - **Local Database**: PostgreSQL runs locally in Docker
 - **No Telemetry**: Zero usage tracking or analytics
 - **No External Calls**: The app makes no calls to external services
-- **Workspace Isolation**: Each workspace has its own API key and data
+- **Workspace Isolation**: Data separated by workspace ID; API key scoped per user
 
 ### Infrastructure Security
 
