@@ -129,6 +129,30 @@ def _handle_shutdown_signal(signum: int, frame: Any) -> None:
     shutting_down = True
     print("\nReceived shutdown signal, finishing current work...", file=sys.stderr)
 
+
+def _start_stdin_monitor() -> None:
+    """Start a background thread that monitors stdin and triggers shutdown when it closes.
+
+    This prevents zombie processes when the MCP client (e.g., Augment Agent) exits
+    while the server is idle (not actively polling in chat_with_human).
+
+    The thread runs as a daemon, so it will be automatically killed when the main
+    thread exits. It checks stdin every 5 seconds and forces exit if stdin closes.
+    """
+    def monitor() -> None:
+        global shutting_down
+        while not shutting_down:
+            if _is_stdin_closed():
+                print("mai-tai-mcp: client disconnected, shutting down...", file=sys.stderr)
+                shutting_down = True
+                # Force exit - mcp.run() might not check the shutting_down flag
+                os._exit(0)
+            time.sleep(5)  # Check every 5 seconds
+
+    t = threading.Thread(target=monitor, daemon=True, name="stdin-monitor")
+    t.start()
+
+
 # Create FastMCP server with externalized instructions
 mcp = FastMCP(
     name="mai-tai-mcp",
@@ -513,6 +537,10 @@ def main() -> None:
         # This will raise ConfigurationError with a clear message if config is invalid
         config = get_config()
         print(f"mai-tai-mcp: connecting to {config.api_url}", file=sys.stderr)
+
+        # Start background stdin monitor to detect client disconnection
+        # This prevents zombie processes when the client exits while server is idle
+        _start_stdin_monitor()
 
         # Run the server with stdio transport
         mcp.run(transport="stdio")

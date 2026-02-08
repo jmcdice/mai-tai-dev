@@ -1,6 +1,6 @@
 """Mai-Tai MCP Server - Connect your coding agent to mai-tai."""
 
-__version__ = "0.4.3"
+__version__ = "0.4.4"
 
 from .backend import MaiTaiBackend, MaiTaiBackendError, create_backend
 from .backoff import BackoffState, wait_with_backoff, should_retry

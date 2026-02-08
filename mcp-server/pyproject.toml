@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mai-tai-mcp"
-version = "0.4.3"
+version = "0.4.4"
 description = "MCP server for mai-tai AI agent collaboration platform"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -33,9 +33,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/jmcdice/mai-tai-dev"
-Repository = "https://github.com/jmcdice/mai-tai-dev"
-Documentation = "https://github.com/jmcdice/mai-tai-dev#readme"
+Homepage = "https://github.com/jmcdice/mai-tai"
+Repository = "https://github.com/jmcdice/mai-tai"
+Documentation = "https://github.com/jmcdice/mai-tai#readme"
 
 [project.optional-dependencies]
 dev = [
