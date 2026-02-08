@@ -121,6 +121,43 @@ local_cmd() {
             curl -s -o /dev/null -w "Frontend (3000): %{http_code}\n" http://localhost:3000 || echo "Frontend (3000): DOWN"
             curl -s -o /dev/null -w "Backend  (8000): %{http_code}\n" http://localhost:8000/health || echo "Backend  (8000): DOWN"
             ;;
+        nuke-everything)
+            log_warn "☢️  NUCLEAR OPTION - This will:"
+            echo "  1. Stop and remove all Docker containers"
+            echo "  2. Delete all Docker volumes (database data)"
+            echo "  3. Delete Docker networks"
+            echo "  4. Kill any running mai-tai-mcp processes"
+            echo "  5. Remove project-level MCP config (.env.mai-tai files)"
+            echo ""
+            read -p "Are you absolutely sure? (type 'nuke' to confirm): " -r
+            echo
+            if [[ $REPLY == "nuke" ]]; then
+                log_info "Step 1: Stopping and removing Docker containers..."
+                docker compose -f $COMPOSE_FILE down -v --remove-orphans 2>/dev/null || true
+
+                log_info "Step 2: Removing Docker volumes..."
+                docker volume rm mai-tai-dev_postgres_data 2>/dev/null || true
+
+                log_info "Step 3: Removing Docker networks..."
+                docker network rm mai-tai-dev_default 2>/dev/null || true
+
+                log_info "Step 4: Killing mai-tai-mcp processes..."
+                pkill -9 -f "mai-tai-mcp" 2>/dev/null || true
+
+                log_info "Step 5: Removing project-level MCP configs..."
+                find . -name ".env.mai-tai" -type f -delete 2>/dev/null || true
+
+                echo ""
+                log_info "💀 Everything nuked!"
+                echo ""
+                echo "To start fresh:"
+                echo "  1. ./dev.sh local up"
+                echo "  2. Register a new account at http://localhost:3000"
+                echo "  3. Paste the setup blob to your agent"
+            else
+                log_info "Aborted. (You must type 'nuke' to confirm)"
+            fi
+            ;;
         *)
             echo "Local development commands:"
             echo ""
@@ -133,12 +170,13 @@ local_cmd() {
             echo "  rebuild     Rebuild and restart all services (no cache)"
             echo "  logs [svc]  Tail logs (optionally for specific service)"
             echo "  ps          Show running containers"
-            echo "  status      Check service health and endpoints"
-            echo "  backup      Backup database to SQL file"
-            echo "  restore     Restore database from SQL file"
-            echo "  nuke-db     Delete database and start fresh"
-            echo "  migrate     Run database migrations"
-            echo "  shell [svc] Open shell in container (default: backend)"
+            echo "  status          Check service health and endpoints"
+            echo "  backup          Backup database to SQL file"
+            echo "  restore         Restore database from SQL file"
+            echo "  nuke-db         Delete database and start fresh"
+            echo "  nuke-everything ☢️  Nuclear option - wipe everything"
+            echo "  migrate         Run database migrations"
+            echo "  shell [svc]     Open shell in container (default: backend)"
             echo ""
             echo "Examples:"
             echo "  ./dev.sh local up"
