@@ -20,7 +20,12 @@ local_cmd() {
                 sleep 1
             done
             log_info "Running database migrations..."
-            docker compose -f $COMPOSE_FILE exec -T backend alembic upgrade head
+            if docker compose -f $COMPOSE_FILE exec -T backend alembic upgrade head > /dev/null 2>&1; then
+                log_info "✓ Database ready"
+            else
+                log_error "Migration failed. Run './dev.sh local migrate' for details."
+                exit 1
+            fi
             log_info "Services started. Frontend: http://localhost:3000 | Backend: http://localhost:8000"
             ;;
         down)
@@ -47,7 +52,12 @@ local_cmd() {
                 sleep 1
             done
             log_info "Running database migrations..."
-            docker compose -f $COMPOSE_FILE exec -T backend alembic upgrade head
+            if docker compose -f $COMPOSE_FILE exec -T backend alembic upgrade head > /dev/null 2>&1; then
+                log_info "✓ Database ready"
+            else
+                log_error "Migration failed. Run './dev.sh local migrate' for details."
+                exit 1
+            fi
             log_info "Rebuild complete. Frontend: http://localhost:3000 | Backend: http://localhost:8000"
             ;;
         logs)
