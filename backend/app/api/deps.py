@@ -2,7 +2,7 @@
 
 import hashlib
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
 

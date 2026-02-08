@@ -8,15 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.api.deps import get_current_user, get_db
 from app.core.security import create_access_token, create_refresh_token
 from app.models.api_key import ApiKey
 from app.models.message import Message
 from app.models.workspace import Workspace
 from app.models.user import User
-from app.schemas.auth import TokenResponse
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -136,7 +133,7 @@ async def get_stats(
 
     # Count admins
     admin_count_result = await db.execute(
-        select(func.count(User.id)).where(User.is_admin == True)
+        select(func.count(User.id)).where(User.is_admin.is_(True))
     )
     admin_count = admin_count_result.scalar() or 0
 

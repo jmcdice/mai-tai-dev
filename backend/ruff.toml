@@ -1,0 +1,11 @@
+# Ruff configuration for mai-tai backend
+# https://docs.astral.sh/ruff/
+
+[lint]
+# Ignore F821 (undefined name) for SQLAlchemy forward references like Mapped["User"]
+# These are valid type hints that ruff doesn't understand
+ignore = ["F821"]
+
+# Also fix auto-fixable issues
+fixable = ["ALL"]
+

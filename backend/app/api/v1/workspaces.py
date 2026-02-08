@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
@@ -138,7 +138,7 @@ async def create_api_key(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     """Generate a new API key for the workspace."""
-    workspace = await check_workspace_access(workspace_id, db, current_user)
+    await check_workspace_access(workspace_id, db, current_user)
 
     raw_key, key_hash = generate_api_key()
     expires_at = None
@@ -226,7 +226,7 @@ async def create_message(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     """Send a message to a workspace."""
-    workspace = await check_workspace_access(workspace_id, db, current_user)
+    await check_workspace_access(workspace_id, db, current_user)
 
     message = Message(
         workspace_id=workspace_id,

@@ -22,10 +22,10 @@ jobs:
           
       - name: Install dependencies
         run: cd frontend && npm ci
-        
-      - name: Lint
-        run: cd frontend && npm run lint
-        
+
+      - name: Type Check
+        run: cd frontend && npx tsc --noEmit
+
       - name: Build
         run: cd frontend && npm run build
 

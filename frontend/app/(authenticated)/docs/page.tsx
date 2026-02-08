@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   RocketLaunchIcon,
   CpuChipIcon,
@@ -64,17 +64,15 @@ const allItems = docSections.flatMap((section) =>
 	  }))
 	);
 
-interface DocsPageProps {
-	  searchParams?: { item?: string };
-}
-
-export default function DocsPage({ searchParams }: DocsPageProps) {
+export default function DocsPage() {
 	  const router = useRouter();
 	  const pathname = usePathname();
+	  const searchParams = useSearchParams();
 
+	  const itemParam = searchParams.get('item');
 	  const initialItemFromParams =
-	    searchParams?.item && allItems.some((item) => item.id === searchParams.item)
-	      ? searchParams.item
+	    itemParam && allItems.some((item) => item.id === itemParam)
+	      ? itemParam
 	      : null;
 
 	  const [activeSection, setActiveSection] = useState<string | null>(initialItemFromParams); // null = show TOC
