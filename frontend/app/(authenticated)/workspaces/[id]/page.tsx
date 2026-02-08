@@ -231,12 +231,11 @@ export default function WorkspacePage() {
     );
   }
 
-  // Get agent name: custom name > dude mode default > AI Agent
+  // Get agent name: "His Dudeness" when dude mode is on, otherwise custom name or "AI Agent"
   const dudeMode = (workspace?.settings?.dude_mode as boolean) ?? false;
   const planMode = (workspace?.settings?.plan_mode as boolean) ?? false;
   const storedAgentName = workspace?.settings?.agent_name as string | undefined;
-  const defaultAgentName = dudeMode ? 'The Dude' : 'AI Agent';
-  const agentName = storedAgentName || defaultAgentName;
+  const agentName = dudeMode ? 'His Dudeness' : (storedAgentName || 'AI Agent');
   const agentInitial = dudeMode ? '🍹' : 'A';
 
   // Toggle plan mode
