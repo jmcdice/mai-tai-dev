@@ -5,8 +5,8 @@ Thanks for your interest in contributing! This guide covers everything you need 
 ## Quick Start
 
 ```bash
-# 1. Fork and clone
-git clone https://github.com/YOUR_USERNAME/mai-tai-dev.git
+# 1. Clone the repo
+git clone https://github.com/jmcdice/mai-tai-dev.git
 cd mai-tai-dev
 
 # 2. Set up environment
@@ -156,17 +156,26 @@ async def get_workspace(
 
 ## Useful Commands
 
+All development is done via `./dev.sh local`:
+
 ```bash
-# Local development
-./dev.sh local up        # Start all containers
-./dev.sh local down      # Stop containers
-./dev.sh local rebuild   # Rebuild and restart
-./dev.sh local logs      # Tail logs
-./dev.sh local nuke-db   # Reset database
+# Services
+./dev.sh local up              # Start all services (frontend, backend, postgres)
+./dev.sh local down            # Stop all services
+./dev.sh local restart         # Restart all services
+./dev.sh local rebuild         # Rebuild and restart all services
+./dev.sh local logs            # Follow logs (or: ./dev.sh local logs backend)
+./dev.sh local status          # Check service health
 
 # Database
-./dev.sh local migrate   # Run migrations
-./dev.sh local shell     # Backend container shell
+./dev.sh local migrate         # Run database migrations
+./dev.sh local backup          # Backup database to SQL file
+./dev.sh local restore         # Restore database from SQL file
+./dev.sh local shell           # Open shell in container (default: backend)
+./dev.sh local nuke-db         # Delete all database data and start fresh
+
+# Nuclear option
+./dev.sh local nuke-everything # ☢️ Wipe everything: containers, volumes, configs, MCP processes
 ```
 
 ## Reporting Issues

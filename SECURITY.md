@@ -14,7 +14,7 @@ Mai-Tai is designed with security as a core principle:
 
 ### Authentication & Authorization
 
-- **Google IAP Integration**: Production deployments use Google Identity-Aware Proxy
+- **Local Auth**: Email/password authentication for local development
 - **API Key Authentication**: Secure, hashed API keys for MCP server connections
 - **Session Management**: JWT tokens with configurable expiration
 - **No Plaintext Storage**: API keys are SHA-256 hashed before storage
@@ -78,32 +78,21 @@ Before submitting a PR:
 
 ## Known Security Considerations
 
-### Local Development
-
 When running locally (`./dev.sh local up`):
 
-- The database is not encrypted at rest
-- Default credentials are used (change for production)
+- The database is not encrypted at rest (acceptable for local dev)
+- Default credentials are used (see `.env.example`)
 - CORS is permissive for development ease
+- All data stays on your machine
 
-### Production Deployment
-
-For production deployments, ensure:
-
-- [ ] Change all default credentials
-- [ ] Enable HTTPS/TLS
-- [ ] Configure proper CORS origins
-- [ ] Set secure cookie flags
-- [ ] Enable Google IAP or equivalent auth
-- [ ] Use managed database with encryption
-- [ ] Set up log monitoring
+This is designed for local development. If you decide to deploy to a server, you'll need to implement your own production hardening (HTTPS, auth, encrypted storage, etc).
 
 ## Version Support
 
 | Version | Supported |
 |---------|-----------|
 | Latest  | ✅ Yes |
-| < 1.0   | ⚠️ Best effort |
+| Older   | ⚠️ Best effort |
 
 We only actively maintain the latest release. Please keep your installation up to date.
 
