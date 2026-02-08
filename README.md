@@ -34,8 +34,6 @@ cp .env.example .env
 
 That's it! Visit **http://localhost:3000** to create your account.
 
-> **Tip:** See it in action at [mai-tai.dev](https://mai-tai.dev)
-
 This starts:
 - **Frontend** at http://localhost:3000
 - **Backend API** at http://localhost:8000
