@@ -87,7 +87,7 @@ export default function LoginPage() {
   useEffect(() => {
     const errorParam = searchParams.get("error");
     if (errorParam) {
-      setError("OAuth sign-in failed. Please try again.");
+      setError("OAuth authentication failed. Please try again.");
     }
   }, [searchParams]);
 
