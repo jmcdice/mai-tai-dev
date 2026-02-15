@@ -1,28 +1,39 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { signIn, useSession } from 'next-auth/react';
-import { useToast } from '@/hooks/use-toast';
-import { register, login as apiLogin, getProjects, ApiError, RegisterResponse } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
-import { GoogleIcon } from '@/components/icons/google';
-import { GitHubIcon } from '@/components/icons/github';
-import { UserPlusIcon } from '@heroicons/react/24/outline';
-import { XCircleIcon } from '@heroicons/react/24/solid';
-import { Transition } from '@headlessui/react';
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { signIn, useSession } from "next-auth/react";
+import { useToast } from "@/hooks/use-toast";
+import {
+  register,
+  login as apiLogin,
+  getProjects,
+  ApiError,
+  RegisterResponse,
+} from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { GoogleIcon } from "@/components/icons/google";
+import { GitHubIcon } from "@/components/icons/github";
+import { UserPlusIcon } from "@heroicons/react/24/outline";
+import { XCircleIcon } from "@heroicons/react/24/solid";
+import { Transition } from "@headlessui/react";
 
-const useIAP = process.env.NEXT_PUBLIC_USE_IAP === 'true';
+const useIAP = process.env.NEXT_PUBLIC_USE_IAP === "true";
 
 export default function RegisterPage() {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState<'github' | 'google' | null>(null);
-  const [error, setError] = useState('');
-  const [oauthProviders, setOauthProviders] = useState<{ github: boolean; google: boolean }>({ github: false, google: false });
+  const [oauthLoading, setOauthLoading] = useState<"github" | "google" | null>(
+    null,
+  );
+  const [error, setError] = useState("");
+  const [oauthProviders, setOauthProviders] = useState<{
+    github: boolean;
+    google: boolean;
+  }>({ github: false, google: false });
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -32,15 +43,15 @@ export default function RegisterPage() {
   // In IAP mode, redirect to login (Google handles registration)
   useEffect(() => {
     if (useIAP) {
-      router.replace('/login');
+      router.replace("/login");
     }
   }, [router]);
 
   // Fetch available OAuth providers on mount
   useEffect(() => {
-    fetch('/api/auth/providers')
-      .then(res => res.json())
-      .then(data => setOauthProviders(data))
+    fetch("/api/auth/providers")
+      .then((res) => res.json())
+      .then((data) => setOauthProviders(data))
       .catch(() => setOauthProviders({ github: false, google: false }));
   }, []);
 
@@ -49,7 +60,7 @@ export default function RegisterPage() {
 
   // Handle OAuth callback - when session is established, log in to our auth system
   useEffect(() => {
-    if (status === 'authenticated' && session) {
+    if (status === "authenticated" && session) {
       setProcessingOAuth(true);
       const accessToken = (session as any).accessToken;
       const refreshToken = (session as any).refreshToken;
@@ -62,17 +73,20 @@ export default function RegisterPage() {
 
         if (isNewUser) {
           toast({
-            title: 'Account created',
-            description: 'Welcome to Mai-Tai! 🍹',
+            title: "Account created",
+            description: "Welcome to Mai-Tai! 🍹",
           });
         }
 
         // For new OAuth users, store onboarding data for the onboarding card
         if (isNewUser && provisionedWorkspace && provisionedApiKey) {
-          sessionStorage.setItem('mai-tai-onboarding', JSON.stringify({
-            workspaceId: provisionedWorkspace.id,
-            apiKey: provisionedApiKey.key,
-          }));
+          sessionStorage.setItem(
+            "mai-tai-onboarding",
+            JSON.stringify({
+              workspaceId: provisionedWorkspace.id,
+              apiKey: provisionedApiKey.key,
+            }),
+          );
           // Redirect new users to their workspace with onboarding flag
           router.push(`/workspaces/${provisionedWorkspace.id}?onboarding=true`);
           return;
@@ -84,68 +98,76 @@ export default function RegisterPage() {
             if (response.projects.length > 0) {
               router.push(`/workspaces/${response.projects[0].id}`);
             } else {
-              router.push('/dashboard');
+              router.push("/dashboard");
             }
           })
-          .catch(() => router.push('/dashboard'));
+          .catch(() => router.push("/dashboard"));
       }
     }
   }, [session, status, login, router, toast]);
 
   // Check for OAuth error in URL
   useEffect(() => {
-    const errorParam = searchParams.get('error');
+    const errorParam = searchParams.get("error");
     if (errorParam) {
-      setError('OAuth sign-up failed. Please try again.');
+      setError("OAuth authentication failed. Please try again.");
     }
   }, [searchParams]);
 
   const handleGoogleSignUp = () => {
-    setOauthLoading('google');
-    signIn('google', { callbackUrl: '/register' });
+    setOauthLoading("google");
+    signIn("google", { callbackUrl: "/register" });
   };
 
   const handleGitHubSignUp = () => {
-    setOauthLoading('github');
-    signIn('github', { callbackUrl: '/register' });
+    setOauthLoading("github");
+    signIn("github", { callbackUrl: "/register" });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
       // Register with auto-provisioning
-      const regResponse: RegisterResponse = await register(name, email, password);
+      const regResponse: RegisterResponse = await register(
+        name,
+        email,
+        password,
+      );
 
       // Log in to get tokens
       const loginResponse = await apiLogin(email, password);
       login(loginResponse.access_token, loginResponse.refresh_token);
 
       // Store provisioning data for the chat page
-      sessionStorage.setItem('mai-tai-onboarding', JSON.stringify({
-        workspaceId: regResponse.workspace.id,
-        apiKey: regResponse.api_key.key,
-      }));
+      sessionStorage.setItem(
+        "mai-tai-onboarding",
+        JSON.stringify({
+          workspaceId: regResponse.workspace.id,
+          apiKey: regResponse.api_key.key,
+        }),
+      );
 
       toast({
-        title: 'Account created',
-        description: 'Welcome to Mai-Tai! 🍹',
+        title: "Account created",
+        description: "Welcome to Mai-Tai! 🍹",
       });
 
       // Small delay to let auth state propagate before navigation
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Redirect to workspace chat
       // Note: Don't set isLoading=false here - keep showing loading screen until navigation completes
       router.push(`/workspaces/${regResponse.workspace.id}?onboarding=true`);
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'Please try again';
+      const message =
+        err instanceof ApiError ? err.message : "Please try again";
       setError(message);
       toast({
-        variant: 'destructive',
-        title: 'Registration failed',
+        variant: "destructive",
+        title: "Registration failed",
         description: message,
       });
       // Only reset loading on error - on success, keep loading screen until navigation
@@ -159,7 +181,7 @@ export default function RegisterPage() {
   }
 
   // Show loading screen while processing OAuth callback or email/password registration
-  if (processingOAuth || status === 'loading' || isLoading) {
+  if (processingOAuth || status === "loading" || isLoading) {
     return (
       <div className="relative flex min-h-screen flex-col items-center justify-center bg-gray-900">
         {/* Background gradient */}
@@ -174,12 +196,25 @@ export default function RegisterPage() {
             alt="Mai-Tai"
             className="h-20 w-20 rounded-full object-cover shadow-lg shadow-indigo-500/30 animate-pulse"
           />
-          <h1 className="text-gradient mt-6 text-3xl font-bold">Setting up your workspace...</h1>
-          <p className="mt-3 text-gray-400">Just a moment while we get everything ready</p>
+          <h1 className="text-gradient mt-6 text-3xl font-bold">
+            Setting up your workspace...
+          </h1>
+          <p className="mt-3 text-gray-400">
+            Just a moment while we get everything ready
+          </p>
           <div className="mt-8 flex space-x-2">
-            <div className="h-2 w-2 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-            <div className="h-2 w-2 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-            <div className="h-2 w-2 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div
+              className="h-2 w-2 rounded-full bg-indigo-500 animate-bounce"
+              style={{ animationDelay: "0ms" }}
+            />
+            <div
+              className="h-2 w-2 rounded-full bg-indigo-500 animate-bounce"
+              style={{ animationDelay: "150ms" }}
+            />
+            <div
+              className="h-2 w-2 rounded-full bg-indigo-500 animate-bounce"
+              style={{ animationDelay: "300ms" }}
+            />
           </div>
         </div>
       </div>
@@ -196,7 +231,10 @@ export default function RegisterPage() {
 
       {/* Logo */}
       <div className="relative z-40 mt-10 flex flex-col items-center px-4 sm:mx-auto sm:w-full sm:max-w-md">
-        <Link href="/" className="flex items-center space-x-4 transition hover:opacity-80">
+        <Link
+          href="/"
+          className="flex items-center space-x-4 transition hover:opacity-80"
+        >
           <img
             src="/logo.png"
             alt="Mai-Tai"
@@ -204,14 +242,14 @@ export default function RegisterPage() {
           />
           <h1 className="text-gradient text-4xl font-bold">Mai-Tai</h1>
         </Link>
-        <p className="mt-4 text-gray-400">AI Agent Collaboration Platform</p>
+        <p className="mt-4 text-gray-400">Your data stays on your machine.</p>
       </div>
 
       {/* Register card */}
       <div className="relative z-50 mt-10 sm:mx-auto sm:w-full sm:max-w-md">
         <div
           className="mx-4 rounded-xl border border-gray-700 bg-gray-800/50 shadow-xl sm:mx-0"
-          style={{ backdropFilter: 'blur(12px)' }}
+          style={{ backdropFilter: "blur(12px)" }}
         >
           {/* Error message */}
           <Transition
@@ -233,7 +271,7 @@ export default function RegisterPage() {
 
           <div className="px-8 py-10 sm:px-10">
             <h2 className="mb-6 text-center text-xl font-bold text-gray-100">
-              Create your account
+              Create a local account
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -278,7 +316,7 @@ export default function RegisterPage() {
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-3 text-base font-medium text-white shadow-lg shadow-indigo-500/25 transition hover:from-indigo-500 hover:to-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <UserPlusIcon className="h-5 w-5" />
-                {isLoading ? 'Creating account...' : 'Create account'}
+                {isLoading ? "Creating account..." : "Create local account"}
               </button>
             </form>
 
@@ -287,7 +325,9 @@ export default function RegisterPage() {
               <>
                 <div className="mt-6 flex items-center">
                   <div className="flex-grow border-t border-gray-600" />
-                  <span className="mx-4 flex-shrink text-sm text-gray-500">or sign up with</span>
+                  <span className="mx-4 flex-shrink text-sm text-gray-500">
+                    or continue with
+                  </span>
                   <div className="flex-grow border-t border-gray-600" />
                 </div>
 
@@ -301,7 +341,7 @@ export default function RegisterPage() {
                       className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-600 bg-gray-700/50 px-4 py-3 text-sm font-medium text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <GitHubIcon className="h-5 w-5" />
-                      {oauthLoading === 'github' ? 'Signing up...' : 'GitHub'}
+                      {oauthLoading === "github" ? "Connecting..." : "GitHub"}
                     </button>
                   )}
                   {oauthProviders.google && (
@@ -312,7 +352,7 @@ export default function RegisterPage() {
                       className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-600 bg-gray-700/50 px-4 py-3 text-sm font-medium text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <GoogleIcon className="h-5 w-5" />
-                      {oauthLoading === 'google' ? 'Signing up...' : 'Google'}
+                      {oauthLoading === "google" ? "Connecting..." : "Google"}
                     </button>
                   )}
                 </div>
@@ -320,7 +360,7 @@ export default function RegisterPage() {
             )}
 
             <p className="mt-6 text-center text-sm text-gray-400">
-              Already have an account?{' '}
+              Already have an account?{" "}
               <Link
                 href="/login"
                 className="font-medium text-indigo-400 transition hover:text-indigo-300"
@@ -334,4 +374,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-

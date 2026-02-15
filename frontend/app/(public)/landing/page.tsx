@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
+import Link from "next/link";
 
 export default function LandingPage() {
   return (
@@ -15,7 +15,11 @@ export default function LandingPage() {
       <nav className="fixed top-0 z-50 w-full border-b border-gray-800 bg-gray-900/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Mai-Tai" className="h-10 w-10 rounded-full" />
+            <img
+              src="/logo.png"
+              alt="Mai-Tai"
+              className="h-10 w-10 rounded-full"
+            />
             <span className="text-xl font-bold text-white">Mai-Tai</span>
           </div>
           <div className="flex items-center gap-4">
@@ -29,7 +33,7 @@ export default function LandingPage() {
               href="/register"
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
             >
-              Sign Up
+              Get Started
             </Link>
           </div>
         </div>
@@ -41,13 +45,14 @@ export default function LandingPage() {
           {/* Left: Copy */}
           <div className="text-center md:text-left">
             <h1 className="text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
-              Your AI coding agent,{' '}
+              Your AI coding agent,{" "}
               <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
                 in your pocket.
               </span>
             </h1>
             <p className="mt-6 text-lg text-gray-400 sm:text-xl">
-              Talk to your agent from anywhere — your phone, your laptop, or the beach.
+              Talk to your agent from anywhere — your phone, your laptop, or the
+              beach.
             </p>
             <div className="mt-8">
               <Link
@@ -86,7 +91,10 @@ export default function LandingPage() {
       <section className="relative z-10 border-t border-gray-800 py-16">
         <div className="mx-auto max-w-3xl px-4 text-center">
           <p className="text-lg text-gray-300 leading-relaxed">
-            Sometimes you gotta step away, man. Go surf, grab a coffee, live your life. Mai-tai keeps you connected to your agent so you can check in, answer questions, and ship features — from wherever, whenever.
+            Sometimes you gotta step away, man. Go surf, grab a coffee, live
+            your life. Mai-tai keeps you connected to your agent so you can
+            check in, answer questions, and ship features — from wherever,
+            whenever.
           </p>
         </div>
       </section>
@@ -94,7 +102,9 @@ export default function LandingPage() {
       {/* How It Works */}
       <section className="relative z-10 border-t border-gray-800 py-24">
         <div className="mx-auto max-w-6xl px-4">
-          <h2 className="text-center text-3xl font-bold text-white sm:text-4xl">How It Works</h2>
+          <h2 className="text-center text-3xl font-bold text-white sm:text-4xl">
+            How It Works
+          </h2>
           <div className="mt-16 grid gap-8 sm:grid-cols-3">
             {/* Step 1 */}
             <div className="text-center">
@@ -103,7 +113,8 @@ export default function LandingPage() {
               </div>
               <h3 className="mt-6 text-xl font-semibold text-white">Connect</h3>
               <p className="mt-2 text-gray-400">
-                Add mai-tai to your AI agent via MCP. Works with Claude Desktop, Augment, and more.
+                Add mai-tai to your AI agent via MCP. Works with Claude Desktop,
+                Augment, and more.
               </p>
             </div>
             {/* Step 2 */}
@@ -111,9 +122,12 @@ export default function LandingPage() {
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600/20 text-3xl">
                 🏄
               </div>
-              <h3 className="mt-6 text-xl font-semibold text-white">Step Away</h3>
+              <h3 className="mt-6 text-xl font-semibold text-white">
+                Step Away
+              </h3>
               <p className="mt-2 text-gray-400">
-                Your agent keeps working while you live your life. Go surf, shop, or grab coffee.
+                Your agent keeps working while you live your life. Go surf,
+                shop, or grab coffee.
               </p>
             </div>
             {/* Step 3 */}
@@ -121,9 +135,12 @@ export default function LandingPage() {
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600/20 text-3xl">
                 📱
               </div>
-              <h3 className="mt-6 text-xl font-semibold text-white">Check In</h3>
+              <h3 className="mt-6 text-xl font-semibold text-white">
+                Check In
+              </h3>
               <p className="mt-2 text-gray-400">
-                Pull up mai-tai on your phone. Answer questions, review progress, ship features.
+                Pull up mai-tai on your phone. Answer questions, review
+                progress, ship features.
               </p>
             </div>
           </div>
@@ -133,7 +150,9 @@ export default function LandingPage() {
       {/* Works With */}
       <section className="relative z-10 border-t border-gray-800 py-24">
         <div className="mx-auto max-w-6xl px-4">
-          <h2 className="text-center text-3xl font-bold text-white sm:text-4xl">Works With Your Agent</h2>
+          <h2 className="text-center text-3xl font-bold text-white sm:text-4xl">
+            Works With Your Agent
+          </h2>
           <p className="mt-4 text-center text-gray-400">
             Any MCP-compatible AI coding agent
           </p>
@@ -169,9 +188,12 @@ export default function LandingPage() {
       {/* CTA Section */}
       <section className="relative z-10 border-t border-gray-800 py-24">
         <div className="mx-auto max-w-2xl px-4 text-center">
-          <h2 className="text-3xl font-bold text-white sm:text-4xl">Ready to try it?</h2>
+          <h2 className="text-3xl font-bold text-white sm:text-4xl">
+            Ready to try it?
+          </h2>
           <p className="mt-4 text-lg text-gray-400">
-            100% local. Runs entirely on your machine. No data leaves your network.
+            100% local. Runs entirely on your machine. No data leaves your
+            network.
           </p>
           <div className="mt-8">
             <Link
@@ -193,4 +215,3 @@ export default function LandingPage() {
     </div>
   );
 }
-
