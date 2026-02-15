@@ -170,7 +170,7 @@ local_cmd() {
                 echo ""
                 echo "To start fresh:"
                 echo "  1. ./dev.sh local up"
-                echo "  2. Register a new account at http://localhost:3000"
+                echo "  2. Create a local account at http://localhost:3000"
                 echo "  3. Paste the setup blob to your agent"
             else
                 log_info "Aborted. (You must type 'nuke' to confirm)"

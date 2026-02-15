@@ -32,20 +32,22 @@ cp .env.example .env
 ./dev.sh local up
 ```
 
-That's it! Visit **http://localhost:3000** to create your account.
+That's it! Visit **http://localhost:3000** to create a local account.
 
 This starts:
+
 - **Frontend** at http://localhost:3000
 - **Backend API** at http://localhost:8000
 - **PostgreSQL** database
 
-The first user to register automatically becomes an admin.
+The first account created automatically becomes admin.
 
 ### Connect an AI agent
 
-Once running, go to the web UI at http://localhost:3000, create an account, and follow the onboarding flow. It will generate a setup blob that you paste to your agent - the agent handles the rest.
+Once running, go to the web UI at http://localhost:3000, create a local account, and follow the onboarding flow. It will generate a setup blob that you paste to your agent - the agent handles the rest.
 
 The MCP server runs via `uvx` (no pip install needed):
+
 ```bash
 uvx --refresh mai-tai-mcp
 ```
@@ -104,13 +106,13 @@ This is automatically configured when your agent executes the setup blob.
 
 See `.env.example` for all configuration options. Key settings:
 
-| Variable | Description |
-|----------|-------------|
-| `SECRET_KEY` | JWT signing key (change in production!) |
-| `GITHUB_CLIENT_ID/SECRET` | GitHub OAuth credentials (optional) |
-| `GOOGLE_CLIENT_ID/SECRET` | Google OAuth credentials (optional) |
-| `NEXTAUTH_SECRET` | NextAuth session encryption |
-| `EXTRA_CORS_ORIGIN` | Additional CORS origin for LAN access |
+| Variable                  | Description                             |
+| ------------------------- | --------------------------------------- |
+| `SECRET_KEY`              | JWT signing key (change in production!) |
+| `GITHUB_CLIENT_ID/SECRET` | GitHub OAuth credentials (optional)     |
+| `GOOGLE_CLIENT_ID/SECRET` | Google OAuth credentials (optional)     |
+| `NEXTAUTH_SECRET`         | NextAuth session encryption             |
+| `EXTRA_CORS_ORIGIN`       | Additional CORS origin for LAN access   |
 
 ### LAN Access (Optional)
 
@@ -142,4 +144,3 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for gu
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
-
