@@ -9,6 +9,7 @@ import {
   Cog6ToothIcon,
   ShieldCheckIcon,
   BookOpenIcon,
+  BookmarkIcon,
   XMarkIcon,
   ChevronDownIcon,
   ChevronRightIcon,
@@ -21,6 +22,7 @@ import {
   Cog6ToothIcon as Cog6ToothIconSolid,
   ShieldCheckIcon as ShieldCheckIconSolid,
   BookOpenIcon as BookOpenIconSolid,
+  BookmarkIcon as BookmarkIconSolid,
 } from '@heroicons/react/24/solid';
 import { useAuth } from '@/lib/auth';
 import { getWorkspaces, Workspace } from '@/lib/api';
@@ -52,6 +54,13 @@ const navLinks: SidebarLink[] = [
     activeIcon: ChatBubbleLeftRightIconSolid,
     activePattern: /^\/workspaces/,
     hasChildren: true,
+  },
+  {
+    href: '/stash',
+    label: 'Stash',
+    icon: BookmarkIcon,
+    activeIcon: BookmarkIconSolid,
+    activePattern: /^\/stash/,
   },
   {
     href: '/settings',

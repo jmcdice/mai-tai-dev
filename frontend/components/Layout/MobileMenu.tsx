@@ -6,11 +6,11 @@ import { Transition } from '@headlessui/react';
 import {
   HomeIcon,
   ChatBubbleLeftRightIcon,
-  MagnifyingGlassIcon,
   EllipsisHorizontalIcon,
   XMarkIcon,
   Cog6ToothIcon,
   BookOpenIcon,
+  BookmarkIcon,
   ChatBubbleLeftEllipsisIcon,
   ShieldCheckIcon,
   ArrowRightOnRectangleIcon,
@@ -71,17 +71,6 @@ export default function MobileMenu() {
     setIsMoreOpen(false);
     setShowShortcuts(false);
   }, [showWorkspaces, fetchWorkspaces]);
-
-  const handleSearchClick = useCallback(() => {
-    // Focus the search input in the header
-    const searchInput = document.querySelector('input[type="search"], input[placeholder*="Search"]') as HTMLInputElement;
-    if (searchInput) {
-      searchInput.focus();
-    }
-    setShowShortcuts(false);
-    setShowWorkspaces(false);
-    setIsMoreOpen(false);
-  }, []);
 
   const handleShortcutsClick = useCallback(() => {
     if (!isInChatContext) return;
@@ -172,6 +161,15 @@ export default function MobileMenu() {
           >
             <ChatBubbleLeftRightIcon className="h-5 w-5" />
             <span className="font-medium">Workspaces</span>
+          </button>
+
+          {/* Stash */}
+          <button
+            onClick={() => handleNavigation('/stash')}
+            className="flex w-full items-center gap-3 text-gray-200 hover:text-white transition-colors"
+          >
+            <BookmarkIcon className="h-5 w-5" />
+            <span className="font-medium">Stash</span>
           </button>
 
           {/* Settings */}
@@ -298,14 +296,16 @@ export default function MobileMenu() {
             <span className="mt-1">{showWorkspaces ? 'Close' : 'Workspaces'}</span>
           </button>
 
-          {/* Search */}
+          {/* Stash */}
           <button
             type="button"
-            onClick={handleSearchClick}
-            className="flex flex-1 flex-col items-center py-3 text-xs font-medium text-gray-400 active:text-gray-200 transition-colors touch-manipulation"
+            onClick={() => handleNavigation('/stash')}
+            className={`flex flex-1 flex-col items-center py-3 text-xs font-medium transition-colors touch-manipulation ${
+              /^\/stash/.test(pathname) ? 'text-indigo-400' : 'text-gray-400 active:text-gray-200'
+            }`}
           >
-            <MagnifyingGlassIcon className="h-6 w-6" />
-            <span className="mt-1">Search</span>
+            <BookmarkIcon className="h-6 w-6" />
+            <span className="mt-1">Stash</span>
           </button>
 
           {/* Quick Shortcuts - only active in chat context */}
