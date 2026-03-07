@@ -1,5 +1,6 @@
 """StashAI API endpoints - personal link manager."""
 
+import logging
 import re
 from datetime import datetime
 from uuid import UUID
@@ -19,6 +20,9 @@ from app.schemas.stash import (
     StashLinkUpdate,
     UrlMetadata,
 )
+from app.services.ai import PROVIDER_MODELS, enrich_link
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/stash", tags=["stash"])
 
@@ -42,8 +46,46 @@ def _first_match(*patterns, html: str) -> str | None:
     return None
 
 
+async def _fetch_tweet_metadata(url: str) -> UrlMetadata | None:
+    """Fetch tweet content via vxtwitter API for x.com/twitter.com links."""
+    try:
+        # Extract username and tweet ID from URL
+        m = re.match(r'https?://(?:x\.com|twitter\.com)/(\w+)/status/(\d+)', url)
+        if not m:
+            return None
+        username, tweet_id = m.group(1), m.group(2)
+        api_url = f"https://api.vxtwitter.com/{username}/status/{tweet_id}"
+
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(api_url)
+            resp.raise_for_status()
+            data = resp.json()
+
+        user_name = data.get("user_name", username)
+        text = data.get("text", "")
+        thumbnail = None
+        media_urls = data.get("mediaURLs", [])
+        if media_urls:
+            thumbnail = media_urls[0]
+
+        return UrlMetadata(
+            url=url,
+            title=f"@{data.get('user_screen_name', username)}: {text[:100]}",
+            description=f"{user_name} (@{data.get('user_screen_name', username)}): {text}",
+            thumbnail_url=thumbnail,
+        )
+    except Exception:
+        return None
+
+
 async def _fetch_url_metadata(url: str) -> UrlMetadata:
     """Fetch a URL and extract OG metadata."""
+    # Special handling for x.com / twitter.com links
+    if re.match(r'https?://(?:x\.com|twitter\.com)/\w+/status/\d+', url):
+        tweet_meta = await _fetch_tweet_metadata(url)
+        if tweet_meta:
+            return tweet_meta
+
     try:
         headers = {
             "User-Agent": "Mozilla/5.0 (compatible; StashAI/1.0; +https://github.com/jmcdice/mai-tai-dev)",
@@ -77,6 +119,14 @@ async def fetch_metadata(
     return await _fetch_url_metadata(url)
 
 
+@router.get("/ai-models")
+async def get_ai_models(
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return available AI providers and their models."""
+    return {"providers": PROVIDER_MODELS}
+
+
 @router.post("", response_model=StashLinkResponse, status_code=status.HTTP_201_CREATED)
 async def create_link(
     data: StashLinkCreate,
@@ -108,6 +158,41 @@ async def create_link(
     db.add(link)
     await db.commit()
     await db.refresh(link)
+
+    # AI enrichment — if user has LLM settings configured
+    settings = current_user.settings or {}
+    llm_provider = settings.get("stash_llm_provider")
+    llm_model = settings.get("stash_llm_model")
+    llm_api_key = settings.get("stash_llm_api_key")
+
+    if llm_provider and llm_model and llm_api_key:
+        try:
+            enriched = await enrich_link(
+                url=link.url,
+                title=title,
+                description=description,
+                provider=llm_provider,
+                model=llm_model,
+                api_key=llm_api_key,
+                ollama_base_url=settings.get("stash_ollama_base_url"),
+            )
+            if enriched:
+                if "title" in enriched:
+                    link.ai_title = enriched["title"]
+                if "summary" in enriched:
+                    link.summary = enriched["summary"]
+                if "tags" in enriched:
+                    link.ai_tags = enriched["tags"]
+                    # Merge AI tags with user-provided tags (no duplicates)
+                    existing = set(link.tags or [])
+                    new_tags = [t for t in enriched["tags"] if t not in existing]
+                    if new_tags:
+                        link.tags = list(existing) + new_tags
+                await db.commit()
+                await db.refresh(link)
+        except Exception as e:
+            logger.warning(f"AI enrichment failed for link {link.id}: {e}")
+
     return link
 
 

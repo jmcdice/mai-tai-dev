@@ -35,6 +35,9 @@ class StashLinkResponse(BaseModel):
     tags: list[str]
     status: str
     notes: str | None
+    summary: str | None = None
+    ai_title: str | None = None
+    ai_tags: list[str] | None = None
     created_at: datetime
     updated_at: datetime
 

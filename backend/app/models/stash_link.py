@@ -23,6 +23,9 @@ class StashLink(Base):
     tags: Mapped[list] = mapped_column(ARRAY(String(100)), default=list, server_default="{}")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="unread")  # unread, read, archived
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    ai_tags: Mapped[list | None] = mapped_column(ARRAY(String(100)), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
 

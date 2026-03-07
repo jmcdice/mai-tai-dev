@@ -92,6 +92,10 @@ export interface UserSettings {
   timezone?: string | null;
   time_format?: '12h' | '24h' | null;
   shortcuts?: UserShortcut[] | null;
+  stash_llm_provider?: string | null;
+  stash_llm_model?: string | null;
+  stash_llm_api_key?: string | null;
+  stash_ollama_base_url?: string | null;
 }
 
 export interface User {
@@ -512,8 +516,24 @@ export interface StashLink {
   tags: string[];
   status: 'unread' | 'read' | 'archived';
   notes: string | null;
+  summary: string | null;
+  ai_title: string | null;
+  ai_tags: string[] | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface AiModelOption {
+  id: string;
+  label: string;
+}
+
+export interface AiProvidersResponse {
+  providers: Record<string, AiModelOption[]>;
+}
+
+export async function getAiModels(token: string): Promise<AiProvidersResponse> {
+  return api('/api/v1/stash/ai-models', { token });
 }
 
 export interface StashLinkListResponse {

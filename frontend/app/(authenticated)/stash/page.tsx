@@ -7,7 +7,6 @@ import {
   TrashIcon,
   CheckIcon,
   ArchiveBoxIcon,
-  TagIcon,
 } from '@heroicons/react/24/outline';
 import { BookmarkIcon as BookmarkIconSolid } from '@heroicons/react/24/solid';
 import { useAuth } from '@/lib/auth';
@@ -21,10 +20,10 @@ import {
 } from '@/lib/api';
 
 const STATUS_TABS = [
+  { value: '', label: 'All' },
   { value: 'unread', label: 'Unread' },
   { value: 'read', label: 'Read' },
   { value: 'archived', label: 'Archived' },
-  { value: '', label: 'All' },
 ];
 
 function getDomain(url: string): string {
@@ -60,9 +59,7 @@ export default function StashPage() {
   const [links, setLinks] = useState<StashLink[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('unread');
-  const [allTags, setAllTags] = useState<string[]>([]);
-  const [tagFilter, setTagFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [addUrl, setAddUrl] = useState('');
   const [addTags, setAddTags] = useState('');
@@ -75,24 +72,16 @@ export default function StashPage() {
     try {
       const res = await listStashLinks(token, {
         status: statusFilter || undefined,
-        tag: tagFilter || undefined,
         limit: 100,
       });
       setLinks(res.links);
       setTotal(res.total);
-
-      // Collect tags from all unfiltered links
-      if (!tagFilter) {
-        const tagSet = new Set<string>();
-        res.links.forEach((l) => l.tags.forEach((t) => tagSet.add(t)));
-        setAllTags(Array.from(tagSet).sort());
-      }
     } catch (e) {
       console.error('Failed to load stash:', e);
     } finally {
       setIsLoading(false);
     }
-  }, [token, statusFilter, tagFilter]);
+  }, [token, statusFilter]);
 
   useEffect(() => {
     fetchLinks();
@@ -165,20 +154,6 @@ export default function StashPage() {
             {tab.label}
           </button>
         ))}
-        {allTags.map((tag) => (
-          <button
-            key={tag}
-            onClick={() => setTagFilter(tagFilter === tag ? '' : tag)}
-            className={`flex-shrink-0 flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition ${
-              tagFilter === tag
-                ? 'bg-violet-700 text-white'
-                : 'bg-gray-800 text-gray-500 hover:text-white border border-gray-700'
-            }`}
-          >
-            <TagIcon className="h-3 w-3" />
-            {tag}
-          </button>
-        ))}
       </div>
 
       {/* Links */}
@@ -190,11 +165,11 @@ export default function StashPage() {
         <div className="flex flex-col items-center justify-center rounded-xl border border-gray-800 bg-gray-900/30 p-10 text-center">
           <BookmarkIconSolid className="h-10 w-10 text-gray-700" />
           <p className="mt-3 text-sm text-gray-500">
-            {tagFilter ? 'No links with that tag' : 'Nothing stashed yet — tap Add to save your first link'}
+            Nothing stashed yet — tap Add to save your first link
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="max-w-full overflow-x-hidden space-y-2">
           {links.map((link) => (
             <LinkCard
               key={link.id}
@@ -256,6 +231,11 @@ export default function StashPage() {
   );
 }
 
+function truncateTitle(text: string, max = 80): string {
+  if (text.length <= max) return text;
+  return text.slice(0, max) + '…';
+}
+
 function LinkCard({
   link,
   onStatusChange,
@@ -267,105 +247,130 @@ function LinkCard({
 }) {
   const domain = getDomain(link.url);
   const favicon = getFavicon(link.url);
-  const [thumbError, setThumbError] = useState(false);
   const [favError, setFavError] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  // Prefer AI title over OG title
+  const displayTitle = link.ai_title || link.title || domain;
 
   return (
     <div
-      className={`group flex gap-3 rounded-xl border px-3 py-2.5 transition ${
+      className={`w-full overflow-hidden rounded-xl border transition ${
         link.status === 'archived'
-          ? 'border-gray-800 bg-gray-900/20 opacity-50'
-          : 'border-gray-700 bg-gray-800/50 hover:border-indigo-700/40'
+          ? 'border-gray-800 bg-gray-900/20 opacity-60'
+          : 'border-gray-700/60 bg-gray-800/40'
       }`}
     >
-      {/* Thumbnail / favicon */}
-      <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-gray-700">
-        {link.thumbnail_url && !thumbError ? (
-          <img
-            src={link.thumbnail_url}
-            alt=""
-            className="h-full w-full object-cover"
-            onError={() => setThumbError(true)}
-          />
-        ) : !favError ? (
-          <div className="flex h-full w-full items-center justify-center">
+      {/* Main content area — tappable */}
+      <a
+        href={link.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block px-3.5 pt-3 pb-1"
+      >
+        {/* Title */}
+        <p className={`text-[15px] font-semibold leading-snug line-clamp-2 ${
+          link.status === 'read' ? 'text-gray-400' : 'text-white'
+        }`}>
+          {displayTitle}
+        </p>
+
+        {/* Source row: favicon + domain + time */}
+        <div className="mt-1.5 flex items-center gap-1.5">
+          {!favError ? (
             <img
               src={favicon}
               alt=""
-              className="h-6 w-6 opacity-60"
+              className="h-3.5 w-3.5 rounded-sm opacity-50"
               onError={() => setFavError(true)}
             />
-          </div>
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <LinkIcon className="h-5 w-5 text-gray-500" />
-          </div>
-        )}
-      </div>
-
-      {/* Text + actions stacked vertically */}
-      <div className="flex-1 min-w-0">
-        {/* Title */}
-        <a
-          href={link.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`block text-sm font-semibold truncate transition hover:text-indigo-400 ${
-            link.status === 'read' ? 'text-gray-400' : 'text-white'
-          }`}
-          onClick={() => {
-            if (link.status === 'unread') onStatusChange(link, 'read');
-          }}
-        >
-          {link.title || domain}
-        </a>
-
-        {/* Domain + time on same line */}
-        <p className="text-xs text-gray-600">
-          {domain} · {timeAgo(link.created_at)}
-        </p>
-
-        {/* Actions below */}
-        <div className="mt-1.5 flex items-center gap-0.5">
-          {link.status === 'unread' && (
-            <button
-              onClick={() => onStatusChange(link, 'read')}
-              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 hover:text-green-400 hover:bg-green-900/20 transition"
-            >
-              <CheckIcon className="h-3.5 w-3.5" />
-              Read
-            </button>
-          )}
-          {link.status !== 'archived' ? (
-            <button
-              onClick={() => onStatusChange(link, 'archived')}
-              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 hover:text-gray-300 hover:bg-gray-700/50 transition"
-            >
-              <ArchiveBoxIcon className="h-3.5 w-3.5" />
-              Archive
-            </button>
           ) : (
-            <button
-              onClick={() => onStatusChange(link, 'unread')}
-              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 hover:text-gray-300 hover:bg-gray-700/50 transition"
-            >
-              <BookmarkIconSolid className="h-3.5 w-3.5" />
-              Restore
-            </button>
+            <LinkIcon className="h-3.5 w-3.5 text-gray-600" />
           )}
+          <span className="text-xs text-gray-500 truncate">{domain}</span>
+          <span className="text-xs text-gray-700">·</span>
+          <span className="text-xs text-gray-600 flex-shrink-0">{timeAgo(link.created_at)}</span>
+        </div>
+      </a>
+
+      {/* AI Summary — always visible when present, collapsed to 2 lines */}
+      {link.summary && (
+        <div className="px-3.5 pt-1.5">
+          <p
+            onClick={() => setExpanded(!expanded)}
+            className={`text-xs text-gray-400 leading-relaxed cursor-pointer ${
+              expanded ? '' : 'line-clamp-2'
+            }`}
+          >
+            {link.summary}
+          </p>
+        </div>
+      )}
+
+      {/* Tags */}
+      {link.tags.length > 0 && (
+        <div className="px-3.5 pt-1.5 flex flex-wrap gap-1">
+          {link.tags.map(t => (
+            <span key={t} className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-400/80">
+              {t}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Action bar */}
+      <div className="flex items-center border-t border-gray-700/40 mt-2">
+        {link.status === 'unread' && (
           <button
-            onClick={() => onDelete(link.id)}
-            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 hover:text-red-400 hover:bg-red-900/20 transition"
+            onClick={() => onStatusChange(link, 'read')}
+            className="flex flex-1 items-center justify-center gap-1 py-2 text-xs text-gray-500 hover:text-green-400 hover:bg-green-900/10 transition"
+          >
+            <CheckIcon className="h-3.5 w-3.5" />
+            Read
+          </button>
+        )}
+        {link.status !== 'archived' ? (
+          <button
+            onClick={() => onStatusChange(link, 'archived')}
+            className="flex flex-1 items-center justify-center gap-1 py-2 text-xs text-gray-500 hover:text-gray-300 hover:bg-gray-700/30 transition"
+          >
+            <ArchiveBoxIcon className="h-3.5 w-3.5" />
+            Archive
+          </button>
+        ) : (
+          <button
+            onClick={() => onStatusChange(link, 'unread')}
+            className="flex flex-1 items-center justify-center gap-1 py-2 text-xs text-gray-500 hover:text-gray-300 hover:bg-gray-700/30 transition"
+          >
+            <BookmarkIconSolid className="h-3.5 w-3.5" />
+            Restore
+          </button>
+        )}
+        {confirmDelete ? (
+          <>
+            <button
+              onClick={() => onDelete(link.id)}
+              className="flex flex-1 items-center justify-center gap-1 py-2 text-xs text-red-400 bg-red-900/20 hover:bg-red-900/40 transition"
+            >
+              Sure?
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="flex flex-1 items-center justify-center py-2 text-xs text-gray-500 hover:text-gray-300 transition"
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="flex flex-1 items-center justify-center gap-1 py-2 text-xs text-gray-500 hover:text-red-400 hover:bg-red-900/10 transition"
           >
             <TrashIcon className="h-3.5 w-3.5" />
             Delete
           </button>
-          {link.tags.length > 0 && (
-            <span className="ml-1 text-xs text-violet-400/60">
-              {link.tags.map(t => `#${t}`).join(' ')}
-            </span>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );

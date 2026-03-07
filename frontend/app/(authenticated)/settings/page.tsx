@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { getMe, updateMe, changePassword, getUserApiKeys, createUserApiKey, deleteUserApiKey, regenerateUserApiKey, ApiError, UserSettings, UserShortcut, ApiKey } from '@/lib/api';
-import { CheckCircleIcon, XCircleIcon, UserCircleIcon, KeyIcon, Cog6ToothIcon, PlusIcon, PencilIcon, TrashIcon, BoltIcon, ClipboardDocumentIcon, EyeIcon, EyeSlashIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
+import { getMe, updateMe, changePassword, getUserApiKeys, createUserApiKey, deleteUserApiKey, regenerateUserApiKey, getAiModels, ApiError, UserSettings, UserShortcut, ApiKey, AiModelOption } from '@/lib/api';
+import { CheckCircleIcon, XCircleIcon, UserCircleIcon, KeyIcon, Cog6ToothIcon, PlusIcon, PencilIcon, TrashIcon, BoltIcon, ClipboardDocumentIcon, EyeIcon, EyeSlashIcon, ArrowPathIcon, SparklesIcon } from '@heroicons/react/24/solid';
 import { defaultShortcuts, MAX_SHORTCUTS, MAX_LABEL_LENGTH, MAX_TEXT_LENGTH } from '@/lib/chat-shortcuts';
 import { events, USER_UPDATED } from '@/lib/events';
 
@@ -26,7 +26,7 @@ const COMMON_TIMEZONES = [
   'Pacific/Auckland',
 ];
 
-type Tab = 'profile' | 'password' | 'preferences' | 'shortcuts' | 'api-keys';
+type Tab = 'profile' | 'password' | 'preferences' | 'shortcuts' | 'api-keys' | 'ai';
 
 const tabs: { id: Tab; name: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'profile', name: 'Profile', icon: UserCircleIcon },
@@ -34,13 +34,14 @@ const tabs: { id: Tab; name: string; icon: React.ComponentType<{ className?: str
   { id: 'preferences', name: 'Preferences', icon: Cog6ToothIcon },
   { id: 'shortcuts', name: 'Shortcuts', icon: BoltIcon },
   { id: 'api-keys', name: 'API Keys', icon: KeyIcon },
+  { id: 'ai', name: 'AI', icon: SparklesIcon },
 ];
 
 export default function SettingsPage() {
   const { token, refreshUser } = useAuth();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab') as Tab | null;
-  const [activeTab, setActiveTab] = useState<Tab>(tabParam && ['profile', 'password', 'preferences', 'shortcuts', 'api-keys'].includes(tabParam) ? tabParam : 'profile');
+  const [activeTab, setActiveTab] = useState<Tab>(tabParam && ['profile', 'password', 'preferences', 'shortcuts', 'api-keys', 'ai'].includes(tabParam) ? tabParam : 'profile');
   const [name, setName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [email, setEmail] = useState('');
@@ -70,6 +71,16 @@ export default function SettingsPage() {
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
+  // AI settings state
+  const [aiProvider, setAiProvider] = useState('');
+  const [aiModel, setAiModel] = useState('');
+  const [aiApiKey, setAiApiKey] = useState('');
+  const [aiOllamaBaseUrl, setAiOllamaBaseUrl] = useState('http://localhost:11434');
+  const [showAiApiKey, setShowAiApiKey] = useState(false);
+  const [aiProviderModels, setAiProviderModels] = useState<Record<string, AiModelOption[]>>({});
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiMessage, setAiMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   useEffect(() => {
     if (token) {
       getMe(token).then((user) => {
@@ -79,6 +90,11 @@ export default function SettingsPage() {
         setTimezone(user.settings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone);
         setTimeFormat(user.settings?.time_format || '12h');
         setShortcuts(user.settings?.shortcuts || []);
+        // AI settings
+        setAiProvider(user.settings?.stash_llm_provider || '');
+        setAiModel(user.settings?.stash_llm_model || '');
+        setAiApiKey(user.settings?.stash_llm_api_key || '');
+        setAiOllamaBaseUrl(user.settings?.stash_ollama_base_url || 'http://localhost:11434');
       });
     }
   }, [token]);
@@ -93,6 +109,41 @@ export default function SettingsPage() {
         .finally(() => setIsApiKeysLoading(false));
     }
   }, [token, activeTab]);
+
+  // Load AI models when tab is active
+  useEffect(() => {
+    if (token && activeTab === 'ai') {
+      getAiModels(token)
+        .then((res) => setAiProviderModels(res.providers))
+        .catch(() => setAiMessage({ type: 'error', text: 'Failed to load AI models' }));
+    }
+  }, [token, activeTab]);
+
+  const handleAiSave = async () => {
+    if (!token) return;
+    setIsAiLoading(true);
+    setAiMessage(null);
+    try {
+      await updateMe(token, {
+        settings: {
+          timezone,
+          time_format: timeFormat,
+          shortcuts: shortcuts.length > 0 ? shortcuts : null,
+          stash_llm_provider: aiProvider || null,
+          stash_llm_model: aiModel || null,
+          stash_llm_api_key: aiApiKey || null,
+          stash_ollama_base_url: aiProvider === 'ollama' ? aiOllamaBaseUrl : null,
+        },
+      });
+      await refreshUser();
+      setAiMessage({ type: 'success', text: 'AI settings saved!' });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Failed to save AI settings';
+      setAiMessage({ type: 'error', text: msg });
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
 
   const handleCreateApiKey = async () => {
     if (!token || !newApiKeyName.trim()) return;
@@ -825,6 +876,140 @@ export default function SettingsPage() {
               <li>Add the workspace ID to each project (.env.mai-tai)</li>
               <li>Configure your AI agent to use the mai-tai MCP server</li>
             </ol>
+          </div>
+        </div>
+      )}
+
+      {/* AI Tab */}
+      {activeTab === 'ai' && (
+        <div className="rounded-xl border border-gray-700 bg-gray-800/50 p-6">
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold text-white">AI Settings</h2>
+            <p className="mt-1 text-gray-400">
+              Configure an LLM to automatically generate summaries, titles, and tags when you save links to Stash.
+            </p>
+          </div>
+
+          {aiMessage && (
+            <div className={`mb-4 flex items-center gap-2 rounded-lg p-3 ${aiMessage.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+              {aiMessage.type === 'success' ? <CheckCircleIcon className="h-5 w-5" /> : <XCircleIcon className="h-5 w-5" />}
+              {aiMessage.text}
+            </div>
+          )}
+
+          <div className="max-w-lg space-y-4">
+            {/* Provider */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300">Provider</label>
+              <select
+                value={aiProvider}
+                onChange={(e) => {
+                  setAiProvider(e.target.value);
+                  setAiModel(''); // Reset model when provider changes
+                }}
+                className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+              >
+                <option value="">Select a provider...</option>
+                {Object.keys(aiProviderModels).map((p) => (
+                  <option key={p} value={p}>
+                    {p === 'anthropic' ? 'Anthropic' : p === 'openai' ? 'OpenAI' : p === 'google' ? 'Google' : p === 'ollama' ? 'Ollama (Local)' : p}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Model */}
+            {aiProvider && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300">Model</label>
+                <select
+                  value={aiModel}
+                  onChange={(e) => setAiModel(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="">Select a model...</option>
+                  {(aiProviderModels[aiProvider] || []).map((m) => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* API Key (not for Ollama) */}
+            {aiProvider && aiProvider !== 'ollama' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300">API Key</label>
+                <div className="relative mt-1">
+                  <input
+                    type={showAiApiKey ? 'text' : 'password'}
+                    value={aiApiKey}
+                    onChange={(e) => setAiApiKey(e.target.value)}
+                    placeholder={aiProvider === 'anthropic' ? 'sk-ant-...' : aiProvider === 'openai' ? 'sk-...' : 'API key...'}
+                    className="w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 pr-10 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAiApiKey(!showAiApiKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                  >
+                    {showAiApiKey ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">Your key is stored securely and only used for Stash enrichment.</p>
+              </div>
+            )}
+
+            {/* Ollama base URL */}
+            {aiProvider === 'ollama' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300">Ollama Base URL</label>
+                <input
+                  type="url"
+                  value={aiOllamaBaseUrl}
+                  onChange={(e) => setAiOllamaBaseUrl(e.target.value)}
+                  placeholder="http://localhost:11434"
+                  className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleAiSave}
+                disabled={isAiLoading}
+                className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isAiLoading ? 'Saving...' : 'Save AI Settings'}
+              </button>
+              {aiProvider && (
+                <button
+                  onClick={() => {
+                    setAiProvider('');
+                    setAiModel('');
+                    setAiApiKey('');
+                  }}
+                  className="rounded-lg bg-gray-600 px-4 py-2 font-medium text-gray-300 transition hover:bg-gray-500"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Info box */}
+          <div className="mt-6 rounded-lg border border-violet-500/30 bg-violet-500/10 p-4">
+            <h4 className="font-medium text-violet-300">How it works</h4>
+            <p className="mt-2 text-sm text-gray-300">
+              When you save a link to Stash, the selected LLM will automatically analyze the page and generate:
+            </p>
+            <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-gray-300">
+              <li>A clean, human-readable title</li>
+              <li>A 1-2 sentence summary</li>
+              <li>Relevant tags for easy filtering</li>
+            </ul>
+            <p className="mt-2 text-sm text-gray-500">
+              For cost-effective usage, we recommend Haiku 4.5, GPT-5 Mini, or Gemini 2.5 Flash.
+            </p>
           </div>
         </div>
       )}

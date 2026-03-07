@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.config import get_settings
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -64,6 +65,12 @@ async def register(
 
     Returns user info plus provisioning details including the raw API key.
     """
+    if not get_settings().registration_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Registration is not enabled on this server",
+        )
+
     # Check if email already exists
     result = await db.execute(select(User).where(User.email == user_in.email))
     if result.scalar_one_or_none():
@@ -215,7 +222,11 @@ async def update_me(
     if data.avatar_url is not None:
         current_user.avatar_url = data.avatar_url
     if data.settings is not None:
-        current_user.settings = data.settings
+        # Merge settings instead of replacing (preserve keys from other tabs)
+        existing = dict(current_user.settings or {})
+        existing.update(data.settings)
+        # Remove keys explicitly set to None
+        current_user.settings = {k: v for k, v in existing.items() if v is not None}
 
     await db.commit()
     await db.refresh(current_user)
@@ -269,6 +280,19 @@ async def oauth_login(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid OAuth provider. Must be 'github' or 'google'.",
         )
+
+    if not get_settings().registration_enabled:
+        # Only block new OAuth users, not existing ones logging in
+        result = await db.execute(
+            select(User).where(
+                (User.oauth_provider == data.provider) & (User.oauth_id == data.oauth_id)
+            )
+        )
+        if not result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Registration is not enabled on this server",
+            )
 
     is_new_user = False
 

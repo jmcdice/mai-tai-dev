@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # Set CORS_ALLOW_ALL=true to enable
     cors_allow_all: bool = False
 
+    # Set REGISTRATION_ENABLED=false to prevent new user sign-ups
+    registration_enabled: bool = True
+
     # JWT (for local development)
     secret_key: str = DEFAULT_SECRET_KEY
     algorithm: str = "HS256"

@@ -15,4 +15,5 @@ python-jose[cryptography]==3.4.0
 google-auth==2.34.0
 requests==2.31.0
 slowapi==0.1.9
+litellm>=1.0.0
 
