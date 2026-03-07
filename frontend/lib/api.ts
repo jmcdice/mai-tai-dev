@@ -499,3 +499,68 @@ export async function getAdminFeedback(token: string, status?: string): Promise<
 export async function updateFeedbackStatus(token: string, feedbackId: string, status: string): Promise<AdminFeedback> {
   return api(`/api/v1/feedback/admin/${feedbackId}`, { method: 'PATCH', body: { status }, token });
 }
+
+// --- StashAI ---
+
+export interface StashLink {
+  id: string;
+  user_id: string;
+  url: string;
+  title: string | null;
+  description: string | null;
+  thumbnail_url: string | null;
+  tags: string[];
+  status: 'unread' | 'read' | 'archived';
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StashLinkListResponse {
+  links: StashLink[];
+  total: number;
+}
+
+export interface UrlMetadata {
+  url: string;
+  title: string | null;
+  description: string | null;
+  thumbnail_url: string | null;
+}
+
+export async function fetchUrlMetadata(token: string, url: string): Promise<UrlMetadata> {
+  return api(`/api/v1/stash/fetch-metadata?url=${encodeURIComponent(url)}`, { token });
+}
+
+export async function createStashLink(
+  token: string,
+  data: { url: string; title?: string; description?: string; tags?: string[]; notes?: string }
+): Promise<StashLink> {
+  return api('/api/v1/stash', { method: 'POST', body: data, token });
+}
+
+export async function listStashLinks(
+  token: string,
+  params?: { status?: string; tag?: string; q?: string; limit?: number; offset?: number }
+): Promise<StashLinkListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set('status', params.status);
+  if (params?.tag) qs.set('tag', params.tag);
+  if (params?.q) qs.set('q', params.q);
+  if (params?.limit) qs.set('limit', String(params.limit));
+  if (params?.offset) qs.set('offset', String(params.offset));
+  const query = qs.toString() ? `?${qs.toString()}` : '';
+  return api(`/api/v1/stash${query}`, { token });
+}
+
+export async function updateStashLink(
+  token: string,
+  linkId: string,
+  data: { title?: string; description?: string; tags?: string[]; status?: string; notes?: string }
+): Promise<StashLink> {
+  return api(`/api/v1/stash/${linkId}`, { method: 'PATCH', body: data, token });
+}
+
+export async function deleteStashLink(token: string, linkId: string): Promise<void> {
+  return api(`/api/v1/stash/${linkId}`, { method: 'DELETE', token });
+}

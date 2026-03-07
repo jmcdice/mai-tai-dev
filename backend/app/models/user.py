@@ -33,4 +33,5 @@ class User(Base):
     # Relationships
     workspaces: Mapped[list["Workspace"]] = relationship(back_populates="owner")
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="user")
+    stash_links: Mapped[list["StashLink"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
