@@ -426,7 +426,7 @@ export default function SettingsPage() {
             {/* Avatar Preview */}
             <div className="flex items-center gap-4">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-gray-600 bg-gray-700">
-                {avatarUrl ? (
+                {avatarUrl && /^https?:\/\//.test(avatarUrl) ? (
                   <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
                 ) : (
                   <span className="text-2xl font-bold text-gray-400">{name.charAt(0).toUpperCase()}</span>

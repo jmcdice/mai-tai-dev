@@ -34,7 +34,7 @@ async def validate_api_key(key: str) -> dict | None:
         return None
 
     # Hash the key the same way it was stored
-    key_hash = hashlib.sha256(key.encode()).hexdigest()
+    key_hash = hashlib.sha256(key.encode(), usedforsecurity=False).hexdigest()
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(
@@ -112,7 +112,7 @@ async def websocket_workspace(
     logger = logging.getLogger(__name__)
 
     await manager.connect(websocket, workspace_id)
-    logger.info(f"WebSocket connected for workspace {workspace_id}, auth: {auth_info}")
+    logger.info(f"WebSocket connected for workspace {workspace_id}, auth_type={auth_info.get('type', 'unknown')}")
 
     try:
         # Send connection confirmation

@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { GoogleIcon } from "@/components/icons/google";
 import { GitHubIcon } from "@/components/icons/github";
 import { login as apiLogin, getProjects, ApiError } from "@/lib/api";
+import { storeOnboardingData } from "@/lib/onboarding";
 import { ArrowLeftOnRectangleIcon } from "@heroicons/react/24/outline";
 import { XCircleIcon } from "@heroicons/react/24/solid";
 import { Transition } from "@headlessui/react";
@@ -57,13 +58,10 @@ export default function LoginPage() {
 
         // For new OAuth users, store onboarding data for the onboarding card
         if (isNewUser && provisionedWorkspace && provisionedApiKey) {
-          sessionStorage.setItem(
-            "mai-tai-onboarding",
-            JSON.stringify({
-              workspaceId: provisionedWorkspace.id,
-              apiKey: provisionedApiKey.key,
-            }),
-          );
+          storeOnboardingData({
+            workspaceId: provisionedWorkspace.id,
+            apiKey: provisionedApiKey.key,
+          });
           // Redirect new users to their workspace with onboarding flag
           router.push(`/workspaces/${provisionedWorkspace.id}?onboarding=true`);
           return;

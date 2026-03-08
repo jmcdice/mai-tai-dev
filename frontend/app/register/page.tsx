@@ -13,6 +13,7 @@ import {
   RegisterResponse,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { storeOnboardingData } from "@/lib/onboarding";
 import { GoogleIcon } from "@/components/icons/google";
 import { GitHubIcon } from "@/components/icons/github";
 import { UserPlusIcon } from "@heroicons/react/24/outline";
@@ -80,13 +81,10 @@ export default function RegisterPage() {
 
         // For new OAuth users, store onboarding data for the onboarding card
         if (isNewUser && provisionedWorkspace && provisionedApiKey) {
-          sessionStorage.setItem(
-            "mai-tai-onboarding",
-            JSON.stringify({
-              workspaceId: provisionedWorkspace.id,
-              apiKey: provisionedApiKey.key,
-            }),
-          );
+          storeOnboardingData({
+            workspaceId: provisionedWorkspace.id,
+            apiKey: provisionedApiKey.key,
+          });
           // Redirect new users to their workspace with onboarding flag
           router.push(`/workspaces/${provisionedWorkspace.id}?onboarding=true`);
           return;
@@ -142,13 +140,10 @@ export default function RegisterPage() {
       login(loginResponse.access_token, loginResponse.refresh_token);
 
       // Store provisioning data for the chat page
-      sessionStorage.setItem(
-        "mai-tai-onboarding",
-        JSON.stringify({
-          workspaceId: regResponse.workspace.id,
-          apiKey: regResponse.api_key.key,
-        }),
-      );
+      storeOnboardingData({
+        workspaceId: regResponse.workspace.id,
+        apiKey: regResponse.api_key.key,
+      });
 
       toast({
         title: "Account created",

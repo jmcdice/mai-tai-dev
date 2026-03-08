@@ -5,16 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { createWorkspace, Workspace } from '@/lib/api';
+import { loadOnboardingData, storeOnboardingData, type OnboardingData } from '@/lib/onboarding';
 import { SetupSteps } from './SetupSteps';
 import AgentSetupBlob from '@/components/AgentSetupBlob';
 import Button from '@/components/Common/Button';
 import { RocketLaunchIcon, ChatBubbleLeftRightIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import { CheckIcon } from '@heroicons/react/24/solid';
-
-interface OnboardingData {
-  workspaceId?: string;
-  apiKey?: string;
-}
 
 const STEPS = [
   { title: 'Create Workspace', description: 'Name your workspace' },
@@ -38,18 +34,11 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [commandCopied, setCommandCopied] = useState(false);
 
-  // Check for API key from registration (stored in sessionStorage)
+  // Check for API key from registration (stored encoded in sessionStorage)
   useEffect(() => {
-    const stored = sessionStorage.getItem('mai-tai-onboarding');
-    if (stored) {
-      try {
-        const data = JSON.parse(stored) as OnboardingData;
-        if (data.apiKey) {
-          setApiKey(data.apiKey);
-        }
-      } catch {
-        // Invalid data, ignore
-      }
+    const data = loadOnboardingData();
+    if (data?.apiKey) {
+      setApiKey(data.apiKey);
     }
   }, []);
 
@@ -63,10 +52,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       setCreatedWorkspace(workspace);
 
       // Update sessionStorage with the new workspace ID (keep existing API key)
-      const existingData = sessionStorage.getItem('mai-tai-onboarding');
-      const data: OnboardingData = existingData ? JSON.parse(existingData) : {};
+      const data: OnboardingData = loadOnboardingData() || {};
       data.workspaceId = workspace.id;
-      sessionStorage.setItem('mai-tai-onboarding', JSON.stringify(data));
+      storeOnboardingData(data);
 
       // Move to step 2
       setCurrentStep(2);
