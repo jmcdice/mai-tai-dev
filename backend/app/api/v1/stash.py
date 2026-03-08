@@ -1,8 +1,11 @@
 """StashAI API endpoints - personal link manager."""
 
+import ipaddress
 import logging
 import re
+import socket
 from datetime import datetime
+from urllib.parse import urlparse
 from uuid import UUID
 
 import httpx
@@ -25,6 +28,46 @@ from app.services.ai import PROVIDER_MODELS, enrich_link
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/stash", tags=["stash"])
+
+
+def _validate_url(url: str) -> str:
+    """Validate URL to prevent SSRF attacks.
+
+    Only allows http/https schemes and blocks requests to private/internal IPs.
+    Returns the validated URL or raises HTTPException.
+    """
+    parsed = urlparse(url)
+
+    # Only allow http and https
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only http and https URLs are allowed",
+        )
+
+    if not parsed.hostname:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid URL: no hostname",
+        )
+
+    # Resolve hostname and check for private IPs
+    try:
+        resolved = socket.getaddrinfo(parsed.hostname, None)
+        for _, _, _, _, addr in resolved:
+            ip = ipaddress.ip_address(addr[0])
+            if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="URLs pointing to private/internal addresses are not allowed",
+                )
+    except socket.gaierror:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not resolve hostname",
+        )
+
+    return url
 
 # Regex patterns for OG tag extraction
 _OG_TITLE = re.compile(r'<meta[^>]+property=["\']og:title["\'][^>]+content=["\']([^"\']+)["\']', re.I)
@@ -116,6 +159,7 @@ async def fetch_metadata(
     current_user: User = Depends(get_current_user),
 ) -> UrlMetadata:
     """Fetch OG metadata for a URL without saving it."""
+    _validate_url(url)
     return await _fetch_url_metadata(url)
 
 
@@ -134,6 +178,7 @@ async def create_link(
     current_user: User = Depends(get_current_user),
 ) -> StashLink:
     """Save a link to the stash. Auto-fetches metadata if title not provided."""
+    _validate_url(data.url)
     title = data.title
     description = data.description
     thumbnail_url = data.thumbnail_url

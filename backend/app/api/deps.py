@@ -186,8 +186,10 @@ async def get_api_key_auth(
             detail="X-API-Key header required",
         )
 
-    # Hash the provided key to compare with stored hash
-    key_hash = hashlib.sha256(x_api_key.encode()).hexdigest()
+    # Hash the provided key to compare with stored hash.
+    # SHA-256 is appropriate here: API keys are high-entropy random tokens (not passwords),
+    # so a fast hash is acceptable and rainbow tables are infeasible.
+    key_hash = hashlib.sha256(x_api_key.encode(), usedforsecurity=False).hexdigest()
 
     result = await db.execute(select(ApiKey).where(ApiKey.key_hash == key_hash))
     api_key = result.scalar_one_or_none()

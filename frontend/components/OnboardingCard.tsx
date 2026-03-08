@@ -3,13 +3,7 @@
 import { useState, useEffect } from 'react';
 import { XMarkIcon, RocketLaunchIcon } from '@heroicons/react/24/outline';
 import AgentSetupBlob from '@/components/AgentSetupBlob';
-
-interface OnboardingData {
-  workspaceId?: string;
-  /** @deprecated Use workspaceId */
-  projectId?: string;
-  apiKey: string;
-}
+import { loadOnboardingData, clearOnboardingData, type OnboardingData } from '@/lib/onboarding';
 
 interface OnboardingCardProps {
   /** @deprecated Use workspaceId */
@@ -27,18 +21,13 @@ export function OnboardingCard({ projectId, workspaceId, hasMessages = false, on
   const wsId = workspaceId || projectId;
 
   useEffect(() => {
-    // Check for onboarding data in sessionStorage
-    const stored = sessionStorage.getItem('mai-tai-onboarding');
-    if (stored) {
-      try {
-        const data = JSON.parse(stored) as OnboardingData;
-        const dataWsId = data.workspaceId || data.projectId;
-        // Only show if this is the right workspace
-        if (dataWsId === wsId) {
-          setOnboardingData(data);
-        }
-      } catch {
-        // Invalid data, ignore
+    // Check for onboarding data in sessionStorage (stored encoded)
+    const data = loadOnboardingData();
+    if (data) {
+      const dataWsId = data.workspaceId || data.projectId;
+      // Only show if this is the right workspace
+      if (dataWsId === wsId) {
+        setOnboardingData(data as OnboardingData & { apiKey: string });
       }
     }
   }, [wsId]);
@@ -46,7 +35,7 @@ export function OnboardingCard({ projectId, workspaceId, hasMessages = false, on
   // Auto-dismiss when messages appear (agent is connected and chatting)
   useEffect(() => {
     if (hasMessages && onboardingData) {
-      sessionStorage.removeItem('mai-tai-onboarding');
+      clearOnboardingData();
       setDismissed(true);
       onDismiss?.();
     }
@@ -87,7 +76,7 @@ export function OnboardingCard({ projectId, workspaceId, hasMessages = false, on
       {/* Agent Setup */}
       <div className="rounded-lg bg-gray-800/50 p-4">
         <AgentSetupBlob
-          apiKey={onboardingData.apiKey}
+          apiKey={onboardingData.apiKey || ''}
           workspaceId={wsId || ''}
         />
       </div>

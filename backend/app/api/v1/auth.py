@@ -45,7 +45,7 @@ limiter = Limiter(key_func=get_remote_address)
 def generate_api_key() -> tuple[str, str]:
     """Generate API key and its hash."""
     raw_key = f"mt_{secrets.token_urlsafe(32)}"
-    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    key_hash = hashlib.sha256(raw_key.encode(), usedforsecurity=False).hexdigest()
     return raw_key, key_hash
 
 
