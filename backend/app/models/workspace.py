@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -21,6 +21,11 @@ class Workspace(Base):
     archived: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Agent workspace fields
+    workspace_type: Mapped[str] = mapped_column(String(20), default="chat", server_default="chat")
+    agent_purpose: Mapped[str | None] = mapped_column(Text, nullable=True)
+    agent_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Relationships
     owner: Mapped["User"] = relationship(back_populates="workspaces")

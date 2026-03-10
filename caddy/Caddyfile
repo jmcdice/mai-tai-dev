@@ -1,0 +1,29 @@
+{
+	# Certs are managed externally by acme.sh (GCP Cloud DNS challenge)
+	auto_https off
+
+	# Structured access logging to file (for fail2ban and security scanning)
+	log default {
+		output file /data/logs/access.log {
+			roll_size 50mb
+			roll_keep 7
+		}
+		format json
+	}
+}
+
+(tls_certs) {
+	tls /etc/caddy/certs/fullchain.cer /etc/caddy/certs/mai-tai.dev.key
+}
+
+# Frontend
+www.mai-tai.dev:8443 {
+	import tls_certs
+	reverse_proxy frontend:3000
+}
+
+# Backend API + WebSockets
+api.mai-tai.dev:8443 {
+	import tls_certs
+	reverse_proxy backend:8000
+}

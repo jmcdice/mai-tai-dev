@@ -7,6 +7,7 @@ import {
   ChatBubbleLeftRightIcon,
   ClockIcon,
   ArchiveBoxIcon,
+  CpuChipIcon,
 } from '@heroicons/react/24/outline';
 
 interface WorkspaceCardProps {
@@ -18,6 +19,7 @@ interface WorkspaceCardProps {
   colorIndex?: number;
   archived?: boolean;
   badge?: string;
+  workspaceType?: string;
 }
 
 // Jellyseerr-style gradient backgrounds for variety
@@ -40,6 +42,7 @@ export default function WorkspaceCard({
   colorIndex,
   archived = false,
   badge,
+  workspaceType,
 }: WorkspaceCardProps) {
   const [showDetail, setShowDetail] = useState(false);
 
@@ -90,14 +93,22 @@ export default function WorkspaceCard({
 
           {/* Icon */}
           <div className="absolute inset-0 flex items-center justify-center">
-            <ChatBubbleLeftRightIcon className="h-16 w-16 text-white opacity-30" />
+            {workspaceType === 'agent' ? (
+              <CpuChipIcon className="h-16 w-16 text-white opacity-30" />
+            ) : (
+              <ChatBubbleLeftRightIcon className="h-16 w-16 text-white opacity-30" />
+            )}
           </div>
 
           {/* Status badges - top */}
           <div className="absolute left-0 right-0 top-0 flex items-center justify-between p-2">
-            <div className="rounded-full border border-white/20 bg-black/30 px-2 py-1">
+            <div className={`rounded-full border px-2 py-1 ${
+              workspaceType === 'agent'
+                ? 'border-purple-400/30 bg-purple-500/30'
+                : 'border-white/20 bg-black/30'
+            }`}>
               <span className="text-xs font-medium text-white">
-                {badge || 'Workspace'}
+                {badge || (workspaceType === 'agent' ? 'Agent' : 'Workspace')}
               </span>
             </div>
             {archived && (

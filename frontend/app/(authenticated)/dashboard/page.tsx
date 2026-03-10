@@ -11,10 +11,13 @@ import {
   getDashboardStats,
   getDailyActivity,
   getBusiestWorkspaces,
+  getAgentTemplates,
+  startAgent,
   Workspace,
   DashboardStats,
   DailyActivityItem,
   WorkspaceActivityItem,
+  AgentTemplate,
   ApiError,
 } from '@/lib/api';
 import {
@@ -23,6 +26,7 @@ import {
   FolderIcon,
   CalendarDaysIcon,
   ArrowTrendingUpIcon,
+  CpuChipIcon,
 } from '@heroicons/react/24/outline';
 import WorkspaceCard from '@/components/WorkspaceCard';
 import Modal from '@/components/Common/Modal';
@@ -37,6 +41,10 @@ export default function DashboardPage() {
   const [busiestWorkspaces, setBusiestWorkspaces] = useState<WorkspaceActivityItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
+  const [workspaceType, setWorkspaceType] = useState<'chat' | 'agent'>('chat');
+  const [agentPurpose, setAgentPurpose] = useState('');
+  const [agentTemplate, setAgentTemplate] = useState('custom');
+  const [agentTemplates, setAgentTemplates] = useState<Record<string, AgentTemplate>>({});
   const [isCreating, setIsCreating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { token } = useAuth();
@@ -67,25 +75,50 @@ export default function DashboardPage() {
     count: item.count,
   }));
 
+  // Fetch agent templates when dialog opens with agent type
+  useEffect(() => {
+    if (isDialogOpen && workspaceType === 'agent' && token && Object.keys(agentTemplates).length === 0) {
+      getAgentTemplates(token).then((res) => setAgentTemplates(res.templates)).catch(() => {});
+    }
+  }, [isDialogOpen, workspaceType, token, agentTemplates]);
+
   const handleCreateWorkspace = async () => {
     if (!token || !newWorkspaceName.trim()) return;
     setIsCreating(true);
 
     try {
-      // Create the workspace (no API key creation - user already has a user-level key)
-      const workspace = await createWorkspace(token, newWorkspaceName.trim());
+      const options = workspaceType === 'agent' ? {
+        workspace_type: 'agent' as const,
+        agent_purpose: agentPurpose || undefined,
+        agent_config: { template: agentTemplate },
+      } : undefined;
+
+      const workspace = await createWorkspace(token, newWorkspaceName.trim(), options);
+
+      // Auto-start agent if this is an agent workspace
+      if (workspaceType === 'agent') {
+        try {
+          await startAgent(token, workspace.id);
+          toast({ title: 'Agent started', description: `${workspace.name} is now running.` });
+        } catch (agentErr) {
+          const msg = agentErr instanceof ApiError ? agentErr.message : 'Could not start agent';
+          toast({ variant: 'destructive', title: 'Agent created but failed to start', description: msg });
+        }
+      }
 
       // Store workspace ID for the workspace settings page
-      // Note: User already has an API key from registration, they just need the workspace ID
       sessionStorage.setItem('mai-tai-new-workspace', JSON.stringify({
         workspaceId: workspace.id,
         workspaceName: workspace.name,
       }));
 
       setNewWorkspaceName('');
+      setWorkspaceType('chat');
+      setAgentPurpose('');
+      setAgentTemplate('custom');
       setIsDialogOpen(false);
 
-      // Navigate to the workspace with new=true to show the setup card
+      // Navigate to the workspace
       router.push(`/workspaces/${workspace.id}?new=true`);
     } catch (error) {
       toast({
@@ -104,24 +137,98 @@ export default function DashboardPage() {
         open={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
         title="Create a new workspace"
-        subTitle="Each workspace is a chat room where you and your AI agents collaborate."
+        subTitle={workspaceType === 'agent'
+          ? 'Launch an autonomous AI agent that runs on your server.'
+          : 'Each workspace is a chat room where you and your AI agents collaborate.'}
         onOk={handleCreateWorkspace}
-        okText={isCreating ? 'Creating...' : 'Create Workspace'}
+        okText={isCreating ? 'Creating...' : workspaceType === 'agent' ? 'Create Agent' : 'Create Workspace'}
         okDisabled={!newWorkspaceName.trim()}
         okLoading={isCreating}
         cancelText="Cancel"
         size="sm"
       >
-        <div className="py-2">
+        <div className="space-y-4 py-2">
+          {/* Workspace type toggle */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setWorkspaceType('chat')}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition ${
+                workspaceType === 'chat'
+                  ? 'border-indigo-500 bg-indigo-500/20 text-indigo-300'
+                  : 'border-gray-600 bg-gray-700/50 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <ChatBubbleLeftRightIcon className="h-5 w-5" />
+              Chat
+            </button>
+            <button
+              type="button"
+              onClick={() => setWorkspaceType('agent')}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition ${
+                workspaceType === 'agent'
+                  ? 'border-purple-500 bg-purple-500/20 text-purple-300'
+                  : 'border-gray-600 bg-gray-700/50 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <CpuChipIcon className="h-5 w-5" />
+              Agent
+            </button>
+          </div>
+
+          {/* Name input */}
           <input
             type="text"
-            placeholder="Workspace name"
+            placeholder={workspaceType === 'agent' ? 'Agent name (e.g. Rivian Scout)' : 'Workspace name'}
             value={newWorkspaceName}
             onChange={(e) => setNewWorkspaceName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !isCreating && newWorkspaceName.trim() && handleCreateWorkspace()}
             autoFocus
             className="w-full rounded-lg border border-gray-600 bg-gray-700/80 px-4 py-3 text-white placeholder-gray-400 transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
+
+          {/* Agent-specific fields */}
+          {workspaceType === 'agent' && (
+            <>
+              {/* Template picker */}
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-300">Template</label>
+                <select
+                  value={agentTemplate}
+                  onChange={(e) => setAgentTemplate(e.target.value)}
+                  className="w-full rounded-lg border border-gray-600 bg-gray-700/80 px-4 py-3 text-white transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  {Object.entries(agentTemplates).length > 0 ? (
+                    Object.entries(agentTemplates).map(([key, tmpl]) => (
+                      <option key={key} value={key}>{tmpl.label}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="custom">Custom Agent</option>
+                      <option value="research">Research Assistant</option>
+                      <option value="monitor">Daily Monitor</option>
+                      <option value="assistant">Personal Assistant</option>
+                    </>
+                  )}
+                </select>
+                {agentTemplates[agentTemplate]?.description && (
+                  <p className="mt-1 text-xs text-gray-500">{agentTemplates[agentTemplate].description}</p>
+                )}
+              </div>
+
+              {/* Purpose */}
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-300">Purpose</label>
+                <textarea
+                  placeholder="What should this agent do? (e.g. Search for Rivian R1S deals daily and report findings)"
+                  value={agentPurpose}
+                  onChange={(e) => setAgentPurpose(e.target.value)}
+                  rows={3}
+                  className="w-full resize-none rounded-lg border border-gray-600 bg-gray-700/80 px-4 py-3 text-white placeholder-gray-400 transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 

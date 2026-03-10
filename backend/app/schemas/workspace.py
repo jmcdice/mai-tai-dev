@@ -11,6 +11,9 @@ class WorkspaceCreate(BaseModel):
 
     name: str = Field(default="My Workspace", min_length=1, max_length=255)
     settings: dict = Field(default_factory=dict)
+    workspace_type: str = Field(default="chat", pattern="^(chat|agent)$")
+    agent_purpose: str | None = None
+    agent_config: dict | None = None
 
 
 class WorkspaceUpdate(BaseModel):
@@ -19,6 +22,8 @@ class WorkspaceUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     settings: dict | None = None
     archived: bool | None = None
+    agent_purpose: str | None = None
+    agent_config: dict | None = None
 
 
 class WorkspaceResponse(BaseModel):
@@ -31,6 +36,9 @@ class WorkspaceResponse(BaseModel):
     archived: bool
     created_at: datetime
     updated_at: datetime
+    workspace_type: str = "chat"
+    agent_purpose: str | None = None
+    agent_config: dict | None = None
 
     model_config = {"from_attributes": True}
 
