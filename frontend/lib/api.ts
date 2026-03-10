@@ -92,6 +92,7 @@ export interface UserSettings {
   timezone?: string | null;
   time_format?: '12h' | '24h' | null;
   shortcuts?: UserShortcut[] | null;
+  anthropic_api_key?: string | null;
   stash_llm_provider?: string | null;
   stash_llm_model?: string | null;
   stash_llm_api_key?: string | null;
@@ -246,6 +247,9 @@ export interface Workspace {
   archived: boolean;
   created_at: string;
   updated_at: string;
+  workspace_type?: string;
+  agent_purpose?: string | null;
+  agent_config?: Record<string, unknown> | null;
 }
 
 // Legacy alias for backwards compatibility during migration
@@ -281,8 +285,42 @@ export async function getProject(token: string, projectId: string): Promise<Work
   return getWorkspace(token, projectId);
 }
 
-export async function createWorkspace(token: string, name: string): Promise<Workspace> {
-  return api('/api/v1/workspaces', { method: 'POST', body: { name }, token });
+export async function createWorkspace(
+  token: string,
+  name: string,
+  options?: {
+    workspace_type?: string;
+    agent_purpose?: string;
+    agent_config?: Record<string, unknown>;
+  },
+): Promise<Workspace> {
+  return api('/api/v1/workspaces', {
+    method: 'POST',
+    body: { name, ...options },
+    token,
+  });
+}
+
+export interface AgentTemplate {
+  id: string;
+  label: string;
+  description: string;
+}
+
+export async function getAgentTemplates(token: string): Promise<{ templates: Record<string, AgentTemplate> }> {
+  return api('/api/v1/workspaces/agent-templates', { token });
+}
+
+export async function startAgent(token: string, workspaceId: string): Promise<{ status: string; container?: string; container_id?: string; message?: string }> {
+  return api(`/api/v1/workspaces/${workspaceId}/agent/start`, { method: 'POST', token });
+}
+
+export async function stopAgent(token: string, workspaceId: string): Promise<{ status: string }> {
+  return api(`/api/v1/workspaces/${workspaceId}/agent/stop`, { method: 'POST', token });
+}
+
+export async function getAgentContainerStatus(token: string, workspaceId: string): Promise<{ status: string; running: boolean; container?: string }> {
+  return api(`/api/v1/workspaces/${workspaceId}/agent/container-status`, { token });
 }
 
 // Legacy alias

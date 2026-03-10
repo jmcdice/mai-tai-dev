@@ -118,6 +118,7 @@ export default function WorkspacesPage() {
             createdAt={workspace.created_at}
             colorIndex={index}
             archived={workspace.archived}
+            workspaceType={workspace.workspace_type}
           />
         ))}
       </div>

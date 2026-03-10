@@ -16,4 +16,5 @@ google-auth==2.34.0
 requests==2.31.0
 slowapi==0.1.9
 litellm>=1.0.0
+docker>=7.0.0
 

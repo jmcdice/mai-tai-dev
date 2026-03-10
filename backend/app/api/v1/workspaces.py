@@ -1,6 +1,7 @@
 """Workspace API endpoints."""
 
 import hashlib
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
@@ -19,6 +20,9 @@ from app.models.user import User
 from app.schemas.api_key import ApiKeyCreate, ApiKeyListItem, ApiKeyListResponse, ApiKeyResponse
 from app.schemas.workspace import WorkspaceCreate, WorkspaceListResponse, WorkspaceResponse, WorkspaceUpdate
 from app.schemas.message import MessageCreate, MessageListResponse, MessageResponse
+from app.services.agent_spawner import AGENT_TEMPLATES, start_agent, stop_agent, get_agent_status as get_container_status, get_agent_logs
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
@@ -41,6 +45,9 @@ async def create_workspace(
         name=data.name,
         owner_id=current_user.id,
         settings=data.settings,
+        workspace_type=data.workspace_type,
+        agent_purpose=data.agent_purpose,
+        agent_config=data.agent_config,
     )
     db.add(workspace)
     await db.commit()
@@ -110,6 +117,10 @@ async def update_workspace(
         workspace.settings = data.settings
     if data.archived is not None:
         workspace.archived = data.archived
+    if data.agent_purpose is not None:
+        workspace.agent_purpose = data.agent_purpose
+    if data.agent_config is not None:
+        workspace.agent_config = data.agent_config
     workspace.updated_at = datetime.utcnow()
 
     await db.commit()
@@ -383,3 +394,111 @@ async def get_agent_status(
         "seconds_since_activity": int(seconds_since_activity),
         "message": message,
     }
+
+
+# Agent workspace endpoints
+
+@router.get("/agent-templates")
+async def get_agent_templates(
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return available agent workspace templates."""
+    templates = {}
+    for key, tmpl in AGENT_TEMPLATES.items():
+        templates[key] = {
+            "id": key,
+            "label": tmpl["label"],
+            "description": tmpl["description"],
+        }
+    return {"templates": templates}
+
+
+@router.post("/{workspace_id}/agent/start", status_code=status.HTTP_200_OK)
+async def start_agent_endpoint(
+    workspace_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Start an agent container for this workspace.
+
+    Creates a Docker container running Claude Code connected to this workspace
+    via the Mai-Tai MCP server. Requires the user to have an Anthropic API key
+    configured in their settings.
+    """
+    workspace = await check_workspace_access(workspace_id, db, current_user)
+
+    if workspace.workspace_type != "agent":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only agent workspaces can have agents started",
+        )
+
+    # Get Anthropic auth from user settings (supports both API key and OAuth token)
+    user_settings = current_user.settings or {}
+    anthropic_api_key = user_settings.get("anthropic_api_key")
+    if not anthropic_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Anthropic API key not configured. Add it in Settings > AI.",
+        )
+
+    # Detect key type: OAuth tokens start with sk-ant-oat, API keys with sk-ant-api
+    is_oauth_token = anthropic_api_key.startswith("sk-ant-oat")
+
+    # Get agent config
+    agent_config = workspace.agent_config or {}
+    template = agent_config.get("template", "custom")
+
+    # Start the Docker container
+    # Mai-Tai API key is read from host's ~/.config/mai-tai/config (mounted into backend)
+    result = start_agent(
+        workspace_id=workspace.id,
+        workspace_name=workspace.name,
+        anthropic_api_key=None if is_oauth_token else anthropic_api_key,
+        claude_oauth_token=anthropic_api_key if is_oauth_token else None,
+        purpose=workspace.agent_purpose,
+        template=template,
+    )
+
+    if result["status"] == "error":
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result.get("message", "Failed to start agent"),
+        )
+
+    return result
+
+
+@router.post("/{workspace_id}/agent/stop", status_code=status.HTTP_200_OK)
+async def stop_agent_endpoint(
+    workspace_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Stop the agent container for this workspace."""
+    await check_workspace_access(workspace_id, db, current_user)
+    return stop_agent(workspace_id)
+
+
+@router.get("/{workspace_id}/agent/container-status")
+async def get_agent_container_status(
+    workspace_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Get the Docker container status for this workspace's agent."""
+    await check_workspace_access(workspace_id, db, current_user)
+    return get_container_status(workspace_id)
+
+
+@router.get("/{workspace_id}/agent/logs")
+async def get_agent_logs_endpoint(
+    workspace_id: UUID,
+    tail: int = Query(100, le=1000, ge=1),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Get recent logs from the agent container."""
+    await check_workspace_access(workspace_id, db, current_user)
+    logs = get_agent_logs(workspace_id, tail=tail)
+    return {"logs": logs}

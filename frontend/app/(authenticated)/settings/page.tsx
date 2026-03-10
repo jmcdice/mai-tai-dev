@@ -72,6 +72,8 @@ export default function SettingsPage() {
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
   // AI settings state
+  const [anthropicApiKey, setAnthropicApiKey] = useState('');
+  const [showAnthropicApiKey, setShowAnthropicApiKey] = useState(false);
   const [aiProvider, setAiProvider] = useState('');
   const [aiModel, setAiModel] = useState('');
   const [aiApiKey, setAiApiKey] = useState('');
@@ -91,6 +93,7 @@ export default function SettingsPage() {
         setTimeFormat(user.settings?.time_format || '12h');
         setShortcuts(user.settings?.shortcuts || []);
         // AI settings
+        setAnthropicApiKey(user.settings?.anthropic_api_key || '');
         setAiProvider(user.settings?.stash_llm_provider || '');
         setAiModel(user.settings?.stash_llm_model || '');
         setAiApiKey(user.settings?.stash_llm_api_key || '');
@@ -129,6 +132,7 @@ export default function SettingsPage() {
           timezone,
           time_format: timeFormat,
           shortcuts: shortcuts.length > 0 ? shortcuts : null,
+          anthropic_api_key: anthropicApiKey || null,
           stash_llm_provider: aiProvider || null,
           stash_llm_model: aiModel || null,
           stash_llm_api_key: aiApiKey || null,
@@ -882,9 +886,40 @@ export default function SettingsPage() {
 
       {/* AI Tab */}
       {activeTab === 'ai' && (
+        <>
+        {/* Anthropic API Key for Agent Workspaces */}
+        <div className="mb-6 rounded-xl border border-gray-700 bg-gray-800/50 p-6">
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold text-white">Agent API Key</h2>
+            <p className="mt-1 text-gray-400">
+              Required for agent workspaces. Your Anthropic API key powers Claude Code agents.
+            </p>
+          </div>
+          <div className="max-w-lg">
+            <label className="block text-sm font-medium text-gray-300">Anthropic API Key</label>
+            <div className="relative mt-1">
+              <input
+                type={showAnthropicApiKey ? 'text' : 'password'}
+                value={anthropicApiKey}
+                onChange={(e) => setAnthropicApiKey(e.target.value)}
+                placeholder="sk-ant-api03-..."
+                className="w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 pr-10 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setShowAnthropicApiKey(!showAnthropicApiKey)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+              >
+                {showAnthropicApiKey ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Used to run Claude Code in agent containers. Get one at console.anthropic.com.</p>
+          </div>
+        </div>
+
         <div className="rounded-xl border border-gray-700 bg-gray-800/50 p-6">
           <div className="mb-6">
-            <h2 className="text-xl font-semibold text-white">AI Settings</h2>
+            <h2 className="text-xl font-semibold text-white">Stash AI Settings</h2>
             <p className="mt-1 text-gray-400">
               Configure an LLM to automatically generate summaries, titles, and tags when you save links to Stash.
             </p>
@@ -1012,6 +1047,7 @@ export default function SettingsPage() {
             </p>
           </div>
         </div>
+        </>
       )}
     </div>
   );
