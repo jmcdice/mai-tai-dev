@@ -44,6 +44,7 @@ export default function DashboardPage() {
   const [workspaceType, setWorkspaceType] = useState<'chat' | 'agent'>('chat');
   const [agentPurpose, setAgentPurpose] = useState('');
   const [agentTemplate, setAgentTemplate] = useState('custom');
+  const [agentRepoUrl, setAgentRepoUrl] = useState('');
   const [agentTemplates, setAgentTemplates] = useState<Record<string, AgentTemplate>>({});
   const [isCreating, setIsCreating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -87,10 +88,14 @@ export default function DashboardPage() {
     setIsCreating(true);
 
     try {
+      const agentConfig: Record<string, string> = { template: agentTemplate };
+      if (agentTemplate === 'coder' && agentRepoUrl.trim()) {
+        agentConfig.repo_url = agentRepoUrl.trim();
+      }
       const options = workspaceType === 'agent' ? {
         workspace_type: 'agent' as const,
         agent_purpose: agentPurpose || undefined,
-        agent_config: { template: agentTemplate },
+        agent_config: agentConfig,
       } : undefined;
 
       const workspace = await createWorkspace(token, newWorkspaceName.trim(), options);
@@ -116,6 +121,7 @@ export default function DashboardPage() {
       setWorkspaceType('chat');
       setAgentPurpose('');
       setAgentTemplate('custom');
+      setAgentRepoUrl('');
       setIsDialogOpen(false);
 
       // Navigate to the workspace
@@ -205,6 +211,7 @@ export default function DashboardPage() {
                   ) : (
                     <>
                       <option value="custom">Custom Agent</option>
+                      <option value="coder">Coding Agent</option>
                       <option value="research">Research Assistant</option>
                       <option value="monitor">Daily Monitor</option>
                       <option value="assistant">Personal Assistant</option>
@@ -227,6 +234,23 @@ export default function DashboardPage() {
                   className="w-full resize-none rounded-lg border border-gray-600 bg-gray-700/80 px-4 py-3 text-white placeholder-gray-400 transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
+
+              {/* Repository URL (coder template only) */}
+              {agentTemplate === 'coder' && (
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-300">Repository URL</label>
+                  <input
+                    type="text"
+                    placeholder="https://github.com/username/repo"
+                    value={agentRepoUrl}
+                    onChange={(e) => setAgentRepoUrl(e.target.value)}
+                    className="w-full rounded-lg border border-gray-600 bg-gray-700/80 px-4 py-3 text-white placeholder-gray-400 transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    The agent will clone this repo. For private repos, add a GitHub token in Settings → AI.
+                  </p>
+                </div>
+              )}
             </>
           )}
         </div>

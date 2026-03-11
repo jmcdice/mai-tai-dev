@@ -366,6 +366,7 @@ export default function WorkspacePage() {
             <NewWorkspaceCard
               workspaceId={workspaceId}
               workspaceName={workspace.name}
+              workspaceType={workspace.workspace_type}
               hasMessages={messages.length > 0}
               onDismiss={() => {
                 setShowNewWorkspaceCard(false);

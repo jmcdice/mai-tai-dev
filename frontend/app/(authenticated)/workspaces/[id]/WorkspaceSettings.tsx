@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronDownIcon, ChevronRightIcon, ArrowTopRightOnSquareIcon, TrashIcon, ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { useToast } from '@/hooks/use-toast';
@@ -12,6 +12,9 @@ import {
   archiveWorkspace,
   unarchiveWorkspace,
   deleteWorkspace,
+  startAgent,
+  stopAgent,
+  getAgentContainerStatus,
   Workspace,
 } from '@/lib/api';
 import { events, WORKSPACE_UPDATED } from '@/lib/events';
@@ -41,6 +44,57 @@ export default function WorkspaceSettings({
   const [showProjectContextModal, setShowProjectContextModal] = useState(false);
   const [projectContext, setProjectContext] = useState('');
   const { enabled: soundEnabled, setEnabled: setSoundEnabled } = useNotificationSound();
+
+  // Agent container state
+  const [agentRunning, setAgentRunning] = useState<boolean | null>(null);
+  const [agentLoading, setAgentLoading] = useState(false);
+  const isAgentWorkspace = workspace?.workspace_type === 'agent';
+
+  const fetchAgentStatus = useCallback(async () => {
+    if (!token || !isAgentWorkspace) return;
+    try {
+      const status = await getAgentContainerStatus(token, workspaceId);
+      setAgentRunning(status.running);
+    } catch {
+      setAgentRunning(null);
+    }
+  }, [token, workspaceId, isAgentWorkspace]);
+
+  useEffect(() => {
+    fetchAgentStatus();
+  }, [fetchAgentStatus]);
+
+  const handleStartAgent = async () => {
+    if (!token) return;
+    setAgentLoading(true);
+    try {
+      const result = await startAgent(token, workspaceId);
+      if (result.status === 'started' || result.status === 'already_running') {
+        setAgentRunning(true);
+        toast({ title: 'Agent started' });
+      } else {
+        toast({ variant: 'destructive', title: result.message || 'Failed to start agent' });
+      }
+    } catch {
+      toast({ variant: 'destructive', title: 'Failed to start agent' });
+    } finally {
+      setAgentLoading(false);
+    }
+  };
+
+  const handleStopAgent = async () => {
+    if (!token) return;
+    setAgentLoading(true);
+    try {
+      await stopAgent(token, workspaceId);
+      setAgentRunning(false);
+      toast({ title: 'Agent stopped' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Failed to stop agent' });
+    } finally {
+      setAgentLoading(false);
+    }
+  };
 
   // Dude Mode state from workspace settings (defaults to OFF)
   const dudeMode = (workspace?.settings?.dude_mode as boolean) ?? false;
@@ -136,6 +190,64 @@ export default function WorkspaceSettings({
 
   return (
     <div className="space-y-6">
+      {/* Agent Container Section - only for agent workspaces */}
+      {isAgentWorkspace && (
+        <>
+          <div>
+            <h3 className="mb-2 text-base font-semibold text-white">Agent Container</h3>
+            <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+              <div className="flex items-center gap-3">
+                <span
+                  className={`h-3 w-3 rounded-full ${
+                    agentRunning === null
+                      ? 'bg-gray-500'
+                      : agentRunning
+                      ? 'bg-green-500 animate-pulse'
+                      : 'bg-red-500'
+                  }`}
+                />
+                <div>
+                  <p className="font-medium text-white">
+                    {agentRunning === null
+                      ? 'Checking...'
+                      : agentRunning
+                      ? 'Running'
+                      : 'Stopped'}
+                  </p>
+                  <p className="text-sm text-gray-400">
+                    {agentRunning
+                      ? 'Agent is active and connected'
+                      : 'Agent container is not running'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {agentRunning ? (
+                  <Button
+                    buttonType="danger"
+                    buttonSize="sm"
+                    onClick={handleStopAgent}
+                    disabled={agentLoading}
+                  >
+                    {agentLoading ? 'Stopping...' : 'Stop'}
+                  </Button>
+                ) : (
+                  <Button
+                    buttonType="primary"
+                    buttonSize="sm"
+                    onClick={handleStartAgent}
+                    disabled={agentLoading}
+                  >
+                    {agentLoading ? 'Starting...' : 'Start'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-gray-700" />
+        </>
+      )}
+
       {/* Notifications Section */}
       <div>
         <h3 className="mb-2 text-base font-semibold text-white">Notifications</h3>

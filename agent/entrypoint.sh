@@ -94,6 +94,26 @@ When this session starts, IMMEDIATELY enter mai-tai mode by calling \`chat_with_
 to greet the user. After completing any task, ALWAYS call \`chat_with_human\` to report results.
 CLAUDE_EOF
     ;;
+  coder)
+    cat > "${WORKDIR}/CLAUDE.md" << CLAUDE_EOF
+# ${AGENT_NAME} - Coding Agent
+
+## Purpose
+${AGENT_PURPOSE}
+
+## Behavior
+- You are a software engineering agent. You help with code, PRs, bug fixes, and development tasks.
+- Read and understand the codebase before making changes.
+- Write clean, tested code. Run existing tests before and after changes.
+- Create branches for your work and commit with clear messages.
+- When asked to review code, be thorough but constructive.
+
+## Mai-Tai Mode
+When this session starts, IMMEDIATELY enter mai-tai mode by calling \`chat_with_human\`
+to greet the user and let them know what repo you're working with.
+After completing any task, ALWAYS call \`chat_with_human\` to report results.
+CLAUDE_EOF
+    ;;
   *)
     cat > "${WORKDIR}/CLAUDE.md" << CLAUDE_EOF
 # ${AGENT_NAME}
@@ -108,9 +128,88 @@ CLAUDE_EOF
     ;;
 esac
 
-# 4. Write Claude Code settings with permissions + MCP server
+# 4. Clone repo for coder agents
+if [ "${AGENT_TEMPLATE}" = "coder" ] && [ -n "${REPO_URL:-}" ]; then
+  echo "[mai-tai-agent] Cloning repository: ${REPO_URL}"
+
+  # Configure GitHub token for HTTPS clone if available
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+    git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "git@github.com:"
+  fi
+
+  # Clone into workspace (clear it first, then clone directly)
+  cd /home/agent
+  rm -rf "${WORKDIR}"
+  if git clone "${REPO_URL}" "${WORKDIR}" 2>&1; then
+    echo "[mai-tai-agent] Repository cloned successfully"
+  else
+    echo "[mai-tai-agent] WARNING: Failed to clone repo, creating empty workspace"
+    mkdir -p "${WORKDIR}"
+  fi
+  cd "${WORKDIR}"
+
+  # Re-write the .env.mai-tai and CLAUDE.md since we replaced WORKDIR
+  echo "MAI_TAI_WORKSPACE_ID=${MAI_TAI_WORKSPACE_ID}" > "${WORKDIR}/.env.mai-tai"
+  # Re-create CLAUDE.md in the repo root
+  cat > "${WORKDIR}/CLAUDE.md" << CLAUDE_EOF
+# ${AGENT_NAME} - Coding Agent
+
+## Purpose
+${AGENT_PURPOSE}
+
+## Repository
+This workspace is connected to: ${REPO_URL}
+
+## Behavior
+- You are a software engineering agent. You help with code, PRs, bug fixes, and development tasks.
+- Read and understand the codebase before making changes.
+- Write clean, tested code. Run existing tests before and after changes.
+- Create branches for your work and commit with clear messages.
+- When asked to review code, be thorough but constructive.
+
+## Mai-Tai Mode
+When this session starts, IMMEDIATELY enter mai-tai mode by calling \`chat_with_human\`
+to greet the user and let them know what repo you're working with.
+After completing any task, ALWAYS call \`chat_with_human\` to report results.
+CLAUDE_EOF
+fi
+
+# 5. Write Claude Code settings with permissions + MCP server
 mkdir -p "${WORKDIR}/.claude"
-cat > "${WORKDIR}/.claude/settings.local.json" << 'SETTINGS_EOF'
+
+if [ "${AGENT_TEMPLATE}" = "coder" ]; then
+  # Coder agents get full permissions for development work
+  cat > "${WORKDIR}/.claude/settings.local.json" << 'SETTINGS_EOF'
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "WebSearch",
+      "WebFetch",
+      "mcp__mai-tai__chat_with_human",
+      "mcp__mai-tai__update_status",
+      "mcp__mai-tai__get_messages",
+      "mcp__mai-tai__get_project_info"
+    ],
+    "deny": []
+  },
+  "mcpServers": {
+    "mai-tai": {
+      "command": "uvx",
+      "args": ["--refresh", "mai-tai-mcp"]
+    }
+  }
+}
+SETTINGS_EOF
+else
+  # Non-coder agents get limited permissions
+  cat > "${WORKDIR}/.claude/settings.local.json" << 'SETTINGS_EOF'
 {
   "permissions": {
     "allow": [
@@ -137,8 +236,9 @@ cat > "${WORKDIR}/.claude/settings.local.json" << 'SETTINGS_EOF'
   }
 }
 SETTINGS_EOF
+fi
 
-# 5. Configure git (Claude Code requires a repo)
+# 6. Configure git (Claude Code requires a repo)
 git config --global user.email "agent@mai-tai.dev"
 git config --global user.name "${AGENT_NAME}"
 
@@ -148,12 +248,12 @@ if [ ! -d "${WORKDIR}/.git" ]; then
   git -C "${WORKDIR}" commit -m "Initial agent workspace" --allow-empty
 fi
 
-# 6. Skip onboarding prompt (required for headless mode)
+# 7. Skip onboarding prompt (required for headless mode)
 echo '{"hasCompletedOnboarding": true}' > ~/.claude.json
 
 echo "[mai-tai-agent] Configuration complete. Starting Claude..."
 
-# 7. Write MCP config as JSON for --mcp-config flag
+# 8. Write MCP config as JSON for --mcp-config flag
 cat > /tmp/mcp-config.json << 'MCP_EOF'
 {
   "mcpServers": {
@@ -165,7 +265,7 @@ cat > /tmp/mcp-config.json << 'MCP_EOF'
 }
 MCP_EOF
 
-# 8. Launch Claude in headless mai-tai mode
+# 9. Launch Claude in headless mai-tai mode
 # Using -p for non-interactive, --mcp-config to ensure MCP tools are loaded
 cd "${WORKDIR}"
 exec claude -p "start mai tai mode" \

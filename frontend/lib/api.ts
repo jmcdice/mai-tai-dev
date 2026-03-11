@@ -93,6 +93,7 @@ export interface UserSettings {
   time_format?: '12h' | '24h' | null;
   shortcuts?: UserShortcut[] | null;
   anthropic_api_key?: string | null;
+  github_token?: string | null;
   stash_llm_provider?: string | null;
   stash_llm_model?: string | null;
   stash_llm_api_key?: string | null;
