@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.config import get_settings
+from app.models.system_settings import SystemSetting
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -49,6 +50,18 @@ def generate_api_key() -> tuple[str, str]:
     return raw_key, key_hash
 
 
+async def is_registration_enabled(db: AsyncSession) -> bool:
+    """Check if registration is enabled (DB setting overrides env var)."""
+    result = await db.execute(
+        select(SystemSetting).where(SystemSetting.key == "registration_enabled")
+    )
+    setting = result.scalar_one_or_none()
+    if setting:
+        return setting.value == "true"
+    # Fall back to env var if no DB setting
+    return get_settings().registration_enabled
+
+
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("3/minute")
 async def register(
@@ -65,7 +78,7 @@ async def register(
 
     Returns user info plus provisioning details including the raw API key.
     """
-    if not get_settings().registration_enabled:
+    if not await is_registration_enabled(db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Registration is not enabled on this server",

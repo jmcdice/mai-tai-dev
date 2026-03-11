@@ -12,6 +12,7 @@ from app.api.deps import get_current_user, get_db
 from app.core.security import create_access_token, create_refresh_token
 from app.models.api_key import ApiKey
 from app.models.message import Message
+from app.models.system_settings import SystemSetting
 from app.models.workspace import Workspace
 from app.models.user import User
 
@@ -260,4 +261,47 @@ async def toggle_admin(
         "user_id": str(user_id),
         "is_admin": user.is_admin,
     }
+
+
+@router.get("/settings")
+async def get_admin_settings(
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get system settings. Admin only."""
+    result = await db.execute(
+        select(SystemSetting).where(SystemSetting.key == "registration_enabled")
+    )
+    setting = result.scalar_one_or_none()
+    registration_enabled = setting.value == "true" if setting else True
+
+    return {
+        "registration_enabled": registration_enabled,
+    }
+
+
+class AdminSettingsUpdate(BaseModel):
+    """Request to update system settings."""
+    registration_enabled: bool | None = None
+
+
+@router.patch("/settings")
+async def update_admin_settings(
+    data: AdminSettingsUpdate,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update system settings. Admin only."""
+    if data.registration_enabled is not None:
+        result = await db.execute(
+            select(SystemSetting).where(SystemSetting.key == "registration_enabled")
+        )
+        setting = result.scalar_one_or_none()
+        if setting:
+            setting.value = "true" if data.registration_enabled else "false"
+        else:
+            db.add(SystemSetting(key="registration_enabled", value="true" if data.registration_enabled else "false"))
+        await db.commit()
+
+    return await get_admin_settings(admin=admin, db=db)
 

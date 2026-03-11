@@ -6,6 +6,8 @@ import { useAuth } from '@/lib/auth';
 import {
   getAdminUsers,
   getAdminStats,
+  getAdminSettings,
+  updateAdminSettings,
   deleteUser,
   impersonateUser,
   toggleUserAdmin,
@@ -13,6 +15,7 @@ import {
   updateFeedbackStatus,
   AdminUser,
   AdminStats,
+  AdminSettings,
   AdminFeedback,
   ApiError,
 } from '@/lib/api';
@@ -35,6 +38,7 @@ export default function AdminPage() {
   const router = useRouter();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
   const [feedback, setFeedback] = useState<AdminFeedback[]>([]);
   const [feedbackFilter, setFeedbackFilter] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -46,13 +50,15 @@ export default function AdminPage() {
 
     const fetchData = async () => {
       try {
-        const [usersData, statsData, feedbackData] = await Promise.all([
+        const [usersData, statsData, settingsData, feedbackData] = await Promise.all([
           getAdminUsers(token),
           getAdminStats(token),
+          getAdminSettings(token),
           getAdminFeedback(token),
         ]);
         setUsers(usersData);
         setStats(statsData);
+        setAdminSettings(settingsData);
         setFeedback(feedbackData);
         setError(null);
       } catch (err) {
@@ -123,6 +129,21 @@ export default function AdminPage() {
     }
   };
 
+  const handleToggleRegistration = async () => {
+    if (!token || !adminSettings) return;
+    setActionLoading('registration');
+    try {
+      const updated = await updateAdminSettings(token, {
+        registration_enabled: !adminSettings.registration_enabled,
+      });
+      setAdminSettings(updated);
+    } catch {
+      alert('Failed to update registration setting');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleFeedbackStatus = async (feedbackId: string, status: string) => {
     if (!token) return;
 
@@ -175,6 +196,37 @@ export default function AdminPage() {
           <StatCard icon={ChatBubbleLeftRightIcon} label="Messages" value={stats.total_messages} />
           <StatCard icon={ShieldCheckIcon} label="Admins" value={stats.admin_count} />
           <StatCard icon={CpuChipIcon} label="Connected Agents" value={stats.connected_agents ?? 0} />
+        </div>
+      )}
+
+      {/* Site Settings */}
+      {adminSettings && (
+        <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-medium text-white">User Registration</h3>
+              <p className="text-sm text-gray-400">
+                {adminSettings.registration_enabled
+                  ? 'New users can create accounts'
+                  : 'Registration is disabled — only existing users can log in'}
+              </p>
+            </div>
+            <button
+              onClick={handleToggleRegistration}
+              disabled={actionLoading === 'registration'}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                adminSettings.registration_enabled
+                  ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                  : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+              }`}
+            >
+              {actionLoading === 'registration'
+                ? 'Updating...'
+                : adminSettings.registration_enabled
+                ? 'Enabled'
+                : 'Disabled'}
+            </button>
+          </div>
         </div>
       )}
 
