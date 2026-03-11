@@ -56,6 +56,10 @@ AGENT_TEMPLATES = {
         "label": "Personal Assistant",
         "description": "General-purpose assistant for daily tasks and questions.",
     },
+    "coder": {
+        "label": "Coding Agent",
+        "description": "Software engineering agent that clones a repo and helps with code, PRs, and bug fixes.",
+    },
     "custom": {
         "label": "Custom Agent",
         "description": "A custom agent with user-defined purpose and behavior.",
@@ -82,6 +86,8 @@ def start_agent(
     api_url: str | None = None,
     purpose: str | None = None,
     template: str = "custom",
+    github_token: str | None = None,
+    repo_url: str | None = None,
 ) -> dict:
     """Start a Claude Code agent in a Docker container.
 
@@ -135,6 +141,12 @@ def start_agent(
         "AGENT_PURPOSE": purpose or "General-purpose agent.",
         "AGENT_TEMPLATE": template,
     }
+
+    # Set GitHub token and repo URL for coder template
+    if github_token:
+        environment["GITHUB_TOKEN"] = github_token
+    if repo_url:
+        environment["REPO_URL"] = repo_url
 
     # Set auth: prefer OAuth token (Pro/Max subscription), fall back to API key
     if claude_oauth_token:

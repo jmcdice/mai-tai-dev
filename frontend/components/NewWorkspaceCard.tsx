@@ -10,6 +10,7 @@ import AgentSetupBlob from '@/components/AgentSetupBlob';
 interface NewWorkspaceCardProps {
   workspaceId: string;
   workspaceName: string;
+  workspaceType?: string;
   hasMessages?: boolean;
   onDismiss: () => void;
 }
@@ -25,7 +26,7 @@ function getBackendUrl(): string {
   return 'https://api.mai-tai.dev';
 }
 
-export default function NewWorkspaceCard({ workspaceId, workspaceName, hasMessages = false, onDismiss }: NewWorkspaceCardProps) {
+export default function NewWorkspaceCard({ workspaceId, workspaceName, workspaceType, hasMessages = false, onDismiss }: NewWorkspaceCardProps) {
   const { token } = useAuth();
   const [activeTab, setActiveTab] = useState<SetupTab>('quick');
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
@@ -102,6 +103,40 @@ export default function NewWorkspaceCard({ workspaceId, workspaceName, hasMessag
       </div>
     </div>
   );
+
+  // Agent workspace: show a simple "starting up" message
+  if (workspaceType === 'agent') {
+    return (
+      <div className="mb-6 rounded-xl border border-purple-500/30 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 p-4 sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-purple-500/20">
+              <SparklesIcon className="h-5 w-5 text-purple-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-white">
+                {workspaceName} is starting up!
+              </h3>
+              <p className="mt-1 text-sm text-gray-400">
+                Your agent is spinning up and will be right with you. This usually takes a few seconds.
+              </p>
+              <div className="mt-3 flex items-center gap-2 text-sm text-purple-300">
+                <span className="h-2 w-2 rounded-full bg-purple-400 animate-pulse" />
+                Connecting...
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onDismiss}
+            className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-700 hover:text-white"
+            title="Dismiss"
+          >
+            <XMarkIcon className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mb-6 rounded-xl border border-green-500/30 bg-gradient-to-r from-green-500/10 to-indigo-500/10 p-4 sm:p-6">

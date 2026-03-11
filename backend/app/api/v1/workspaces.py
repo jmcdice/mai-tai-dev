@@ -449,6 +449,10 @@ async def start_agent_endpoint(
     agent_config = workspace.agent_config or {}
     template = agent_config.get("template", "custom")
 
+    # Get GitHub token for coder agents
+    github_token = user_settings.get("github_token") if template == "coder" else None
+    repo_url = agent_config.get("repo_url") if template == "coder" else None
+
     # Start the Docker container
     # Mai-Tai API key is read from host's ~/.config/mai-tai/config (mounted into backend)
     result = start_agent(
@@ -458,6 +462,8 @@ async def start_agent_endpoint(
         claude_oauth_token=anthropic_api_key if is_oauth_token else None,
         purpose=workspace.agent_purpose,
         template=template,
+        github_token=github_token,
+        repo_url=repo_url,
     )
 
     if result["status"] == "error":

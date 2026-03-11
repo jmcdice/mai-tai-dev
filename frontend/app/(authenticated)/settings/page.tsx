@@ -74,6 +74,8 @@ export default function SettingsPage() {
   // AI settings state
   const [anthropicApiKey, setAnthropicApiKey] = useState('');
   const [showAnthropicApiKey, setShowAnthropicApiKey] = useState(false);
+  const [githubToken, setGithubToken] = useState('');
+  const [showGithubToken, setShowGithubToken] = useState(false);
   const [aiProvider, setAiProvider] = useState('');
   const [aiModel, setAiModel] = useState('');
   const [aiApiKey, setAiApiKey] = useState('');
@@ -94,6 +96,7 @@ export default function SettingsPage() {
         setShortcuts(user.settings?.shortcuts || []);
         // AI settings
         setAnthropicApiKey(user.settings?.anthropic_api_key || '');
+        setGithubToken(user.settings?.github_token || '');
         setAiProvider(user.settings?.stash_llm_provider || '');
         setAiModel(user.settings?.stash_llm_model || '');
         setAiApiKey(user.settings?.stash_llm_api_key || '');
@@ -133,6 +136,7 @@ export default function SettingsPage() {
           time_format: timeFormat,
           shortcuts: shortcuts.length > 0 ? shortcuts : null,
           anthropic_api_key: anthropicApiKey || null,
+          github_token: githubToken || null,
           stash_llm_provider: aiProvider || null,
           stash_llm_model: aiModel || null,
           stash_llm_api_key: aiApiKey || null,
@@ -914,6 +918,36 @@ export default function SettingsPage() {
               </button>
             </div>
             <p className="mt-1 text-xs text-gray-500">Used to run Claude Code in agent containers. Get one at console.anthropic.com.</p>
+          </div>
+        </div>
+
+        {/* GitHub Token for Coder Agents */}
+        <div className="mb-6 rounded-xl border border-gray-700 bg-gray-800/50 p-6">
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold text-white">GitHub Token</h2>
+            <p className="mt-1 text-gray-400">
+              Required for coding agents to clone private repositories.
+            </p>
+          </div>
+          <div className="max-w-lg">
+            <label className="block text-sm font-medium text-gray-300">Personal Access Token (Fine-grained)</label>
+            <div className="relative mt-1">
+              <input
+                type={showGithubToken ? 'text' : 'password'}
+                value={githubToken}
+                onChange={(e) => setGithubToken(e.target.value)}
+                placeholder="github_pat_..."
+                className="w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 pr-10 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setShowGithubToken(!showGithubToken)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+              >
+                {showGithubToken ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Fine-grained PAT with repo access. Create one at GitHub → Settings → Developer Settings → Fine-grained personal access tokens.</p>
           </div>
         </div>
 
