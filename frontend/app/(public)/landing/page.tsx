@@ -109,12 +109,12 @@ export default function LandingPage() {
             {/* Step 1 */}
             <div className="text-center">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600/20 text-3xl">
-                🔌
+                🐳
               </div>
-              <h3 className="mt-6 text-xl font-semibold text-white">Connect</h3>
+              <h3 className="mt-6 text-xl font-semibold text-white">Spin Up an Agent</h3>
               <p className="mt-2 text-gray-400">
-                Add mai-tai to your AI agent via MCP. Works with Claude Desktop,
-                Augment, and more.
+                Create a workspace, pick a template — research, coding, assistant — and mai-tai
+                launches a Docker container running Claude Code, connected to your workspace.
               </p>
             </div>
             {/* Step 2 */}
@@ -126,8 +126,8 @@ export default function LandingPage() {
                 Step Away
               </h3>
               <p className="mt-2 text-gray-400">
-                Your agent keeps working while you live your life. Go surf,
-                shop, or grab coffee.
+                Your agent works autonomously. It sends you updates, asks questions,
+                and remembers what it learns — even across restarts.
               </p>
             </div>
             {/* Step 3 */}
@@ -139,10 +139,35 @@ export default function LandingPage() {
                 Check In
               </h3>
               <p className="mt-2 text-gray-400">
-                Pull up mai-tai on your phone. Answer questions, review
-                progress, ship features.
+                Pull up mai-tai on your phone. Answer questions, unblock your agent,
+                and ship — from wherever you are.
               </p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="relative z-10 border-t border-gray-800 py-24">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="text-center text-3xl font-bold text-white sm:text-4xl">
+            Everything You Need
+          </h2>
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              { icon: "🐳", title: "Docker-per-agent", desc: "Each workspace gets its own isolated container. Start, stop, and restart agents from the UI." },
+              { icon: "🧠", title: "Persistent Memory", desc: "Agents write lessons to a mounted volume. They get smarter over time and remember across restarts." },
+              { icon: "💻", title: "Coding Agent", desc: "Clones your GitHub repo, writes code, opens PRs — just give it a repo URL and a PAT." },
+              { icon: "🔄", title: "Real-time", desc: "WebSocket-powered messaging. Updates arrive instantly on any device." },
+              { icon: "📱", title: "Mobile-first", desc: "Designed for checking in from your phone. Compact, fast, thumb-friendly." },
+              { icon: "🏠", title: "Self-hosted", desc: "Runs entirely on your machine. No data leaves your network." },
+            ].map((f) => (
+              <div key={f.title} className="rounded-xl border border-gray-700/50 bg-gray-800/30 p-6">
+                <div className="text-2xl">{f.icon}</div>
+                <h3 className="mt-3 font-semibold text-white">{f.title}</h3>
+                <p className="mt-1 text-sm text-gray-400">{f.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
