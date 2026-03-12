@@ -7,6 +7,7 @@
 set -euo pipefail
 
 WORKDIR="/home/agent/workspace"
+MEMORY_DIR="/home/agent/memory"
 
 # Required env vars
 : "${MAI_TAI_API_URL:?MAI_TAI_API_URL is required}"
@@ -35,100 +36,105 @@ MAI_TAI_API_URL=${MAI_TAI_API_URL}
 MAI_TAI_API_KEY=${MAI_TAI_API_KEY}
 EOF
 
-# 2. Write project-level .env.mai-tai (workspace ID)
+# 2. Ensure persistent memory directory exists
+mkdir -p "${MEMORY_DIR}/tasks"
+
+# 3. Write project-level .env.mai-tai (workspace ID)
 echo "MAI_TAI_WORKSPACE_ID=${MAI_TAI_WORKSPACE_ID}" > "${WORKDIR}/.env.mai-tai"
 
-# 3. Write CLAUDE.md based on template
+# 4. Build CLAUDE.md — template-specific content + shared principles + past lessons
 case "${AGENT_TEMPLATE}" in
   research)
-    cat > "${WORKDIR}/CLAUDE.md" << CLAUDE_EOF
-# ${AGENT_NAME} - Research Agent
-
-## Purpose
-${AGENT_PURPOSE}
-
-## Behavior
-- You are a research assistant. Your job is to help the user with research tasks.
+    TEMPLATE_CONTENT="## Role
+You are a research assistant. Your job is to help the user with research tasks.
 - Search the web, compile findings, and present clear summaries.
 - When given a topic, proactively find relevant information from multiple sources.
-- Be thorough but concise in your reports.
-
-## Mai-Tai Mode
-When this session starts, IMMEDIATELY enter mai-tai mode by calling \`chat_with_human\`
-to greet the user and ask what they'd like you to research.
-After completing any task, ALWAYS call \`chat_with_human\` to report results.
-CLAUDE_EOF
+- Be thorough but concise in your reports."
     ;;
   monitor)
-    cat > "${WORKDIR}/CLAUDE.md" << CLAUDE_EOF
-# ${AGENT_NAME} - Monitor Agent
-
-## Purpose
-${AGENT_PURPOSE}
-
-## Behavior
-- You are a monitoring agent that runs periodic checks and reports findings.
+    TEMPLATE_CONTENT="## Role
+You are a monitoring agent that runs periodic checks and reports findings.
 - Present findings in clear, actionable summaries.
-- Alert the user to significant changes or findings.
-
-## Mai-Tai Mode
-When this session starts, IMMEDIATELY enter mai-tai mode by calling \`chat_with_human\`
-to greet the user and ask what they'd like you to monitor.
-After completing any task, ALWAYS call \`chat_with_human\` to report results.
-CLAUDE_EOF
+- Alert the user to significant changes or anomalies."
     ;;
   assistant)
-    cat > "${WORKDIR}/CLAUDE.md" << CLAUDE_EOF
-# ${AGENT_NAME} - Personal Assistant
-
-## Purpose
-${AGENT_PURPOSE}
-
-## Behavior
-- You are a personal assistant. Help with questions, tasks, and daily needs.
+    TEMPLATE_CONTENT="## Role
+You are a personal assistant. Help with questions, tasks, and daily needs.
 - Be proactive about offering help and following up on previous conversations.
-- Be conversational and helpful.
-
-## Mai-Tai Mode
-When this session starts, IMMEDIATELY enter mai-tai mode by calling \`chat_with_human\`
-to greet the user. After completing any task, ALWAYS call \`chat_with_human\` to report results.
-CLAUDE_EOF
+- Be conversational and helpful."
     ;;
   coder)
-    cat > "${WORKDIR}/CLAUDE.md" << CLAUDE_EOF
-# ${AGENT_NAME} - Coding Agent
-
-## Purpose
-${AGENT_PURPOSE}
-
-## Behavior
-- You are a software engineering agent. You help with code, PRs, bug fixes, and development tasks.
+    TEMPLATE_CONTENT="## Role
+You are a software engineering agent. You help with code, PRs, bug fixes, and development tasks.
 - Read and understand the codebase before making changes.
 - Write clean, tested code. Run existing tests before and after changes.
 - Create branches for your work and commit with clear messages.
-- When asked to review code, be thorough but constructive.
-
-## Mai-Tai Mode
-When this session starts, IMMEDIATELY enter mai-tai mode by calling \`chat_with_human\`
-to greet the user and let them know what repo you're working with.
-After completing any task, ALWAYS call \`chat_with_human\` to report results.
-CLAUDE_EOF
+- When asked to review code, be thorough but constructive."
     ;;
   *)
-    cat > "${WORKDIR}/CLAUDE.md" << CLAUDE_EOF
+    TEMPLATE_CONTENT="## Role
+You are a general-purpose agent. Help the user with whatever they need."
+    ;;
+esac
+
+cat > "${WORKDIR}/CLAUDE.md" << CLAUDE_EOF
 # ${AGENT_NAME}
 
 ## Purpose
 ${AGENT_PURPOSE}
 
+${TEMPLATE_CONTENT}
+
+## Working Principles
+
+### Plan before acting
+- For any non-trivial task (3+ steps or architectural decisions), plan first
+- If something goes sideways, STOP and re-plan — don't keep pushing
+- Verify correctness before marking anything done
+
+### Self-improvement loop
+- After ANY correction from the user, write the lesson to \`${MEMORY_DIR}/tasks/lessons.md\`
+- Format: \`- [date] LESSON: <what went wrong> → <the rule>\`
+- Review this file at the start of each session — these are your standing rules
+- The goal: never make the same mistake twice
+
+### Verification before done
+- Never report a task complete without proving it works
+- Check logs, run tests, demonstrate correctness
+- Ask yourself: "Would a senior engineer approve this?"
+
+### Autonomous execution
+- When given a task or bug report: just fix it. No hand-holding needed.
+- Point at logs, errors, tests — then resolve them.
+
+### Simplicity first
+- Make changes as simple as possible. Minimal code impact.
+- No temporary fixes. Find root causes.
+
 ## Mai-Tai Mode
 When this session starts, IMMEDIATELY enter mai-tai mode by calling \`chat_with_human\`
-to greet the user. After completing any task, ALWAYS call \`chat_with_human\` to report results.
-CLAUDE_EOF
-    ;;
-esac
+to greet the user and ask what they'd like to work on.
+After completing ANY task, ALWAYS call \`chat_with_human\` to report results and get next instructions.
+NEVER go idle — \`chat_with_human\` is your home base.
 
-# 4. Clone repo for coder agents
+## Memory
+Your persistent memory is at: ${MEMORY_DIR}/
+- \`tasks/lessons.md\` — lessons learned (read at start, write after corrections)
+- \`tasks/todo.md\` — current task plan (write before starting, check off as you go)
+CLAUDE_EOF
+
+# 5. Inject past lessons if they exist
+LESSONS_FILE="${MEMORY_DIR}/tasks/lessons.md"
+if [ -f "${LESSONS_FILE}" ] && [ -s "${LESSONS_FILE}" ]; then
+  echo "[mai-tai-agent] Loading past lessons from memory..."
+  cat >> "${WORKDIR}/CLAUDE.md" << LESSONS_EOF
+
+## Past Lessons (from previous sessions)
+$(cat "${LESSONS_FILE}")
+LESSONS_EOF
+fi
+
+# 6. Clone repo for coder agents
 if [ "${AGENT_TEMPLATE}" = "coder" ] && [ -n "${REPO_URL:-}" ]; then
   echo "[mai-tai-agent] Cloning repository: ${REPO_URL}"
 
@@ -149,33 +155,17 @@ if [ "${AGENT_TEMPLATE}" = "coder" ] && [ -n "${REPO_URL:-}" ]; then
   fi
   cd "${WORKDIR}"
 
-  # Re-write the .env.mai-tai and CLAUDE.md since we replaced WORKDIR
+  # Re-write .env.mai-tai since we replaced WORKDIR
   echo "MAI_TAI_WORKSPACE_ID=${MAI_TAI_WORKSPACE_ID}" > "${WORKDIR}/.env.mai-tai"
-  # Re-create CLAUDE.md in the repo root
-  cat > "${WORKDIR}/CLAUDE.md" << CLAUDE_EOF
-# ${AGENT_NAME} - Coding Agent
 
-## Purpose
-${AGENT_PURPOSE}
-
-## Repository
-This workspace is connected to: ${REPO_URL}
-
-## Behavior
-- You are a software engineering agent. You help with code, PRs, bug fixes, and development tasks.
-- Read and understand the codebase before making changes.
-- Write clean, tested code. Run existing tests before and after changes.
-- Create branches for your work and commit with clear messages.
-- When asked to review code, be thorough but constructive.
-
-## Mai-Tai Mode
-When this session starts, IMMEDIATELY enter mai-tai mode by calling \`chat_with_human\`
-to greet the user and let them know what repo you're working with.
-After completing any task, ALWAYS call \`chat_with_human\` to report results.
-CLAUDE_EOF
+  # Copy the CLAUDE.md we already built into the repo root
+  cp /tmp/claude_md_tmp "${WORKDIR}/CLAUDE.md" 2>/dev/null || true
 fi
 
-# 5. Write Claude Code settings with permissions + MCP server
+# Save CLAUDE.md to a temp location before potential coder clone overwrites it
+cp "${WORKDIR}/CLAUDE.md" /tmp/claude_md_tmp 2>/dev/null || true
+
+# 7. Write Claude Code settings with permissions + MCP server
 mkdir -p "${WORKDIR}/.claude"
 
 if [ "${AGENT_TEMPLATE}" = "coder" ]; then
@@ -238,7 +228,7 @@ else
 SETTINGS_EOF
 fi
 
-# 6. Configure git (Claude Code requires a repo)
+# 8. Configure git (Claude Code requires a repo)
 git config --global user.email "agent@mai-tai.dev"
 git config --global user.name "${AGENT_NAME}"
 
@@ -248,12 +238,12 @@ if [ ! -d "${WORKDIR}/.git" ]; then
   git -C "${WORKDIR}" commit -m "Initial agent workspace" --allow-empty
 fi
 
-# 7. Skip onboarding prompt (required for headless mode)
+# 9. Skip onboarding prompt (required for headless mode)
 echo '{"hasCompletedOnboarding": true}' > ~/.claude.json
 
 echo "[mai-tai-agent] Configuration complete. Starting Claude..."
 
-# 8. Write MCP config as JSON for --mcp-config flag
+# 10. Write MCP config as JSON for --mcp-config flag
 cat > /tmp/mcp-config.json << 'MCP_EOF'
 {
   "mcpServers": {
@@ -265,8 +255,7 @@ cat > /tmp/mcp-config.json << 'MCP_EOF'
 }
 MCP_EOF
 
-# 9. Launch Claude in headless mai-tai mode
-# Using -p for non-interactive, --mcp-config to ensure MCP tools are loaded
+# 11. Launch Claude in headless mai-tai mode
 cd "${WORKDIR}"
 exec claude -p "start mai tai mode" \
   --dangerously-skip-permissions \
