@@ -276,7 +276,7 @@ function LinkCard({
           {displayTitle}
         </p>
 
-        {/* Source row: favicon + domain + time */}
+        {/* Source row: favicon + domain + time + issue number */}
         <div className="mt-1.5 flex items-center gap-1.5">
           {!favError ? (
             <img
@@ -291,6 +291,8 @@ function LinkCard({
           <span className="text-xs text-gray-500 truncate">{domain}</span>
           <span className="text-xs text-gray-700">·</span>
           <span className="text-xs text-gray-600 flex-shrink-0">{timeAgo(link.created_at)}</span>
+          <span className="text-xs text-gray-700">·</span>
+          <span className="text-xs text-indigo-500/70 flex-shrink-0 font-mono">#{String(link.issue_number).padStart(4, '0')}</span>
         </div>
       </a>
 
