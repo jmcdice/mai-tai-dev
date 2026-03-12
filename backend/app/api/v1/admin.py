@@ -10,10 +10,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.core.security import create_access_token, create_refresh_token
-from app.models.api_key import ApiKey
 from app.models.message import Message
 from app.models.system_settings import SystemSetting
 from app.models.workspace import Workspace
+from app.models.workspace_agent_activity import WorkspaceAgentActivity
 from app.models.user import User
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -146,10 +146,12 @@ async def get_stats(
     message_count_result = await db.execute(select(func.count(Message.id)))
     total_messages = message_count_result.scalar() or 0
 
-    # Count connected agents (API keys used in last 5 minutes)
+    # Count connected agents (workspaces with agent activity in last 5 minutes)
     five_min_ago = datetime.utcnow() - timedelta(minutes=5)
     connected_result = await db.execute(
-        select(func.count(ApiKey.id)).where(ApiKey.last_used_at > five_min_ago)
+        select(func.count(WorkspaceAgentActivity.workspace_id)).where(
+            WorkspaceAgentActivity.last_activity_at > five_min_ago
+        )
     )
     connected_agents = connected_result.scalar() or 0
 
