@@ -44,7 +44,7 @@ if settings.cors_allow_all:
     cors_origins = ["*"]
     cors_allow_credentials = False
 else:
-    cors_origins = list(settings.cors_origins)
+    cors_origins = list(settings.cors_origins_list)
     if settings.extra_cors_origin:
         cors_origins.append(settings.extra_cors_origin)
     cors_allow_credentials = True

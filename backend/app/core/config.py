@@ -1,5 +1,6 @@
 """Application configuration."""
 
+import json
 from functools import lru_cache
 
 from pydantic import model_validator
@@ -23,11 +24,20 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
 
     # CORS - defaults to localhost, use CORS_ORIGINS env var for additional origins
-    # Example: CORS_ORIGINS='["http://192.168.1.100:3000","https://myapp.example.com"]'
-    cors_origins: list[str] = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ]
+    # Accepts JSON array string: CORS_ORIGINS='["http://example.com"]'
+    # or comma-separated: CORS_ORIGINS=http://a.com,http://b.com
+    cors_origins: str = '["http://localhost:3000","http://127.0.0.1:3000"]'
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Parse CORS origins from string to list."""
+        try:
+            result = json.loads(self.cors_origins)
+            if isinstance(result, list):
+                return result
+        except (json.JSONDecodeError, TypeError):
+            pass
+        return [s.strip() for s in self.cors_origins.split(",") if s.strip()]
 
     # Additional CORS origins for local network access (set via environment)
     # Example: EXTRA_CORS_ORIGIN=http://192.168.86.27:3000

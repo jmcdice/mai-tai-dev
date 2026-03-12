@@ -158,6 +158,18 @@ export async function toggleUserAdmin(token: string, userId: string): Promise<{ 
   return api(`/api/v1/admin/users/${userId}/toggle-admin`, { method: 'POST', token });
 }
 
+export interface AdminSettings {
+  registration_enabled: boolean;
+}
+
+export async function getAdminSettings(token: string): Promise<AdminSettings> {
+  return api('/api/v1/admin/settings', { token });
+}
+
+export async function updateAdminSettings(token: string, settings: Partial<AdminSettings>): Promise<AdminSettings> {
+  return api('/api/v1/admin/settings', { method: 'PATCH', token, body: settings });
+}
+
 export async function login(email: string, password: string): Promise<LoginResponse> {
   const res = await fetch(`${API_URL}/api/v1/auth/login`, {
     method: 'POST',
