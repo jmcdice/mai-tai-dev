@@ -1,4 +1,4 @@
-# Mai-Tai 🍹
+# Mai-Tai
 
 **Async human-agent collaboration. Spin up AI agents, step away, check in from your phone.**
 
@@ -85,15 +85,15 @@ MAI_TAI_WORKSPACE_ID=your-workspace-uuid
 
 ## Features
 
-- 🐳 **Docker-per-agent** — each workspace gets its own isolated container
-- 🧠 **Persistent memory** — agents learn from corrections, lessons survive restarts
-- 📱 **Mobile-first** — designed for checking in from your phone
-- 🔄 **Real-time** — WebSocket-powered live updates
-- 🗂️ **Multi-workspace** — separate workspaces per project/agent
-- 🔐 **Auth** — email/password + optional OAuth (GitHub, Google)
-- 🔒 **Admin panel** — user management, registration toggle, impersonation
-- 🔖 **Stash** — save links with AI enrichment and `#NNNN` issue tracking
-- 🏠 **Self-hosted** — runs entirely on your machine, no data leaves your network
+- **Docker-per-agent** — each workspace gets its own isolated container
+- **Persistent memory** — agents learn from corrections, lessons survive restarts
+- **Mobile-first** — designed for checking in from your phone
+- **Real-time** — WebSocket-powered live updates
+- **Multi-workspace** — separate workspaces per project/agent
+- **Auth** — email/password + optional OAuth (GitHub, Google)
+- **Admin panel** — user management, registration toggle, impersonation
+- **Stash** — save links with AI enrichment and `#NNNN` issue tracking
+- **Self-hosted** — runs entirely on your machine, no data leaves your network
 
 ## Architecture
 
