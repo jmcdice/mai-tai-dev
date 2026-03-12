@@ -10,7 +10,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.core.security import create_access_token, create_refresh_token
-from app.models.api_key import ApiKey
 from app.models.message import Message
 from app.models.system_settings import SystemSetting
 from app.models.workspace import Workspace
