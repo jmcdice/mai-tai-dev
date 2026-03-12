@@ -29,6 +29,7 @@ RUN npm install -g @anthropic-ai/claude-code
 # Create non-root user (claude --dangerously-skip-permissions refuses to run as root)
 RUN useradd -m -s /bin/bash agent \
     && mkdir -p /home/agent/workspace \
+    && mkdir -p /home/agent/memory/tasks \
     && chown -R agent:agent /home/agent
 USER agent
 

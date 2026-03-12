@@ -154,6 +154,9 @@ def start_agent(
     elif anthropic_api_key:
         environment["ANTHROPIC_API_KEY"] = anthropic_api_key
 
+    # Persistent memory volume — survives container restarts
+    memory_volume = f"maitai-agent-memory-{str(workspace_id)}"
+
     try:
         container = client.containers.run(
             AGENT_IMAGE,
@@ -163,6 +166,9 @@ def start_agent(
             detach=True,
             restart_policy={"Name": "unless-stopped"},
             mem_limit="512m",
+            volumes={
+                memory_volume: {"bind": "/home/agent/memory", "mode": "rw"},
+            },
             labels={
                 "mai-tai.agent": "true",
                 "mai-tai.workspace-id": str(workspace_id),
