@@ -560,6 +560,7 @@ export async function updateFeedbackStatus(token: string, feedbackId: string, st
 export interface StashLink {
   id: string;
   user_id: string;
+  issue_number: number;
   url: string;
   title: string | null;
   description: string | null;

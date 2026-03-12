@@ -28,6 +28,7 @@ class StashLinkUpdate(BaseModel):
 class StashLinkResponse(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
+    issue_number: int
     url: str
     title: str | None
     description: str | None

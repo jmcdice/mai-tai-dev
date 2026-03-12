@@ -10,7 +10,7 @@ from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
@@ -190,8 +190,15 @@ async def create_link(
         description = description or meta.description
         thumbnail_url = thumbnail_url or meta.thumbnail_url
 
+    # Get next issue number for this user
+    max_result = await db.execute(
+        select(func.max(StashLink.issue_number)).where(StashLink.user_id == current_user.id)
+    )
+    next_issue = (max_result.scalar() or 0) + 1
+
     link = StashLink(
         user_id=current_user.id,
+        issue_number=next_issue,
         url=data.url,
         title=title,
         description=description,
