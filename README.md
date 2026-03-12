@@ -1,146 +1,157 @@
 # Mai-Tai 🍹
 
-**Real-time collaboration between humans and AI coding agents.**
+**Async human-agent collaboration. Spin up AI agents, step away, check in from your phone.**
 
-Mai-Tai is a web-based platform that enables asynchronous communication between developers and AI coding agents. Think of it as a shared workspace where you can check in on what your agents are doing, send them messages, and receive updates—all in real-time.
+Mai-Tai is a self-hosted platform that lets you launch AI coding agents as Docker containers, communicate with them via a mobile-first web UI, and stay in the loop from anywhere — no IDE required.
 
-## TL;DR for Agents
+## What It Does
 
-Just tell your AI coding agent:
-
-> Clone and run https://github.com/jmcdice/mai-tai-dev, make the frontend accessible on the local network, then give me the URL to access it.
-
-Your agent will handle the rest.
-
-## Features
-
-- 🔄 **Real-time messaging** - WebSocket-powered live updates
-- 👥 **Multi-workspace** - Organize projects into separate workspaces
-- 🤖 **MCP Integration** - Connect any AI agent via the Model Context Protocol
-- 🔐 **OAuth authentication** - Sign in with GitHub or Google
-- 📱 **Mobile-first** - Responsive design that works on any device
+- **Spin up agents** — create a workspace, pick a template (research, coding, assistant), and Mai-Tai spawns a Docker container running Claude Code connected to your workspace
+- **Talk to your agents** — real-time WebSocket messaging from any device, including mobile
+- **Step away** — agents run autonomously in Docker, sending you updates and asking questions via Mai-Tai when they need you
+- **Persistent memory** — agents remember lessons learned across restarts via a per-workspace mounted volume
+- **Stash** — save and organize links with AI enrichment and `#NNNN` issue numbers
 
 ## Quick Start
 
-**Prerequisites:** Docker, Docker Compose, Git, [uv](https://docs.astral.sh/uv/) (for the `uvx` command)
-
-> We use `uvx` (the UV package runner) to run the MCP server. Install UV with `curl -LsSf https://astral.sh/uv/install.sh | sh`
+**Prerequisites:** Docker, Docker Compose, Git
 
 ```bash
 git clone https://github.com/jmcdice/mai-tai-dev.git && cd mai-tai-dev
 cp .env.example .env
+# Edit .env: set SECRET_KEY, NEXTAUTH_SECRET, and your Anthropic API key
 ./dev.sh local up
 ```
 
-That's it! Visit **http://localhost:3000** to create a local account.
+Visit **http://localhost:3000** — the first account created becomes admin.
 
-This starts:
+## Agent Workspaces
 
-- **Frontend** at http://localhost:3000
-- **Backend API** at http://localhost:8000
-- **PostgreSQL** database
+The core feature. Create an agent workspace, pick a template, and Mai-Tai launches a Docker container running Claude Code connected to your workspace via MCP.
 
-The first account created automatically becomes admin.
+### Templates
 
-### Connect an AI agent
+| Template | Description |
+|---|---|
+| **Research** | Searches the web, compiles findings, sends reports |
+| **Coding Agent** | Clones a GitHub repo, writes code, opens PRs |
+| **Personal Assistant** | General tasks, daily questions, follow-ups |
+| **Monitor** | Periodic checks, alerts on changes |
+| **Custom** | Your own system prompt and behavior |
 
-Once running, go to the web UI at http://localhost:3000, create a local account, and follow the onboarding flow. It will generate a setup blob that you paste to your agent - the agent handles the rest.
+### How It Works
 
-The MCP server runs via `uvx` (no pip install needed):
-
-```bash
-uvx --refresh mai-tai-mcp
+```
+You (mobile/browser)
+    │
+    ▼
+Mai-Tai Web UI  ──WebSocket──▶  Backend (FastAPI)  ──▶  PostgreSQL
+                                       │
+                               Docker Socket
+                                       │
+                                       ▼
+                          ┌─────────────────────┐
+                          │  Agent Container     │
+                          │  (Claude Code + MCP) │
+                          │  /home/agent/memory/ │  ← persistent volume
+                          └─────────────────────┘
 ```
 
-This is automatically configured when your agent executes the setup blob.
+Each agent container:
+- Runs Claude Code in headless mai-tai mode
+- Connects to your workspace via the MCP server
+- Has a persistent volume at `/home/agent/memory/` for lessons and task notes
+- Gets template-specific `CLAUDE.md` with working principles baked in
 
-## Development
+### Coding Agent Setup
+
+1. Create a workspace → select **Coding Agent** template
+2. Enter your GitHub repo URL
+3. Add a GitHub PAT in Settings → AI tab
+4. Start the agent — it clones the repo and gets to work
+
+### MCP Config (host-based sessions)
+
+For Claude Code sessions running directly on a machine (not in a Docker container):
 
 ```bash
-# Start everything
-./dev.sh local up
+# Global credentials (~/.config/mai-tai/config)
+MAI_TAI_API_URL=http://localhost:8000
+MAI_TAI_API_KEY=mt_your_key_here
 
-# View logs
-./dev.sh local logs
-
-# Rebuild after code changes
-./dev.sh local rebuild
-
-# Run database migrations
-./dev.sh local migrate
-
-# Stop everything
-./dev.sh local down
-
-# Nuclear option: wipe database and start fresh
-./dev.sh local nuke-db
+# Per-project workspace (.env.mai-tai in project root)
+MAI_TAI_WORKSPACE_ID=your-workspace-uuid
 ```
+
+## Features
+
+- 🐳 **Docker-per-agent** — each workspace gets its own isolated container
+- 🧠 **Persistent memory** — agents learn from corrections, lessons survive restarts
+- 📱 **Mobile-first** — designed for checking in from your phone
+- 🔄 **Real-time** — WebSocket-powered live updates
+- 🗂️ **Multi-workspace** — separate workspaces per project/agent
+- 🔐 **Auth** — email/password + optional OAuth (GitHub, Google)
+- 🔒 **Admin panel** — user management, registration toggle, impersonation
+- 🔖 **Stash** — save links with AI enrichment and `#NNNN` issue tracking
+- 🏠 **Self-hosted** — runs entirely on your machine, no data leaves your network
 
 ## Architecture
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Frontend  │────▶│   Backend   │────▶│  PostgreSQL │
-│  (Next.js)  │     │  (FastAPI)  │     │             │
-└─────────────┘     └─────────────┘     └─────────────┘
-       ▲                   ▲
-       │                   │
-       └───────────────────┴──── WebSocket (real-time updates)
-
-┌─────────────┐
-│  AI Agent   │────▶ MCP Server (mai-tai-mcp)
-│  (Claude,   │
-│   etc.)     │
-└─────────────┘
+┌─────────────────────────────────────────────────┐
+│                  Mai-Tai Platform                │
+│                                                  │
+│  Frontend (Next.js)  ◀──▶  Backend (FastAPI)     │
+│         │                        │               │
+│         │ WebSocket         PostgreSQL           │
+│         │                        │               │
+│         │                  Docker Socket         │
+│         │                        │               │
+│         │               Agent Containers         │
+│         │               (Claude Code + MCP)      │
+└─────────────────────────────────────────────────┘
+         ▲
+         │
+   You (anywhere)
 ```
 
-## Tech Stack
+## Development
 
-- **Frontend**: Next.js 14+ (App Router), Tailwind CSS, shadcn/ui
-- **Backend**: FastAPI, SQLAlchemy, Alembic
-- **Database**: PostgreSQL 16
-- **Auth**: NextAuth.js with OAuth providers
-- **MCP Server**: Python package (`mai-tai-mcp`)
+```bash
+./dev.sh local up          # Start everything
+./dev.sh local logs        # View logs
+./dev.sh local rebuild     # Rebuild after code changes
+./dev.sh local migrate     # Run database migrations
+./dev.sh local down        # Stop everything
+./dev.sh local nuke-db     # Wipe database and start fresh
+```
 
 ## Configuration
 
-See `.env.example` for all configuration options. Key settings:
+See `.env.example` for all options. Key settings:
 
-| Variable                  | Description                             |
-| ------------------------- | --------------------------------------- |
-| `SECRET_KEY`              | JWT signing key (change in production!) |
-| `GITHUB_CLIENT_ID/SECRET` | GitHub OAuth credentials (optional)     |
-| `GOOGLE_CLIENT_ID/SECRET` | Google OAuth credentials (optional)     |
-| `NEXTAUTH_SECRET`         | NextAuth session encryption             |
-| `EXTRA_CORS_ORIGIN`       | Additional CORS origin for LAN access   |
+| Variable | Description |
+|---|---|
+| `SECRET_KEY` | JWT signing key (required, change in production) |
+| `NEXTAUTH_SECRET` | NextAuth session encryption |
+| `CORS_ORIGINS` | JSON array of allowed origins |
+| `REGISTRATION_ENABLED` | Set `false` to disable new signups (also toggleable in admin UI) |
+| `AGENT_IMAGE` | Docker image for agent containers (default: `mai-tai-agent:latest`) |
+| `GITHUB_CLIENT_ID/SECRET` | GitHub OAuth (optional) |
+| `GOOGLE_CLIENT_ID/SECRET` | Google OAuth (optional) |
 
-### LAN Access (Optional)
-
-> **Note:** Mai-Tai runs 100% locally on your machine. This section is only needed if you want to access it from **other devices on your local network** (like your phone). This does NOT expose anything to the internet.
-
-By default, Mai-Tai only accepts connections from `localhost`. To access from other devices on your home/office network:
+### Building the Agent Image
 
 ```bash
-# 1. Find your machine's LAN IP (e.g., 192.168.1.100)
-ip addr | grep "192.168"    # Linux
-ipconfig getifaddr en0      # macOS
-
-# 2. Update .env with your IP:
-NEXT_PUBLIC_API_URL=http://192.168.1.100:8000
-NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8000
-EXTRA_CORS_ORIGIN=http://192.168.1.100:3000
-NEXTAUTH_URL=http://192.168.1.100:3000
-
-# 3. Rebuild and restart
-./dev.sh local rebuild
+docker build -t mai-tai-agent:latest ./agent
 ```
 
-Now access Mai-Tai at `http://192.168.1.100:3000` from any device on your local network (phone, tablet, another computer, etc.).
+This image is required for agent workspaces. Rebuild after changes to `agent/`.
 
 ## Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for details.
