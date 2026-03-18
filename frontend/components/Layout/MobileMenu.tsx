@@ -47,7 +47,7 @@ export default function MobileMenu() {
       const response = await getWorkspaces(token, { archived: false });
       const sorted = response.workspaces
         .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-        .slice(0, 5);
+        .slice(0, 8);
       setWorkspaces(sorted);
     } catch (error) {
       console.error('Failed to fetch workspaces:', error);
@@ -86,9 +86,24 @@ export default function MobileMenu() {
   }, [isMoreOpen]);
 
   const isHomeActive = /^\/dashboard$/.test(pathname);
+  const isAnyMenuOpen = showWorkspaces || isMoreOpen || showShortcuts;
+
+  const closeAllMenus = useCallback(() => {
+    setShowWorkspaces(false);
+    setIsMoreOpen(false);
+    setShowShortcuts(false);
+  }, []);
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden">
+    <>
+      {/* Transparent backdrop — clicking above the menu closes it */}
+      {isAnyMenuOpen && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={closeAllMenus}
+        />
+      )}
+      <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden">
       {/* Workspaces Popup */}
       <Transition
         show={showWorkspaces}
@@ -339,6 +354,7 @@ export default function MobileMenu() {
         </div>
       </nav>
     </div>
+    </>
   );
 }
 
