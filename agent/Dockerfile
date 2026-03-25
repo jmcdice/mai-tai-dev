@@ -23,6 +23,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# Install GitHub CLI
+RUN GH_VERSION=2.45.0 \
+    && curl -sL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" \
+       | tar -xz -C /tmp \
+    && mv /tmp/gh_${GH_VERSION}_linux_amd64/bin/gh /usr/local/bin/gh \
+    && rm -rf /tmp/gh_${GH_VERSION}_linux_amd64
+
 # Install Claude Code CLI globally (as root)
 RUN npm install -g @anthropic-ai/claude-code
 
