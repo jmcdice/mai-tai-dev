@@ -512,6 +512,19 @@ def get_project_info() -> dict[str, Any]:
 # ============================================================================
 
 
+def _install_skill() -> None:
+    """Install the mai-tai Claude Code skill to ~/.claude/skills/."""
+    import shutil
+
+    skill_src = Path(__file__).parent / "skills" / "mai-tai.md"
+    skills_dir = Path.home() / ".claude" / "skills"
+    skills_dir.mkdir(parents=True, exist_ok=True)
+    dest = skills_dir / "mai-tai.md"
+    shutil.copy2(skill_src, dest)
+    print(f"Installed: {dest}")
+    print("You can now use /mai-tai start and /mai-tai stop in Claude Code.")
+
+
 def main() -> None:
     """Main entry point for the MCP server.
 
@@ -522,6 +535,10 @@ def main() -> None:
     - Exit with non-zero status on fatal errors
     """
     global shutting_down
+
+    if len(sys.argv) > 1 and sys.argv[1] == "install-skill":
+        _install_skill()
+        sys.exit(0)
 
     # Register signal handlers for clean shutdown
     signal.signal(signal.SIGINT, _handle_shutdown_signal)

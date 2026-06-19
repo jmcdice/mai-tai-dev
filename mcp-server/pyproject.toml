@@ -51,7 +51,7 @@ mai-tai-mcp = "mai_tai_mcp.server:main"
 include = ["mai_tai_mcp*"]
 
 [tool.setuptools.package-data]
-mai_tai_mcp = ["prompts/*.md"]
+mai_tai_mcp = ["prompts/*.md", "skills/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
