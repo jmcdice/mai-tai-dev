@@ -513,13 +513,13 @@ def get_project_info() -> dict[str, Any]:
 
 
 def _install_skill() -> None:
-    """Install the mai-tai Claude Code skill to ~/.claude/skills/."""
+    """Install the mai-tai Claude Code slash command to ~/.claude/commands/."""
     import shutil
 
     skill_src = Path(__file__).parent / "skills" / "mai-tai.md"
-    skills_dir = Path.home() / ".claude" / "skills"
-    skills_dir.mkdir(parents=True, exist_ok=True)
-    dest = skills_dir / "mai-tai.md"
+    commands_dir = Path.home() / ".claude" / "commands"
+    commands_dir.mkdir(parents=True, exist_ok=True)
+    dest = commands_dir / "mai-tai.md"
     shutil.copy2(skill_src, dest)
     print(f"Installed: {dest}")
     print("You can now use /mai-tai start and /mai-tai stop in Claude Code.")
