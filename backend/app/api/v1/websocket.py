@@ -3,7 +3,7 @@ WebSocket endpoint for real-time workspace messaging.
 """
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy import select
-from jose import jwt, JWTError
+import jwt
 
 from app.db.session import AsyncSessionLocal
 from app.core.config import get_settings
@@ -21,7 +21,7 @@ def get_user_from_token(token: str) -> str | None:
         payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
         user_id = payload.get("sub")
         return user_id
-    except JWTError:
+    except jwt.InvalidTokenError:
         return None
 
 
