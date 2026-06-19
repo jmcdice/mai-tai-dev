@@ -79,6 +79,28 @@ def _load_config_file(path: Path) -> Dict[str, str]:
     return config
 
 
+def _find_project_env_file() -> Optional[Path]:
+    """Find .env.mai-tai by checking CWD and PWD env var.
+
+    Claude Code spawns global MCP servers with a different CWD than the
+    user's project directory. The PWD environment variable, inherited from
+    the shell, reflects the actual working directory the user is in.
+    """
+    candidates = [Path.cwd()]
+    pwd = os.environ.get("PWD", "").strip()
+    if pwd:
+        pwd_path = Path(pwd)
+        if pwd_path != Path.cwd():
+            candidates.append(pwd_path)
+
+    for directory in candidates:
+        candidate = directory / ".env.mai-tai"
+        if candidate.exists():
+            return candidate
+
+    return None
+
+
 def _load_hierarchical_config() -> Dict[str, str]:
     """Load configuration from hierarchical sources.
 
@@ -96,8 +118,9 @@ def _load_hierarchical_config() -> Dict[str, str]:
     config.update(_load_config_file(global_config_path))
 
     # 2. Load per-project config (overrides global)
-    project_config_path = Path.cwd() / ".env.mai-tai"
-    config.update(_load_config_file(project_config_path))
+    project_config_path = _find_project_env_file()
+    if project_config_path:
+        config.update(_load_config_file(project_config_path))
 
     # 3. Environment variables override everything
     for key in ["MAI_TAI_API_URL", "MAI_TAI_API_KEY", "MAI_TAI_WORKSPACE_ID"]:
@@ -137,7 +160,7 @@ def is_project_configured() -> bool:
     """Check if the current project is configured for mai-tai.
 
     A project is considered "configured" if either:
-    1. A .env.mai-tai file exists in the current directory, OR
+    1. A .env.mai-tai file exists in the current directory (or PWD), OR
     2. The MAI_TAI_WORKSPACE_ID environment variable is set
 
     This is used to determine whether to fail silently (not configured)
@@ -146,9 +169,8 @@ def is_project_configured() -> bool:
     Returns:
         True if the project has mai-tai configuration, False otherwise.
     """
-    # Check for .env.mai-tai file in current directory
-    project_config_path = Path.cwd() / ".env.mai-tai"
-    if project_config_path.exists():
+    # Check for .env.mai-tai file (checks both CWD and PWD env var)
+    if _find_project_env_file() is not None:
         return True
 
     # Check for MAI_TAI_WORKSPACE_ID environment variable
