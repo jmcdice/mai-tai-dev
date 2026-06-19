@@ -258,7 +258,7 @@ def _wait_for_response_polling(
 
 
 @mcp.tool()
-def chat_with_human(
+async def chat_with_human(
     message: str,
 ) -> dict[str, Any]:
     """Send a message to the human and WAIT for their response. This is your HOME BASE.
@@ -300,7 +300,8 @@ def chat_with_human(
     _chat_in_progress = True
     _cancel_event.clear()  # Reset cancellation state for this call
     try:
-        return _chat_with_human_impl(message)
+        # Run the blocking poll in a thread so the event loop stays responsive
+        return await asyncio.to_thread(_chat_with_human_impl, message)
     except (KeyboardInterrupt, asyncio.CancelledError, SystemExit):
         # Tool was cancelled/interrupted by the user - exit gracefully
         _cancel_event.set()  # Signal any waiting polls to stop

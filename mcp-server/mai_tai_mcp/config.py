@@ -80,18 +80,54 @@ def _load_config_file(path: Path) -> Dict[str, str]:
 
 
 def _find_project_env_file() -> Optional[Path]:
-    """Find .env.mai-tai by checking CWD and PWD env var.
+    """Find .env.mai-tai by checking several candidate directories.
 
-    Claude Code spawns global MCP servers with a different CWD than the
-    user's project directory. The PWD environment variable, inherited from
-    the shell, reflects the actual working directory the user is in.
+    Claude Code spawns global MCP servers with CWD = home directory. It
+    explicitly sets the child's CWD when spawning, but its own CWD remains
+    the project directory. We therefore walk up the process tree and check
+    each ancestor's CWD via /proc (Linux), catching the case where Claude
+    Code is the parent or grandparent process.
+
+    Falls back gracefully on non-Linux platforms.
     """
-    candidates = [Path.cwd()]
+    seen: set[Path] = set()
+    candidates: list[Path] = []
+
+    def _add(p: Path) -> None:
+        if p not in seen:
+            seen.add(p)
+            candidates.append(p)
+
+    _add(Path.cwd())
+
+    # PWD env var sometimes differs from CWD inside shell sessions
     pwd = os.environ.get("PWD", "").strip()
     if pwd:
-        pwd_path = Path(pwd)
-        if pwd_path != Path.cwd():
-            candidates.append(pwd_path)
+        _add(Path(pwd))
+
+    # Walk up the process tree (Linux only).
+    # Claude Code's CWD is the project directory; it spawns MCP servers with
+    # an explicit home-dir CWD, so the project dir lives in a parent process.
+    try:
+        pid = os.getpid()
+        for _ in range(4):  # Check up to 4 ancestor levels
+            status = Path(f"/proc/{pid}/status")
+            if not status.exists():
+                break
+            ppid: Optional[int] = None
+            with open(status) as fh:
+                for line in fh:
+                    if line.startswith("PPid:"):
+                        ppid = int(line.split()[1])
+                        break
+            if not ppid or ppid <= 1:
+                break
+            cwd_link = f"/proc/{ppid}/cwd"
+            parent_cwd = Path(os.readlink(cwd_link))
+            _add(parent_cwd)
+            pid = ppid
+    except Exception:
+        pass  # Non-Linux or permission denied — silently skip
 
     for directory in candidates:
         candidate = directory / ".env.mai-tai"
@@ -160,7 +196,7 @@ def is_project_configured() -> bool:
     """Check if the current project is configured for mai-tai.
 
     A project is considered "configured" if either:
-    1. A .env.mai-tai file exists in the current directory (or PWD), OR
+    1. A .env.mai-tai file exists in or near the project directory, OR
     2. The MAI_TAI_WORKSPACE_ID environment variable is set
 
     This is used to determine whether to fail silently (not configured)
@@ -169,7 +205,7 @@ def is_project_configured() -> bool:
     Returns:
         True if the project has mai-tai configuration, False otherwise.
     """
-    # Check for .env.mai-tai file (checks both CWD and PWD env var)
+    # Check for .env.mai-tai file (checks CWD, PWD, and parent process CWD)
     if _find_project_env_file() is not None:
         return True
 
