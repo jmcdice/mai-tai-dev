@@ -11,7 +11,11 @@ pydantic-settings==2.9.1
 python-multipart==0.0.30
 httpx==0.28.1
 bcrypt==4.3.0
-PyJWT[crypto]==2.13.0
+PyJWT==2.13.0
+# Pin cryptography: the unpinned PyJWT[crypto] extra pulled 49.0.0, whose
+# prebuilt aarch64 wheel SIGILLs (illegal instruction) under Docker on Apple
+# Silicon. 44.0.1 works on both arm64 and x86.
+cryptography==44.0.1
 google-auth==2.40.1
 requests==2.32.3
 slowapi==0.1.9
