@@ -232,13 +232,20 @@ def _wait_for_response_polling(
             result = backend.get_messages(limit=10, after=after_message_id)
             messages = result.get("messages", [])
 
-            # Look for a user response (messages with user_id set)
+            # Wake on a new human response. This is EITHER:
+            #   - a mai-tai user (web UI) → user_id is set, OR
+            #   - a WhatsApp user → user_id is None but metadata.source=="whatsapp"
+            # WhatsApp folks have no mai-tai account, so we can't gate on user_id
+            # alone or we'd never react to the group.
             for msg in messages:
-                if msg.get("user_id") is not None:
+                meta = msg.get("message_metadata") or {}
+                is_wa = meta.get("source") == "whatsapp"
+                if msg.get("user_id") is not None or is_wa:
                     return {
                         "content": msg.get("content", ""),
                         "sender_name": msg.get("sender_name"),
                         "created_at": msg.get("created_at"),
+                        "channel": meta.get("channel", "private"),
                     }
 
             # No response yet, wait before polling again using Event.wait()
@@ -453,6 +460,53 @@ def update_status(
         "message_id": sent_message["id"],
         "workspace": backend.workspace_name,
         "note": "Status update sent. Continue with your work - no response expected.",
+    }
+
+
+# ============================================================================
+# WhatsApp Tool - the ONE door to WhatsApp
+# ============================================================================
+
+
+@mcp.tool()
+def send_to_wa(
+    message: str,
+) -> dict[str, Any]:
+    """Send a message OUT to this workspace's bound WhatsApp chat (group or DM).
+
+    This is the ONLY way anything reaches WhatsApp. Your normal `chat_with_human`
+    replies stay PRIVATE to the web UI and never leave. Use this tool deliberately
+    when — and only when — you intend the WhatsApp side to see the message, e.g.:
+    - answering a WhatsApp user who @-mentioned you, or
+    - the owner asks you (privately) to "tell the group X".
+
+    The message is also recorded in the workspace timeline (tagged channel="wa")
+    so the owner can see what went public.
+
+    Args:
+        message: The text to send to the WhatsApp chat.
+
+    Returns:
+        Dictionary confirming the message was sent to WhatsApp.
+    """
+    backend = get_backend()
+
+    if not backend.workspace_id:
+        return {
+            "status": "error",
+            "error": "No workspace bound to this API key.",
+        }
+
+    sent_message = backend.send_message(
+        content=message,
+        metadata={"type": "chat", "channel": "wa", "source": "mcp"},
+    )
+
+    return {
+        "status": "sent_to_whatsapp",
+        "message_id": sent_message.get("id"),
+        "workspace": backend.workspace_name,
+        "note": "Mirrored to WhatsApp. Your private chat_with_human replies are unaffected.",
     }
 
 

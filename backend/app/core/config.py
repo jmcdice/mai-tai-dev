@@ -60,6 +60,14 @@ class Settings(BaseSettings):
     use_iap: bool = False  # Set to True in production
     iap_audience: str = ""  # e.g., "/projects/PROJECT_NUMBER/global/backendServices/SERVICE_ID"
 
+    # --- WhatsApp bridge (Evolution API) ---
+    # Base URL the backend uses to call Evolution's REST API (sendText etc).
+    evolution_base_url: str = "http://maitai-evolution:8080"
+    # API key for the Evolution REST API (matches AUTHENTICATION_API_KEY in compose).
+    evolution_api_key: str = ""
+    # Shared secret used to verify inbound Evolution webhooks really came from us.
+    wa_webhook_secret: str = ""
+
     @model_validator(mode="after")
     def validate_secret_key_not_default_in_production(self) -> "Settings":
         """Fail fast if default secret key is used in production."""

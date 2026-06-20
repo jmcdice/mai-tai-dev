@@ -9,6 +9,7 @@ from app.api.v1.feedback import router as feedback_router
 from app.api.v1.mcp import router as mcp_router
 from app.api.v1.stash import router as stash_router
 from app.api.v1.users import router as users_router
+from app.api.v1.whatsapp import router as whatsapp_router
 from app.api.v1.workspaces import router as workspaces_router
 from app.api.v1.websocket import router as websocket_router
 
@@ -23,6 +24,7 @@ router.include_router(stash_router)
 router.include_router(users_router)
 router.include_router(workspaces_router)
 router.include_router(mcp_router)
+router.include_router(whatsapp_router)
 router.include_router(websocket_router)
 
 

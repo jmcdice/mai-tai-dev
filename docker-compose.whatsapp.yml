@@ -1,0 +1,77 @@
+# WhatsApp bridge stack — Evolution API + its own Postgres/Redis.
+#
+# Runs ALONGSIDE the main mai-tai compose (separate project, separate volumes).
+# Intended target: the Mac mini (clean, isolated, always-on home for the bot).
+#
+# Bring up with:
+#   docker compose -f docker-compose.whatsapp.yml --env-file .env.whatsapp up -d
+#
+# Evolution only makes OUTBOUND connections to WhatsApp, so no inbound
+# port-forwarding/public URL is required. The webhook points at the mai-tai
+# backend over the LAN/local network.
+#
+# NOTE: ports here are chosen to avoid collisions with the dev host inventory.
+# On the (clean) mini they can stay as-is.
+
+services:
+  evolution:
+    image: atendai/evolution-api:v2.1.1
+    container_name: maitai-evolution
+    ports:
+      - "${EVOLUTION_PORT:-8190}:8080"
+    environment:
+      # --- Auth: this key protects the Evolution REST API ---
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:?set EVOLUTION_API_KEY}
+      # --- Persistence ---
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://${EVO_PG_USER:-evolution}:${EVO_PG_PASSWORD:-evolution}@evolution-postgres:5432/${EVO_PG_DB:-evolution}
+      - DATABASE_SAVE_DATA_INSTANCE=true
+      - DATABASE_SAVE_DATA_NEW_MESSAGE=true
+      - DATABASE_SAVE_MESSAGE_UPDATE=true
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://evolution-redis:6379/0
+      - CACHE_REDIS_PREFIX_KEY=evolution
+      # --- Global webhook → mai-tai backend bridge ---
+      # On the mini, point this at the mai-tai backend's reachable address, e.g.
+      #   http://host.docker.internal:8000/api/v1/whatsapp/webhook
+      # or the LAN IP of the backend. Must include the shared-secret query/header.
+      - WEBHOOK_GLOBAL_ENABLED=true
+      - WEBHOOK_GLOBAL_URL=${WA_WEBHOOK_URL:?set WA_WEBHOOK_URL}
+      - WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS=false
+      # Only the events the bridge cares about:
+      - WEBHOOK_EVENTS_MESSAGES_UPSERT=true
+      - WEBHOOK_EVENTS_CONNECTION_UPDATE=true
+    depends_on:
+      evolution-postgres:
+        condition: service_healthy
+      evolution-redis:
+        condition: service_started
+    restart: unless-stopped
+
+  evolution-postgres:
+    image: postgres:16-alpine
+    container_name: maitai-evolution-postgres
+    environment:
+      POSTGRES_USER: ${EVO_PG_USER:-evolution}
+      POSTGRES_PASSWORD: ${EVO_PG_PASSWORD:-evolution}
+      POSTGRES_DB: ${EVO_PG_DB:-evolution}
+    volumes:
+      - evolution_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${EVO_PG_USER:-evolution}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  evolution-redis:
+    image: redis:7-alpine
+    container_name: maitai-evolution-redis
+    volumes:
+      - evolution_redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  evolution_postgres_data:
+  evolution_redis_data:

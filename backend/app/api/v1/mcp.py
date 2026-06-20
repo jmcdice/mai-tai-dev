@@ -11,6 +11,7 @@ from app.api.deps import ApiKeyAuth, get_api_key_auth, get_db
 from app.core.websocket import manager as ws_manager
 from app.models.message import Message
 from app.models.user import User
+from app.services import wa_bridge
 from app.schemas.message import (
     MessageAcknowledgeRequest,
     MessageAcknowledgeResponse,
@@ -65,6 +66,18 @@ async def send_message(
     db.add(message)
     await db.commit()
     await db.refresh(message)
+
+    # Outbound WhatsApp mirror: if the agent tagged this message channel="wa",
+    # it's the ONE door to WhatsApp — push it out through the bridge. Everything
+    # else stays private to the web UI.
+    if (message.message_metadata or {}).get("channel") == wa_bridge.CHANNEL_WA:
+        cfg = wa_bridge.workspace_wa_config(auth.workspace)
+        if cfg["instance"] and cfg["target_jid"]:
+            try:
+                await wa_bridge.send_text(cfg["instance"], cfg["target_jid"], message.content)
+            except Exception as exc:  # noqa: BLE001 — surface, don't crash the send
+                # TODO: record delivery failure on the message / alert owner in private channel.
+                print(f"wa_bridge.send_text failed: {exc}")
 
     # Broadcast to WebSocket clients
     await ws_manager.broadcast_to_channel(str(auth.workspace_id), {
