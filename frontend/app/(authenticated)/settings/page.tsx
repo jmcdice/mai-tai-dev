@@ -379,17 +379,17 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-gradient text-3xl font-bold">Settings</h1>
-        <p className="mt-2 text-gray-400">Manage your profile and account settings.</p>
+        <p className="mt-2 text-muted-foreground">Manage your profile and account settings.</p>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-700">
+      <div className="border-b border-border">
         {/* Mobile dropdown */}
         <div className="sm:hidden">
           <select
             value={activeTab}
             onChange={(e) => setActiveTab(e.target.value as Tab)}
-            className="w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-white"
+            className="w-full rounded-lg border border-border-strong bg-surface2 px-4 py-2 text-foreground"
           >
             {tabs.map((tab) => (
               <option key={tab.id} value={tab.id}>{tab.name}</option>
@@ -406,8 +406,8 @@ export default function SettingsPage() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
                   activeTab === tab.id
-                    ? 'border-indigo-500 text-indigo-400'
-                    : 'border-transparent text-gray-400 hover:border-gray-500 hover:text-gray-300'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:border-border-strong hover:text-muted-foreground'
                 }`}
               >
                 <Icon className="h-5 w-5" />
@@ -420,11 +420,11 @@ export default function SettingsPage() {
 
       {/* Profile Tab */}
       {activeTab === 'profile' && (
-        <div className="rounded-xl border border-gray-700 bg-gray-800/50 p-6">
-          <h2 className="mb-4 text-xl font-semibold text-white">Profile</h2>
+        <div className="rounded-xl border border-border bg-card/50 p-6">
+          <h2 className="mb-4 text-xl font-semibold text-foreground">Profile</h2>
 
           {message && (
-            <div className={`mb-4 flex max-w-lg items-center gap-2 rounded-lg p-3 ${message.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+            <div className={`mb-4 flex max-w-lg items-center gap-2 rounded-lg p-3 ${message.type === 'success' ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'}`}>
               {message.type === 'success' ? <CheckCircleIcon className="h-5 w-5" /> : <XCircleIcon className="h-5 w-5" />}
               {message.text}
             </div>
@@ -433,51 +433,51 @@ export default function SettingsPage() {
           <form onSubmit={handleProfileSubmit} className="max-w-lg space-y-4">
             {/* Avatar Preview */}
             <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-gray-600 bg-gray-700">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-border-strong bg-surface2">
                 {avatarUrl && /^https?:\/\//.test(avatarUrl) ? (
                   <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
                 ) : (
-                  <span className="text-2xl font-bold text-gray-400">{name.charAt(0).toUpperCase()}</span>
+                  <span className="text-2xl font-bold text-muted-foreground">{name.charAt(0).toUpperCase()}</span>
                 )}
               </div>
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-300">Avatar URL</label>
+                <label className="block text-sm font-medium text-muted-foreground">Avatar URL</label>
                 <input
                   type="url"
                   value={avatarUrl}
                   onChange={(e) => setAvatarUrl(e.target.value)}
                   placeholder="https://github.com/username.png"
-                  className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-border-strong bg-surface2 px-4 py-2 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300">Name</label>
+              <label className="block text-sm font-medium text-muted-foreground">Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-border-strong bg-surface2 px-4 py-2 text-foreground focus:border-primary focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300">Email</label>
+              <label className="block text-sm font-medium text-muted-foreground">Email</label>
               <input
                 type="email"
                 value={email}
                 disabled
-                className="mt-1 w-full cursor-not-allowed rounded-lg border border-gray-600 bg-gray-600 px-4 py-2 text-gray-400"
+                className="mt-1 w-full cursor-not-allowed rounded-lg border border-border-strong bg-surface2 px-4 py-2 text-muted-foreground"
               />
-              <p className="mt-1 text-xs text-gray-500">Email cannot be changed</p>
+              <p className="mt-1 text-xs text-faint">Email cannot be changed</p>
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isLoading ? 'Saving...' : 'Save Profile'}
             </button>
@@ -487,11 +487,11 @@ export default function SettingsPage() {
 
       {/* Password Tab */}
       {activeTab === 'password' && (
-        <div className="rounded-xl border border-gray-700 bg-gray-800/50 p-6">
-          <h2 className="mb-4 text-xl font-semibold text-white">Change Password</h2>
+        <div className="rounded-xl border border-border bg-card/50 p-6">
+          <h2 className="mb-4 text-xl font-semibold text-foreground">Change Password</h2>
 
           {passwordMessage && (
-            <div className={`mb-4 flex max-w-lg items-center gap-2 rounded-lg p-3 ${passwordMessage.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+            <div className={`mb-4 flex max-w-lg items-center gap-2 rounded-lg p-3 ${passwordMessage.type === 'success' ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'}`}>
               {passwordMessage.type === 'success' ? <CheckCircleIcon className="h-5 w-5" /> : <XCircleIcon className="h-5 w-5" />}
               {passwordMessage.text}
             </div>
@@ -499,42 +499,42 @@ export default function SettingsPage() {
 
           <form onSubmit={handlePasswordSubmit} className="max-w-lg space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300">Current Password</label>
+              <label className="block text-sm font-medium text-muted-foreground">Current Password</label>
               <input
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 required
-                className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-border-strong bg-surface2 px-4 py-2 text-foreground focus:border-primary focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300">New Password</label>
+              <label className="block text-sm font-medium text-muted-foreground">New Password</label>
               <input
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
-                className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-border-strong bg-surface2 px-4 py-2 text-foreground focus:border-primary focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300">Confirm New Password</label>
+              <label className="block text-sm font-medium text-muted-foreground">Confirm New Password</label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-border-strong bg-surface2 px-4 py-2 text-foreground focus:border-primary focus:outline-none"
               />
             </div>
 
             <button
               type="submit"
               disabled={isPasswordLoading}
-              className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isPasswordLoading ? 'Changing...' : 'Change Password'}
             </button>
@@ -544,11 +544,11 @@ export default function SettingsPage() {
 
       {/* Preferences Tab */}
       {activeTab === 'preferences' && (
-        <div className="rounded-xl border border-gray-700 bg-gray-800/50 p-6">
-          <h2 className="mb-4 text-xl font-semibold text-white">Preferences</h2>
+        <div className="rounded-xl border border-border bg-card/50 p-6">
+          <h2 className="mb-4 text-xl font-semibold text-foreground">Preferences</h2>
 
           {preferencesMessage && (
-            <div className={`mb-4 flex max-w-lg items-center gap-2 rounded-lg p-3 ${preferencesMessage.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+            <div className={`mb-4 flex max-w-lg items-center gap-2 rounded-lg p-3 ${preferencesMessage.type === 'success' ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'}`}>
               {preferencesMessage.type === 'success' ? <CheckCircleIcon className="h-5 w-5" /> : <XCircleIcon className="h-5 w-5" />}
               {preferencesMessage.text}
             </div>
@@ -556,41 +556,41 @@ export default function SettingsPage() {
 
           <form onSubmit={handlePreferencesSubmit} className="max-w-lg space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300">Timezone</label>
+              <label className="block text-sm font-medium text-muted-foreground">Timezone</label>
               <select
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-border-strong bg-surface2 px-4 py-2 text-foreground focus:border-primary focus:outline-none"
               >
                 {COMMON_TIMEZONES.map((tz) => (
                   <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-gray-500">Used for displaying timestamps</p>
+              <p className="mt-1 text-xs text-faint">Used for displaying timestamps</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300">Time Format</label>
+              <label className="block text-sm font-medium text-muted-foreground">Time Format</label>
               <div className="mt-2 flex gap-4">
-                <label className="flex items-center gap-2 text-gray-300">
+                <label className="flex items-center gap-2 text-muted-foreground">
                   <input
                     type="radio"
                     name="timeFormat"
                     value="12h"
                     checked={timeFormat === '12h'}
                     onChange={() => setTimeFormat('12h')}
-                    className="h-4 w-4 border-gray-600 bg-gray-700 text-indigo-600 focus:ring-indigo-500"
+                    className="h-4 w-4 border-border-strong bg-surface2 text-primary focus:ring-ring"
                   />
                   12-hour (3:30 PM)
                 </label>
-                <label className="flex items-center gap-2 text-gray-300">
+                <label className="flex items-center gap-2 text-muted-foreground">
                   <input
                     type="radio"
                     name="timeFormat"
                     value="24h"
                     checked={timeFormat === '24h'}
                     onChange={() => setTimeFormat('24h')}
-                    className="h-4 w-4 border-gray-600 bg-gray-700 text-indigo-600 focus:ring-indigo-500"
+                    className="h-4 w-4 border-border-strong bg-surface2 text-primary focus:ring-ring"
                   />
                   24-hour (15:30)
                 </label>
@@ -600,7 +600,7 @@ export default function SettingsPage() {
             <button
               type="submit"
               disabled={isPreferencesLoading}
-              className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isPreferencesLoading ? 'Saving...' : 'Save Preferences'}
             </button>
@@ -610,17 +610,17 @@ export default function SettingsPage() {
 
       {/* Shortcuts Tab */}
       {activeTab === 'shortcuts' && (
-        <div className="rounded-xl border border-gray-700 bg-gray-800/50 p-6">
+        <div className="rounded-xl border border-border bg-card/50 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-white">Quick Shortcuts</h2>
-              <p className="mt-1 text-gray-400">Customize the shortcuts shown in the Quick menu on mobile</p>
+              <h2 className="text-xl font-semibold text-foreground">Quick Shortcuts</h2>
+              <p className="mt-1 text-muted-foreground">Customize the shortcuts shown in the Quick menu on mobile</p>
             </div>
             {!isAddingShortcut && !editingShortcut && displayShortcuts.length < MAX_SHORTCUTS && (
               <button
                 type="button"
                 onClick={() => setIsAddingShortcut(true)}
-                className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
+                className="flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
               >
                 <PlusIcon className="h-4 w-4" />
                 Add Shortcut
@@ -630,50 +630,50 @@ export default function SettingsPage() {
 
           {/* Add/Edit Form */}
           {(isAddingShortcut || editingShortcut) && (
-            <div className="mt-6 rounded-lg border border-gray-600 bg-gray-700/50 p-4">
-              <h3 className="mb-4 font-medium text-white">
+            <div className="mt-6 rounded-lg border border-border-strong bg-surface2/50 p-4">
+              <h3 className="mb-4 font-medium text-foreground">
                 {editingShortcut ? 'Edit Shortcut' : 'New Shortcut'}
               </h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300">Label</label>
-                  <p className="mb-1 text-xs text-gray-500">Short name shown in the Quick menu</p>
+                  <label className="block text-sm font-medium text-muted-foreground">Label</label>
+                  <p className="mb-1 text-xs text-faint">Short name shown in the Quick menu</p>
                   <input
                     type="text"
                     value={newShortcutLabel}
                     onChange={(e) => setNewShortcutLabel(e.target.value)}
                     maxLength={MAX_LABEL_LENGTH}
                     placeholder="e.g., Deploy to prod"
-                    className="w-full rounded-lg border border-gray-600 bg-gray-700 px-3 py-2 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-border-strong bg-surface2 px-3 py-2 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
                   />
-                  <p className="mt-1 text-xs text-gray-500">{newShortcutLabel.length}/{MAX_LABEL_LENGTH}</p>
+                  <p className="mt-1 text-xs text-faint">{newShortcutLabel.length}/{MAX_LABEL_LENGTH}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300">Message Text</label>
-                  <p className="mb-1 text-xs text-gray-500">The full message that will be sent to the chat</p>
+                  <label className="block text-sm font-medium text-muted-foreground">Message Text</label>
+                  <p className="mb-1 text-xs text-faint">The full message that will be sent to the chat</p>
                   <textarea
                     value={newShortcutText}
                     onChange={(e) => setNewShortcutText(e.target.value)}
                     maxLength={MAX_TEXT_LENGTH}
                     rows={4}
                     placeholder="e.g., Please deploy the current changes to production and let me know when it's done..."
-                    className="w-full rounded-lg border border-gray-600 bg-gray-700 px-3 py-2 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-border-strong bg-surface2 px-3 py-2 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
                   />
-                  <p className="mt-1 text-xs text-gray-500">{newShortcutText.length}/{MAX_TEXT_LENGTH}</p>
+                  <p className="mt-1 text-xs text-faint">{newShortcutText.length}/{MAX_TEXT_LENGTH}</p>
                 </div>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={editingShortcut ? handleSaveEdit : handleAddShortcut}
                     disabled={!newShortcutLabel.trim() || !newShortcutText.trim()}
-                    className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {editingShortcut ? 'Save Changes' : 'Add Shortcut'}
                   </button>
                   <button
                     type="button"
                     onClick={handleCancelEdit}
-                    className="rounded-lg bg-gray-600 px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-500"
+                    className="rounded-lg bg-surface2 px-4 py-2 text-sm font-medium text-muted-foreground transition hover:bg-surface2"
                   >
                     Cancel
                   </button>
@@ -689,19 +689,19 @@ export default function SettingsPage() {
               return (
                 <div
                   key={shortcut.id}
-                  className="flex items-start justify-between rounded-lg border border-gray-700 bg-gray-800 p-4"
+                  className="flex items-start justify-between rounded-lg border border-border bg-card p-4"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-700 text-xs font-medium text-gray-400">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface2 text-xs font-medium text-muted-foreground">
                         {index + 1}
                       </span>
-                      <p className="font-medium text-white">{shortcut.label}</p>
+                      <p className="font-medium text-foreground">{shortcut.label}</p>
                       {isDefault && (
-                        <span className="rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-400">Default</span>
+                        <span className="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted-foreground">Default</span>
                       )}
                     </div>
-                    <p className="mt-2 text-sm text-gray-400">{shortcut.text}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">{shortcut.text}</p>
                   </div>
                   <div className="ml-4 flex shrink-0 gap-2">
                     <button
@@ -721,7 +721,7 @@ export default function SettingsPage() {
                           handleEditShortcut(shortcut);
                         }
                       }}
-                      className="rounded p-1.5 text-gray-400 transition hover:bg-gray-700 hover:text-white"
+                      className="rounded p-1.5 text-muted-foreground transition hover:bg-surface2 hover:text-foreground"
                       title="Edit"
                     >
                       <PencilIcon className="h-4 w-4" />
@@ -730,7 +730,7 @@ export default function SettingsPage() {
                       <button
                         type="button"
                         onClick={() => handleDeleteShortcut(shortcut.id)}
-                        className="rounded p-1.5 text-gray-400 transition hover:bg-gray-700 hover:text-red-400"
+                        className="rounded p-1.5 text-muted-foreground transition hover:bg-surface2 hover:text-destructive"
                         title="Delete"
                       >
                         <TrashIcon className="h-4 w-4" />
@@ -744,14 +744,14 @@ export default function SettingsPage() {
 
           {/* Info text */}
           {shortcuts.length === 0 && (
-            <p className="mt-4 text-center text-sm text-gray-500">
+            <p className="mt-4 text-center text-sm text-faint">
               These are the default shortcuts. Click edit to customize them.
             </p>
           )}
 
           {/* Status message */}
           {preferencesMessage && (
-            <div className={`mt-4 flex items-center gap-2 rounded-lg p-3 ${preferencesMessage.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+            <div className={`mt-4 flex items-center gap-2 rounded-lg p-3 ${preferencesMessage.type === 'success' ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'}`}>
               {preferencesMessage.type === 'success' ? <CheckCircleIcon className="h-5 w-5" /> : <XCircleIcon className="h-5 w-5" />}
               {preferencesMessage.text}
             </div>
@@ -759,24 +759,24 @@ export default function SettingsPage() {
 
           {/* Loading indicator */}
           {isPreferencesLoading && (
-            <p className="mt-4 text-center text-sm text-gray-400">Saving...</p>
+            <p className="mt-4 text-center text-sm text-muted-foreground">Saving...</p>
           )}
         </div>
       )}
 
       {/* API Keys Tab */}
       {activeTab === 'api-keys' && (
-        <div className="rounded-xl border border-gray-700 bg-gray-800/50 p-6">
+        <div className="rounded-xl border border-border bg-card/50 p-6">
           <div className="mb-6">
-            <h2 className="text-xl font-semibold text-white">API Keys</h2>
-            <p className="mt-1 text-gray-400">
+            <h2 className="text-xl font-semibold text-foreground">API Keys</h2>
+            <p className="mt-1 text-muted-foreground">
               Manage your API keys for connecting AI agents to Mai-Tai.
               Your API key works for all your workspaces.
             </p>
           </div>
 
           {apiKeysMessage && (
-            <div className={`mb-4 flex items-center gap-2 rounded-lg p-3 ${apiKeysMessage.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+            <div className={`mb-4 flex items-center gap-2 rounded-lg p-3 ${apiKeysMessage.type === 'success' ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'}`}>
               {apiKeysMessage.type === 'success' ? <CheckCircleIcon className="h-5 w-5" /> : <XCircleIcon className="h-5 w-5" />}
               {apiKeysMessage.text}
             </div>
@@ -784,26 +784,26 @@ export default function SettingsPage() {
 
           {/* Newly created key - show prominently */}
           {newlyCreatedKey && (
-            <div className="mb-6 rounded-lg border border-green-500/30 bg-green-500/10 p-4">
+            <div className="mb-6 rounded-lg border border-success/30 bg-success/10 p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium text-green-400">🔑 New API Key Created</p>
-                  <p className="mt-1 text-sm text-gray-400">Copy this now - it won&apos;t be shown again!</p>
+                  <p className="font-medium text-success">🔑 New API Key Created</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Copy this now - it won&apos;t be shown again!</p>
                 </div>
                 <button
                   onClick={() => setNewlyCreatedKey(null)}
-                  className="text-gray-400 hover:text-white"
+                  className="text-muted-foreground hover:text-foreground"
                 >
                   <XCircleIcon className="h-5 w-5" />
                 </button>
               </div>
               <div className="mt-3 flex items-center gap-2">
-                <code className="flex-1 rounded bg-gray-900 px-3 py-2 font-mono text-sm text-green-300 break-all">
+                <code className="flex-1 rounded bg-background px-3 py-2 font-mono text-sm text-success break-all">
                   {newlyCreatedKey}
                 </code>
                 <button
                   onClick={() => copyToClipboard(newlyCreatedKey, 'new')}
-                  className="rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-500"
+                  className="rounded-lg bg-success px-3 py-2 text-sm font-medium text-foreground hover:bg-success/90"
                 >
                   {copiedKeyId === 'new' ? 'Copied!' : 'Copy'}
                 </button>
@@ -812,20 +812,20 @@ export default function SettingsPage() {
           )}
 
           {/* Create new key */}
-          <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800 p-4">
-            <h3 className="mb-3 font-medium text-white">Create New API Key</h3>
+          <div className="mb-6 rounded-lg border border-border bg-card p-4">
+            <h3 className="mb-3 font-medium text-foreground">Create New API Key</h3>
             <div className="flex gap-3">
               <input
                 type="text"
                 value={newApiKeyName}
                 onChange={(e) => setNewApiKeyName(e.target.value)}
                 placeholder="Key name (e.g., 'My Laptop')"
-                className="flex-1 rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none"
+                className="flex-1 rounded-lg border border-border-strong bg-surface2 px-4 py-2 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
               />
               <button
                 onClick={handleCreateApiKey}
                 disabled={!newApiKeyName.trim() || isCreatingApiKey}
-                className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isCreatingApiKey ? 'Creating...' : 'Create Key'}
               </button>
@@ -834,20 +834,20 @@ export default function SettingsPage() {
 
           {/* Existing keys */}
           <div className="space-y-3">
-            <h3 className="font-medium text-white">Your API Keys</h3>
+            <h3 className="font-medium text-foreground">Your API Keys</h3>
             {isApiKeysLoading ? (
-              <p className="text-gray-400">Loading...</p>
+              <p className="text-muted-foreground">Loading...</p>
             ) : apiKeys.length === 0 ? (
-              <p className="text-gray-400">No API keys yet. Create one above to get started.</p>
+              <p className="text-muted-foreground">No API keys yet. Create one above to get started.</p>
             ) : (
               apiKeys.map((key) => (
                 <div
                   key={key.id}
-                  className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800 p-4"
+                  className="flex items-center justify-between rounded-lg border border-border bg-card p-4"
                 >
                   <div>
-                    <p className="font-medium text-white">{key.name || 'Unnamed Key'}</p>
-                    <p className="text-sm text-gray-400">
+                    <p className="font-medium text-foreground">{key.name || 'Unnamed Key'}</p>
+                    <p className="text-sm text-muted-foreground">
                       Created {new Date(key.created_at).toLocaleDateString()}
                       {key.last_used_at && ` • Last used ${new Date(key.last_used_at).toLocaleDateString()}`}
                     </p>
@@ -855,14 +855,14 @@ export default function SettingsPage() {
                   <div className="flex gap-1">
                     <button
                       onClick={() => handleRegenerateApiKey(key.id, key.name || 'Unnamed Key')}
-                      className="rounded p-2 text-gray-400 transition hover:bg-gray-700 hover:text-indigo-400"
+                      className="rounded p-2 text-muted-foreground transition hover:bg-surface2 hover:text-primary/80"
                       title="Regenerate API key"
                     >
                       <ArrowPathIcon className="h-5 w-5" />
                     </button>
                     <button
                       onClick={() => handleDeleteApiKey(key.id)}
-                      className="rounded p-2 text-gray-400 transition hover:bg-gray-700 hover:text-red-400"
+                      className="rounded p-2 text-muted-foreground transition hover:bg-surface2 hover:text-destructive"
                       title="Delete API key"
                     >
                       <TrashIcon className="h-5 w-5" />
@@ -874,12 +874,12 @@ export default function SettingsPage() {
           </div>
 
           {/* Info box */}
-          <div className="mt-6 rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-4">
-            <h4 className="font-medium text-indigo-300">💡 How to use your API key</h4>
-            <p className="mt-2 text-sm text-gray-300">
+          <div className="mt-6 rounded-lg border border-primary/30 bg-primary/10 p-4">
+            <h4 className="font-medium text-primary">💡 How to use your API key</h4>
+            <p className="mt-2 text-sm text-muted-foreground">
               Your API key works for all your workspaces. When configuring your AI agent:
             </p>
-            <ol className="mt-2 list-inside list-decimal space-y-1 text-sm text-gray-300">
+            <ol className="mt-2 list-inside list-decimal space-y-1 text-sm text-muted-foreground">
               <li>Add your API key to your global config (~/.config/mai-tai/config)</li>
               <li>Add the workspace ID to each project (.env.mai-tai)</li>
               <li>Configure your AI agent to use the mai-tai MCP server</li>
@@ -892,75 +892,75 @@ export default function SettingsPage() {
       {activeTab === 'ai' && (
         <>
         {/* Anthropic API Key for Agent Workspaces */}
-        <div className="mb-6 rounded-xl border border-gray-700 bg-gray-800/50 p-6">
+        <div className="mb-6 rounded-xl border border-border bg-card/50 p-6">
           <div className="mb-4">
-            <h2 className="text-xl font-semibold text-white">Agent API Key</h2>
-            <p className="mt-1 text-gray-400">
+            <h2 className="text-xl font-semibold text-foreground">Agent API Key</h2>
+            <p className="mt-1 text-muted-foreground">
               Required for agent workspaces. Your Anthropic API key powers Claude Code agents.
             </p>
           </div>
           <div className="max-w-lg">
-            <label className="block text-sm font-medium text-gray-300">Anthropic API Key</label>
+            <label className="block text-sm font-medium text-muted-foreground">Anthropic API Key</label>
             <div className="relative mt-1">
               <input
                 type={showAnthropicApiKey ? 'text' : 'password'}
                 value={anthropicApiKey}
                 onChange={(e) => setAnthropicApiKey(e.target.value)}
                 placeholder="sk-ant-api03-..."
-                className="w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 pr-10 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none"
+                className="w-full rounded-lg border border-border-strong bg-surface2 px-4 py-2 pr-10 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => setShowAnthropicApiKey(!showAnthropicApiKey)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 {showAnthropicApiKey ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
               </button>
             </div>
-            <p className="mt-1 text-xs text-gray-500">Used to run Claude Code in agent containers. Get one at console.anthropic.com.</p>
+            <p className="mt-1 text-xs text-faint">Used to run Claude Code in agent containers. Get one at console.anthropic.com.</p>
           </div>
         </div>
 
         {/* GitHub Token for Coder Agents */}
-        <div className="mb-6 rounded-xl border border-gray-700 bg-gray-800/50 p-6">
+        <div className="mb-6 rounded-xl border border-border bg-card/50 p-6">
           <div className="mb-4">
-            <h2 className="text-xl font-semibold text-white">GitHub Token</h2>
-            <p className="mt-1 text-gray-400">
+            <h2 className="text-xl font-semibold text-foreground">GitHub Token</h2>
+            <p className="mt-1 text-muted-foreground">
               Required for coding agents to clone private repositories.
             </p>
           </div>
           <div className="max-w-lg">
-            <label className="block text-sm font-medium text-gray-300">Personal Access Token (Fine-grained)</label>
+            <label className="block text-sm font-medium text-muted-foreground">Personal Access Token (Fine-grained)</label>
             <div className="relative mt-1">
               <input
                 type={showGithubToken ? 'text' : 'password'}
                 value={githubToken}
                 onChange={(e) => setGithubToken(e.target.value)}
                 placeholder="github_pat_..."
-                className="w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 pr-10 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none"
+                className="w-full rounded-lg border border-border-strong bg-surface2 px-4 py-2 pr-10 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => setShowGithubToken(!showGithubToken)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 {showGithubToken ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
               </button>
             </div>
-            <p className="mt-1 text-xs text-gray-500">Fine-grained PAT with repo access. Create one at GitHub → Settings → Developer Settings → Fine-grained personal access tokens.</p>
+            <p className="mt-1 text-xs text-faint">Fine-grained PAT with repo access. Create one at GitHub → Settings → Developer Settings → Fine-grained personal access tokens.</p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-gray-700 bg-gray-800/50 p-6">
+        <div className="rounded-xl border border-border bg-card/50 p-6">
           <div className="mb-6">
-            <h2 className="text-xl font-semibold text-white">Stash AI Settings</h2>
-            <p className="mt-1 text-gray-400">
+            <h2 className="text-xl font-semibold text-foreground">Stash AI Settings</h2>
+            <p className="mt-1 text-muted-foreground">
               Configure an LLM to automatically generate summaries, titles, and tags when you save links to Stash.
             </p>
           </div>
 
           {aiMessage && (
-            <div className={`mb-4 flex items-center gap-2 rounded-lg p-3 ${aiMessage.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+            <div className={`mb-4 flex items-center gap-2 rounded-lg p-3 ${aiMessage.type === 'success' ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'}`}>
               {aiMessage.type === 'success' ? <CheckCircleIcon className="h-5 w-5" /> : <XCircleIcon className="h-5 w-5" />}
               {aiMessage.text}
             </div>
@@ -969,14 +969,14 @@ export default function SettingsPage() {
           <div className="max-w-lg space-y-4">
             {/* Provider */}
             <div>
-              <label className="block text-sm font-medium text-gray-300">Provider</label>
+              <label className="block text-sm font-medium text-muted-foreground">Provider</label>
               <select
                 value={aiProvider}
                 onChange={(e) => {
                   setAiProvider(e.target.value);
                   setAiModel(''); // Reset model when provider changes
                 }}
-                className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-border-strong bg-surface2 px-4 py-2 text-foreground focus:border-primary focus:outline-none"
               >
                 <option value="">Select a provider...</option>
                 {Object.keys(aiProviderModels).map((p) => (
@@ -990,11 +990,11 @@ export default function SettingsPage() {
             {/* Model */}
             {aiProvider && (
               <div>
-                <label className="block text-sm font-medium text-gray-300">Model</label>
+                <label className="block text-sm font-medium text-muted-foreground">Model</label>
                 <select
                   value={aiModel}
                   onChange={(e) => setAiModel(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-border-strong bg-surface2 px-4 py-2 text-foreground focus:border-primary focus:outline-none"
                 >
                   <option value="">Select a model...</option>
                   {(aiProviderModels[aiProvider] || []).map((m) => (
@@ -1007,37 +1007,37 @@ export default function SettingsPage() {
             {/* API Key (not for Ollama) */}
             {aiProvider && aiProvider !== 'ollama' && (
               <div>
-                <label className="block text-sm font-medium text-gray-300">API Key</label>
+                <label className="block text-sm font-medium text-muted-foreground">API Key</label>
                 <div className="relative mt-1">
                   <input
                     type={showAiApiKey ? 'text' : 'password'}
                     value={aiApiKey}
                     onChange={(e) => setAiApiKey(e.target.value)}
                     placeholder={aiProvider === 'anthropic' ? 'sk-ant-...' : aiProvider === 'openai' ? 'sk-...' : 'API key...'}
-                    className="w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 pr-10 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-border-strong bg-surface2 px-4 py-2 pr-10 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => setShowAiApiKey(!showAiApiKey)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
                     {showAiApiKey ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                   </button>
                 </div>
-                <p className="mt-1 text-xs text-gray-500">Your key is stored securely and only used for Stash enrichment.</p>
+                <p className="mt-1 text-xs text-faint">Your key is stored securely and only used for Stash enrichment.</p>
               </div>
             )}
 
             {/* Ollama base URL */}
             {aiProvider === 'ollama' && (
               <div>
-                <label className="block text-sm font-medium text-gray-300">Ollama Base URL</label>
+                <label className="block text-sm font-medium text-muted-foreground">Ollama Base URL</label>
                 <input
                   type="url"
                   value={aiOllamaBaseUrl}
                   onChange={(e) => setAiOllamaBaseUrl(e.target.value)}
                   placeholder="http://localhost:11434"
-                  className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-border-strong bg-surface2 px-4 py-2 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
                 />
               </div>
             )}
@@ -1046,7 +1046,7 @@ export default function SettingsPage() {
               <button
                 onClick={handleAiSave}
                 disabled={isAiLoading}
-                className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isAiLoading ? 'Saving...' : 'Save AI Settings'}
               </button>
@@ -1057,7 +1057,7 @@ export default function SettingsPage() {
                     setAiModel('');
                     setAiApiKey('');
                   }}
-                  className="rounded-lg bg-gray-600 px-4 py-2 font-medium text-gray-300 transition hover:bg-gray-500"
+                  className="rounded-lg bg-surface2 px-4 py-2 font-medium text-muted-foreground transition hover:bg-surface2"
                 >
                   Clear
                 </button>
@@ -1066,17 +1066,17 @@ export default function SettingsPage() {
           </div>
 
           {/* Info box */}
-          <div className="mt-6 rounded-lg border border-violet-500/30 bg-violet-500/10 p-4">
-            <h4 className="font-medium text-violet-300">How it works</h4>
-            <p className="mt-2 text-sm text-gray-300">
+          <div className="mt-6 rounded-lg border border-secondary/30 bg-secondary/10 p-4">
+            <h4 className="font-medium text-secondary">How it works</h4>
+            <p className="mt-2 text-sm text-muted-foreground">
               When you save a link to Stash, the selected LLM will automatically analyze the page and generate:
             </p>
-            <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-gray-300">
+            <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-muted-foreground">
               <li>A clean, human-readable title</li>
               <li>A 1-2 sentence summary</li>
               <li>Relevant tags for easy filtering</li>
             </ul>
-            <p className="mt-2 text-sm text-gray-500">
+            <p className="mt-2 text-sm text-faint">
               For cost-effective usage, we recommend Haiku 4.5, GPT-5 Mini, or Gemini 2.5 Flash.
             </p>
           </div>

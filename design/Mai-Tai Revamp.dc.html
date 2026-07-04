@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Hanken+Grotesk:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  ::selection { background: var(--accent); color: var(--accent-text); }
+  @keyframes mt-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @keyframes mt-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+  @keyframes mt-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .mt-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+  .mt-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 20px; border: 3px solid transparent; background-clip: padding-box; }
+  .mt-scroll::-webkit-scrollbar-track { background: transparent; }
+</style>
+</helmet>
+
+<div style="min-height:100vh; background:#0a0b0d; background-image:radial-gradient(circle at 20% 0%, #16181d 0%, #0a0b0d 60%); font-family:'Hanken Grotesk',system-ui,sans-serif; padding-bottom:64px;">
+
+  <!-- ===== Presentation chrome ===== -->
+  <div style="position:sticky; top:0; z-index:100; display:flex; align-items:center; gap:18px; flex-wrap:wrap; padding:14px 22px; background:rgba(12,13,16,0.82); backdrop-filter:blur(14px); border-bottom:1px solid #1c1f25;">
+    <div style="display:flex; align-items:center; gap:11px;">
+      <div style="width:30px; height:30px; border-radius:9px; background:linear-gradient(135deg,#f0844e,#e2a33c); display:flex; align-items:center; justify-content:center; font-size:16px;">🍹</div>
+      <div style="display:flex; flex-direction:column; line-height:1.05;">
+        <span style="color:#f4f5f7; font-weight:700; font-size:15px; letter-spacing:-0.01em;">Mai-Tai</span>
+        <span style="color:#6b7280; font-size:10.5px; font-family:'JetBrains Mono',monospace; letter-spacing:0.04em;">redesign preview</span>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:4px; padding:4px; background:#15171c; border:1px solid #23262d; border-radius:11px;">
+      <sc-for list="{{ screens }}" as="tab" hint-placeholder-count="4">
+        <button onClick="{{ tab.onClick }}" style="{{ tab.style }}">{{ tab.label }}</button>
+      </sc-for>
+    </div>
+
+    <div style="flex:1;"></div>
+
+    <div style="display:flex; gap:4px; padding:4px; background:#15171c; border:1px solid #23262d; border-radius:11px;">
+      <sc-for list="{{ dirs }}" as="d" hint-placeholder-count="2">
+        <button onClick="{{ d.onClick }}" style="{{ d.style }}"><span style="width:9px; height:9px; border-radius:50%; background:{{ d.dot }};"></span>{{ d.label }}</button>
+      </sc-for>
+    </div>
+
+    <button onClick="{{ toggleTheme }}" title="Toggle light / dark" style="display:flex; align-items:center; gap:8px; padding:8px 12px; background:#15171c; border:1px solid #23262d; border-radius:11px; color:#c7ccd4; font-size:12.5px; font-weight:600; cursor:pointer; font-family:inherit;">
+      <span style="font-size:13px;">{{ themeIcon }}</span>{{ themeLabel }}
+    </button>
+  </div>
+
+  <!-- ===== Themed canvas ===== -->
+  <div style="padding:30px 22px 0;">
+    <div style="{{ rootStyle }}" class="mt-scroll">
+      <div style="max-width:1180px; margin:0 auto; border-radius:18px; overflow:hidden; background:var(--bg); border:1px solid var(--border); box-shadow:0 40px 80px -30px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.02);">
+
+        <!-- browser frame top bar -->
+        <div style="display:flex; align-items:center; gap:14px; padding:13px 18px; background:var(--surface); border-bottom:1px solid var(--border);">
+          <div style="display:flex; gap:7px;">
+            <span style="width:11px; height:11px; border-radius:50%; background:#f0846e;"></span>
+            <span style="width:11px; height:11px; border-radius:50%; background:#f2c24b;"></span>
+            <span style="width:11px; height:11px; border-radius:50%; background:#54c98a;"></span>
+          </div>
+          <div style="flex:1; max-width:340px; margin:0 auto; display:flex; align-items:center; gap:8px; padding:6px 13px; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--faint); font-size:12px; font-family:var(--mono);">
+            <span style="color:var(--accent);">▲</span> mai-tai.local{{ urlPath }}
+          </div>
+          <div style="width:54px;"></div>
+        </div>
+
+        <!-- screen viewport -->
+        <div style="height:760px; overflow-y:auto; overflow-x:hidden; background:var(--bg);" class="mt-scroll">
+
+          <!-- ============ LANDING ============ -->
+          <sc-if value="{{ isLanding }}" hint-placeholder-val="{{ true }}">
+          <div style="font-family:var(--font); color:var(--text);">
+            <!-- nav -->
+            <div style="position:sticky; top:0; z-index:20; display:flex; align-items:center; justify-content:space-between; padding:18px 40px; background:color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter:blur(12px); border-bottom:1px solid var(--border);">
+              <div style="display:flex; align-items:center; gap:11px;">
+                <div style="width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; box-shadow:0 6px 16px -6px var(--accent);"><span style="font-size:17px;">🍹</span></div>
+                <span style="font-family:var(--display); font-weight:700; font-size:19px; letter-spacing:-0.02em; white-space:nowrap;">Mai-Tai</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:28px;">
+                <span style="color:var(--muted); font-size:14px; font-weight:500;">Product</span>
+                <span style="color:var(--muted); font-size:14px; font-weight:500; white-space:nowrap;">Self-hosting</span>
+                <span style="color:var(--muted); font-size:14px; font-weight:500;">Docs</span>
+                <span style="color:var(--text); font-size:14px; font-weight:600; white-space:nowrap;">Sign in</span>
+                <span style="padding:9px 18px; background:var(--accent); color:var(--accent-text); border-radius:10px; font-size:14px; font-weight:600; white-space:nowrap;">Get started</span>
+              </div>
+            </div>
+
+            <!-- hero -->
+            <div style="display:grid; grid-template-columns:1.05fr 0.95fr; gap:40px; align-items:center; padding:72px 40px 60px; position:relative; overflow:hidden;">
+              <div style="position:absolute; top:-180px; right:-120px; width:520px; height:520px; border-radius:50%; background:radial-gradient(circle, var(--glow), transparent 70%); pointer-events:none;"></div>
+              <div style="position:relative;">
+                <div style="display:inline-flex; align-items:center; gap:8px; padding:6px 13px; background:var(--surface2); border:1px solid var(--border); border-radius:100px; font-size:12.5px; font-weight:600; color:var(--muted); margin-bottom:26px; font-family:var(--mono);">
+                  <span style="width:7px; height:7px; border-radius:50%; background:var(--accent); animation:mt-pulse 2s infinite;"></span> self-hosted · open source
+                </div>
+                <h1 style="font-family:var(--display); font-size:60px; line-height:1.02; letter-spacing:-0.03em; font-weight:700; margin:0 0 22px;">Your coding agent.<br>On the beach with you.</h1>
+                <p style="font-size:19px; line-height:1.55; color:var(--muted); margin:0 0 34px; max-width:440px;">Mai-Tai runs Claude Code in a container on your own metal. Talk to it from your phone, your laptop, or a hammock — it ships while you step away.</p>
+                <div style="display:flex; gap:13px; align-items:center;">
+                  <span style="padding:14px 26px; background:var(--accent); color:var(--accent-text); border-radius:12px; font-size:15.5px; font-weight:700; box-shadow:0 12px 28px -10px var(--accent);">Spin up an agent</span>
+                  <span style="padding:14px 24px; background:var(--surface); border:1px solid var(--border-strong); color:var(--text); border-radius:12px; font-size:15.5px; font-weight:600; display:flex; align-items:center; gap:8px;"><span style="font-family:var(--mono); color:var(--accent);">$</span> docker compose up</span>
+                </div>
+                <div style="display:flex; gap:26px; margin-top:38px;">
+                  <div><div style="font-family:var(--display); font-size:24px; font-weight:700;">100%</div><div style="font-size:12.5px; color:var(--muted);">local · your network</div></div>
+                  <div style="width:1px; background:var(--border);"></div>
+                  <div><div style="font-family:var(--display); font-size:24px; font-weight:700;">&lt;60s</div><div style="font-size:12.5px; color:var(--muted);">to a running agent</div></div>
+                  <div style="width:1px; background:var(--border);"></div>
+                  <div><div style="font-family:var(--display); font-size:24px; font-weight:700;">MCP</div><div style="font-size:12.5px; color:var(--muted);">any compatible agent</div></div>
+                </div>
+              </div>
+
+              <!-- phone mockup -->
+              <div style="display:flex; justify-content:center; position:relative;">
+                <div style="width:288px; border-radius:42px; padding:11px; background:var(--surface2); border:1px solid var(--border-strong); box-shadow:0 50px 90px -30px rgba(0,0,0,0.5); animation:mt-float 7s ease-in-out infinite;">
+                  <div style="border-radius:32px; overflow:hidden; background:var(--bg); border:1px solid var(--border);">
+                    <div style="display:flex; align-items:center; gap:10px; padding:16px 16px 13px; border-bottom:1px solid var(--border); background:var(--surface);">
+                      <div style="width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; color:var(--accent-text); font-weight:700; font-size:15px;">S</div>
+                      <div style="flex:1;"><div style="font-weight:700; font-size:14px;">Scout</div><div style="display:flex; align-items:center; gap:5px; font-size:11px; color:var(--muted);"><span style="width:6px; height:6px; border-radius:50%; background:#3fbd6e;"></span> agent · connected</div></div>
+                      <span style="font-family:var(--mono); color:var(--accent2); font-size:15px;">●</span>
+                    </div>
+                    <div style="padding:15px 14px; display:flex; flex-direction:column; gap:11px; height:330px; background:var(--bg);">
+                      <div style="align-self:flex-end; max-width:80%; padding:10px 13px; background:var(--accent); color:var(--accent-text); border-radius:15px 15px 4px 15px; font-size:12.5px; line-height:1.4;">how's the auth refactor going?</div>
+                      <div style="align-self:flex-start; max-width:86%; padding:10px 13px; background:var(--surface2); border:1px solid var(--border); border-radius:15px 15px 15px 4px; font-size:12.5px; line-height:1.45; color:var(--text);">Pushed the token rotation — tests green ✅. One call: keep refresh in cookies or headers?</div>
+                      <div style="align-self:flex-start; max-width:90%; padding:9px 12px; background:var(--surface); border:1px solid var(--border); border-radius:11px; font-size:11px; line-height:1.4; font-family:var(--mono); color:var(--muted);">$ git push origin auth-rotation<br><span style="color:var(--accent);">↳ 4 files, +118 −37</span></div>
+                      <div style="align-self:flex-end; max-width:70%; padding:10px 13px; background:var(--accent); color:var(--accent-text); border-radius:15px 15px 4px 15px; font-size:12.5px; line-height:1.4;">cookies. ship it 🤙</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; padding:11px 13px; border-top:1px solid var(--border); background:var(--surface);">
+                      <div style="flex:1; padding:9px 13px; background:var(--bg); border:1px solid var(--border); border-radius:100px; font-size:12px; color:var(--faint);">Message Scout…</div>
+                      <div style="width:32px; height:32px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; color:var(--accent-text); font-size:14px;">↑</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- logo strip -->
+            <div style="padding:22px 40px; border-top:1px solid var(--border); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:30px; flex-wrap:wrap; background:var(--surface);">
+              <span style="font-size:12px; font-weight:600; color:var(--faint); font-family:var(--mono); letter-spacing:0.03em;">works with</span>
+              <sc-for list="{{ partners }}" as="p" hint-placeholder-count="5">
+                <span style="font-size:15px; font-weight:600; color:var(--muted);">{{ p }}</span>
+              </sc-for>
+            </div>
+
+            <!-- how it works -->
+            <div style="padding:72px 40px;">
+              <div style="font-family:var(--mono); font-size:12.5px; font-weight:600; color:var(--accent); letter-spacing:0.06em; text-transform:uppercase; margin-bottom:14px;">how it works</div>
+              <h2 style="font-family:var(--display); font-size:38px; letter-spacing:-0.02em; font-weight:700; margin:0 0 44px; max-width:600px;">Pour one. Walk away. Check in.</h2>
+              <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:20px;">
+                <sc-for list="{{ steps }}" as="s" hint-placeholder-count="3">
+                  <div style="padding:28px; background:var(--surface); border:1px solid var(--border); border-radius:16px;">
+                    <div style="font-family:var(--mono); font-size:13px; font-weight:600; color:var(--accent); margin-bottom:18px;">{{ s.n }}</div>
+                    <div style="font-size:30px; margin-bottom:14px;">{{ s.icon }}</div>
+                    <h3 style="font-family:var(--display); font-size:21px; font-weight:700; margin:0 0 9px; letter-spacing:-0.01em;">{{ s.title }}</h3>
+                    <p style="font-size:14.5px; line-height:1.55; color:var(--muted); margin:0;">{{ s.body }}</p>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <!-- features -->
+            <div style="padding:0 40px 72px;">
+              <h2 style="font-family:var(--display); font-size:38px; letter-spacing:-0.02em; font-weight:700; margin:0 0 8px;">Everything the agent needs.</h2>
+              <p style="font-size:16px; color:var(--muted); margin:0 0 40px;">Isolation, memory, and a real connection to your repo — running entirely on your machine.</p>
+              <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:18px;">
+                <sc-for list="{{ features }}" as="f" hint-placeholder-count="6">
+                  <div style="padding:26px; background:var(--surface); border:1px solid var(--border); border-radius:16px;">
+                    <div style="width:42px; height:42px; border-radius:11px; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:20px; margin-bottom:18px;">{{ f.icon }}</div>
+                    <h3 style="font-size:17px; font-weight:700; margin:0 0 7px; letter-spacing:-0.01em;">{{ f.title }}</h3>
+                    <p style="font-size:14px; line-height:1.55; color:var(--muted); margin:0;">{{ f.body }}</p>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <!-- cta band -->
+            <div style="margin:0 40px 64px; padding:60px 48px; border-radius:22px; background:linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, var(--surface)), var(--surface)); border:1px solid var(--border-strong); position:relative; overflow:hidden;">
+              <div style="position:absolute; bottom:-120px; right:-60px; width:360px; height:360px; border-radius:50%; background:radial-gradient(circle,var(--glow),transparent 70%);"></div>
+              <div style="position:relative;">
+                <h2 style="font-family:var(--display); font-size:40px; letter-spacing:-0.025em; font-weight:700; margin:0 0 14px;">Stay in the loop from anywhere.</h2>
+                <p style="font-size:17px; color:var(--muted); margin:0 0 30px; max-width:480px;">No data leaves your network. Clone the repo, run one command, and your agent is live in under a minute.</p>
+                <div style="display:flex; gap:13px;">
+                  <span style="padding:14px 28px; background:var(--accent); color:var(--accent-text); border-radius:12px; font-size:15.5px; font-weight:700;">Get started</span>
+                  <span style="padding:14px 24px; background:var(--bg); border:1px solid var(--border-strong); border-radius:12px; font-size:15.5px; font-weight:600; font-family:var(--mono);">★ Star on GitHub</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- footer -->
+            <div style="padding:34px 40px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:var(--surface);">
+              <div style="display:flex; align-items:center; gap:10px;"><span style="font-size:18px;">🍹</span><span style="font-family:var(--display); font-weight:700;">Mai-Tai</span><span style="color:var(--faint); font-size:13px; margin-left:6px;">© 2026 · MIT licensed</span></div>
+              <div style="display:flex; gap:22px; color:var(--muted); font-size:13.5px;"><span>GitHub</span><span>Docs</span><span>Discord</span></div>
+            </div>
+          </div>
+          </sc-if>
+
+          <!-- ============ DASHBOARD ============ -->
+          <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; min-height:760px; font-family:var(--font); color:var(--text);">
+            <!-- sidebar -->
+            <div style="width:236px; flex-shrink:0; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; padding:20px 14px;">
+              <div style="display:flex; align-items:center; gap:10px; padding:6px 8px 22px;">
+                <div style="width:32px; height:32px; border-radius:9px; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center;"><span style="font-size:16px;">🍹</span></div>
+                <span style="font-family:var(--display); font-weight:700; font-size:17px; letter-spacing:-0.02em; white-space:nowrap;">Mai-Tai</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px; background:var(--surface2); color:var(--text); font-size:14px; font-weight:600; cursor:pointer;"><span style="width:18px; height:18px; border-radius:5px; background:var(--accent); display:inline-block;"></span> Dashboard</div>
+                <div onClick="{{ goChat }}" style="display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px; color:var(--muted); font-size:14px; font-weight:500; cursor:pointer;"><span style="width:18px; height:18px; border-radius:5px; border:1.5px solid var(--border-strong); display:inline-block;"></span> Workspaces</div>
+                <div style="display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px; color:var(--muted); font-size:14px; font-weight:500; cursor:pointer;"><span style="width:18px; height:18px; border-radius:50%; border:1.5px solid var(--border-strong); display:inline-block;"></span> Agents</div>
+                <div style="display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px; color:var(--muted); font-size:14px; font-weight:500; cursor:pointer;"><span style="width:18px; height:18px; border-radius:3px; border:1.5px solid var(--border-strong); display:inline-block;"></span> Stash</div>
+                <div style="display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px; color:var(--muted); font-size:14px; font-weight:500; cursor:pointer;"><span style="width:18px; height:18px; border-radius:4px; border:1.5px solid var(--border-strong); display:inline-block;"></span> Docs</div>
+                <div style="display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px; color:var(--muted); font-size:14px; font-weight:500; cursor:pointer;"><span style="width:18px; height:18px; border-radius:50%; border:1.5px solid var(--border-strong); display:inline-block;"></span> Settings</div>
+              </div>
+              <div style="flex:1;"></div>
+              <div style="display:flex; align-items:center; gap:10px; padding:10px; border-radius:11px; border:1px solid var(--border); background:var(--bg);">
+                <div style="width:34px; height:34px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; color:var(--accent);">J</div>
+                <div style="flex:1; min-width:0;"><div style="font-size:13.5px; font-weight:600;">Jeff Bridges</div><div style="font-size:11.5px; color:var(--muted); font-family:var(--mono);">self-hosted</div></div>
+              </div>
+            </div>
+
+            <!-- main -->
+            <div style="flex:1; min-width:0; padding:32px 36px; overflow:hidden;">
+              <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:28px;">
+                <div>
+                  <div style="font-family:var(--mono); font-size:12.5px; color:var(--accent); font-weight:600; margin-bottom:7px;">{{ greetingMono }}</div>
+                  <h1 style="font-family:var(--display); font-size:32px; letter-spacing:-0.025em; font-weight:700; margin:0; line-height:1.1; white-space:nowrap;">Welcome back, Jeff</h1>
+                  <p style="font-size:14.5px; color:var(--muted); margin:7px 0 0;">5 agents running · 3 waiting on you</p>
+                </div>
+                <span style="display:flex; align-items:center; gap:8px; padding:11px 18px; background:var(--accent); color:var(--accent-text); border-radius:11px; font-size:14px; font-weight:700; white-space:nowrap; box-shadow:0 10px 22px -10px var(--accent); cursor:pointer;"><span style="font-size:16px; line-height:1;">+</span> New workspace</span>
+              </div>
+
+              <!-- stats -->
+              <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:18px;">
+                <sc-for list="{{ statCards }}" as="st" hint-placeholder-count="4">
+                  <div style="padding:18px; background:var(--surface); border:1px solid var(--border); border-radius:14px;">
+                    <div style="font-size:12.5px; color:var(--muted); font-weight:500; margin-bottom:10px;">{{ st.label }}</div>
+                    <div style="font-family:var(--display); font-size:28px; font-weight:700; letter-spacing:-0.02em; margin-bottom:6px;">{{ st.value }}</div>
+                    <div style="font-size:11.5px; color:var(--muted); font-family:var(--mono);">{{ st.delta }}</div>
+                  </div>
+                </sc-for>
+              </div>
+
+              <!-- heatmap -->
+              <div style="padding:20px 22px; background:var(--surface); border:1px solid var(--border); border-radius:14px; margin-bottom:18px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+                  <h2 style="font-size:15px; font-weight:700; margin:0;">Activity</h2>
+                  <div style="display:flex; align-items:center; gap:7px; font-size:11px; color:var(--muted); font-family:var(--mono);">less <span style="display:inline-flex; gap:3px;"><span style="width:11px; height:11px; border-radius:3px; background:var(--surface2);"></span><span style="width:11px; height:11px; border-radius:3px; background:color-mix(in oklab, var(--accent) 40%, var(--surface2));"></span><span style="width:11px; height:11px; border-radius:3px; background:color-mix(in oklab, var(--accent) 70%, var(--surface2));"></span><span style="width:11px; height:11px; border-radius:3px; background:var(--accent);"></span></span> more</div>
+                </div>
+                <div style="display:flex; gap:4px; overflow:hidden;">
+                  <sc-for list="{{ heatmap }}" as="wk" hint-placeholder-count="26">
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                      <sc-for list="{{ wk.days }}" as="cell" hint-placeholder-count="7">
+                        <span style="width:14px; height:14px; border-radius:3px; background:{{ cell.bg }};"></span>
+                      </sc-for>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <!-- workspaces -->
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                <h2 style="font-size:15px; font-weight:700; margin:0;">Most active workspaces</h2>
+                <span style="font-size:13px; color:var(--accent); font-weight:600; cursor:pointer;">View all →</span>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px;">
+                <sc-for list="{{ workspaces }}" as="w" hint-placeholder-count="6">
+                  <div onClick="{{ goChat }}" style="padding:18px; background:var(--surface); border:1px solid var(--border); border-radius:14px; cursor:pointer;">
+                    <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+                      <div style="{{ w.monoStyle }}">{{ w.mono }}</div>
+                      <span style="width:8px; height:8px; border-radius:50%; background:{{ w.status }}; margin-left:auto;"></span>
+                    </div>
+                    <div style="font-size:15px; font-weight:700; font-family:var(--mono); letter-spacing:-0.01em; margin-bottom:4px;">{{ w.name }}</div>
+                    <div style="font-size:12.5px; color:var(--muted); margin-bottom:14px;">{{ w.sub }}</div>
+                    <div style="font-size:11.5px; color:var(--faint); font-family:var(--mono);">{{ w.msgs }} messages</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+          <!-- ============ CHAT ============ -->
+          <sc-if value="{{ isChat }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; height:760px; font-family:var(--font); color:var(--text);">
+            <div style="width:248px; flex-shrink:0; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column;">
+              <div style="display:flex; align-items:center; gap:10px; padding:18px 16px; border-bottom:1px solid var(--border);">
+                <div onClick="{{ goDash }}" style="width:30px; height:30px; border-radius:8px; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; cursor:pointer;"><span style="font-size:15px;">&#127865;</span></div>
+                <span style="font-family:var(--display); font-weight:700; font-size:16px; flex:1; white-space:nowrap;">Workspaces</span>
+                <span style="width:26px; height:26px; border-radius:7px; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:16px;">+</span>
+              </div>
+              <div style="padding:10px; display:flex; flex-direction:column; gap:3px;">
+                <sc-for list="{{ chatRail }}" as="r" hint-placeholder-count="4">
+                  <div style="{{ r.rowStyle }}">
+                    <div style="width:34px; height:34px; border-radius:9px; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-weight:700; font-family:var(--display); color:var(--accent); font-size:14px;">{{ r.mono }}</div>
+                    <div style="flex:1; min-width:0;"><div style="font-size:13.5px; font-weight:600; font-family:var(--mono); letter-spacing:-0.01em;">{{ r.name }}</div></div>
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:5px;"><span style="font-size:10.5px; color:var(--faint); font-family:var(--mono);">{{ r.sub }}</span><span style="width:7px; height:7px; border-radius:50%; background:{{ r.dot }};"></span></div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="flex:1; min-width:0; display:flex; flex-direction:column; background:var(--bg);">
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:15px 24px; border-bottom:1px solid var(--border); background:var(--surface);">
+                <div style="display:flex; align-items:center; gap:13px;">
+                  <div style="width:40px; height:40px; border-radius:11px; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; color:var(--accent-text); font-weight:700; font-size:17px;">{{ agentAvatar }}</div>
+                  <div>
+                    <div style="display:flex; align-items:center; gap:9px;"><span style="font-family:var(--display); font-weight:700; font-size:17px; white-space:nowrap;">rivian-scout</span><span style="font-size:11px; font-family:var(--mono); color:var(--accent); padding:2px 7px; background:color-mix(in srgb, var(--accent) 14%, transparent); border-radius:6px;">agent</span></div>
+                    <div style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); margin-top:2px;"><span style="width:7px; height:7px; border-radius:50%; background:#3fbd6e;"></span>{{ agentName }} &#183; {{ agentTagline }}</div>
+                  </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <button onClick="{{ toggleDude }}" style="{{ dudeBtnStyle }}">&#127865; Dude mode</button>
+                  <span style="width:36px; height:36px; border-radius:9px; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:16px; cursor:pointer;">&#9881;</span>
+                </div>
+              </div>
+
+              <div style="flex:1; overflow-y:auto; padding:24px; display:flex; flex-direction:column; gap:16px;" class="mt-scroll">
+                <div style="text-align:center; font-size:11.5px; color:var(--faint); font-family:var(--mono);">thursday</div>
+
+                <div style="display:flex; gap:13px;">
+                  <div style="width:36px; height:36px; flex-shrink:0; border-radius:50%; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; color:var(--text);">J</div>
+                  <div style="flex:1;">
+                    <div style="display:flex; align-items:baseline; gap:9px; margin-bottom:5px;"><span style="font-weight:700; font-size:14px;">Jeff</span><span style="font-size:11px; color:var(--faint); font-family:var(--mono);">9:02</span></div>
+                    <div style="font-size:14.5px; line-height:1.55; color:var(--text);">morning &#129305; where did we land on the auth refactor?</div>
+                  </div>
+                </div>
+
+                <div style="display:flex; gap:13px;">
+                  <div style="width:36px; height:36px; flex-shrink:0; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; color:var(--accent-text); font-weight:700; font-size:15px;">{{ agentAvatar }}</div>
+                  <div style="flex:1; min-width:0;">
+                    <div style="display:flex; align-items:baseline; gap:9px; margin-bottom:7px;"><span style="font-weight:700; font-size:14px; color:var(--accent);">{{ agentName }}</span><span style="font-size:11px; color:var(--faint); font-family:var(--mono);">9:03</span></div>
+                    <div style="font-size:14.5px; line-height:1.6; color:var(--text); margin-bottom:12px;">Token rotation is done and tests are green. Here is where things stand:</div>
+                    <div style="display:flex; flex-direction:column; gap:7px; margin-bottom:14px;">
+                      <div style="display:flex; align-items:center; gap:10px; font-size:14px;"><span style="color:var(--accent);">&#10003;</span> Rotating refresh tokens on every use</div>
+                      <div style="display:flex; align-items:center; gap:10px; font-size:14px;"><span style="color:var(--accent);">&#10003;</span> Access tokens cut to a 15-minute TTL</div>
+                      <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:var(--muted);"><span style="color:var(--faint);">&#9675;</span> Storage decision &#8212; your call below</div>
+                    </div>
+                    <div style="background:var(--surface); border:1px solid var(--border); border-radius:11px; overflow:hidden; max-width:520px;">
+                      <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 13px; border-bottom:1px solid var(--border); background:var(--surface2);"><span style="font-size:11.5px; font-family:var(--mono); color:var(--muted);">auth/tokens.ts</span><span style="font-size:10.5px; font-family:var(--mono); color:var(--faint);">copy</span></div>
+                      <div style="padding:13px; font-family:var(--mono); font-size:12.5px; line-height:1.7; color:var(--text);"><span style="color:var(--accent2);">async function</span> rotate(rt)<br>&nbsp;&nbsp;<span style="color:var(--accent2);">const</span> next = <span style="color:var(--accent2);">await</span> sign(claims, <span style="color:var(--accent);">'15m'</span>)<br>&nbsp;&nbsp;next.family = rt.family<br>&nbsp;&nbsp;<span style="color:var(--accent2);">return</span> next <span style="color:var(--faint);">// httpOnly cookie</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display:flex; gap:13px;">
+                  <div style="width:36px; height:36px; flex-shrink:0; border-radius:50%; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; color:var(--text);">J</div>
+                  <div style="flex:1;">
+                    <div style="display:flex; align-items:baseline; gap:9px; margin-bottom:5px;"><span style="font-weight:700; font-size:14px;">Jeff</span><span style="font-size:11px; color:var(--faint); font-family:var(--mono);">9:05</span></div>
+                    <div style="font-size:14.5px; line-height:1.55; color:var(--text);">keep refresh tokens in httpOnly cookies. then open the PR.</div>
+                  </div>
+                </div>
+
+                <div style="display:flex; gap:13px;">
+                  <div style="width:36px; height:36px; flex-shrink:0; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; color:var(--accent-text); font-weight:700; font-size:15px;">{{ agentAvatar }}</div>
+                  <div style="flex:1; min-width:0;">
+                    <div style="display:flex; align-items:baseline; gap:9px; margin-bottom:7px;"><span style="font-weight:700; font-size:14px; color:var(--accent);">{{ agentName }}</span><span style="font-size:11px; color:var(--faint); font-family:var(--mono);">9:06</span></div>
+                    <div style="font-size:14.5px; line-height:1.6; color:var(--text); margin-bottom:12px;">On it. Cookies it is &#8212; opening the PR now.</div>
+                    <div style="max-width:460px; padding:15px; background:var(--surface); border:1px solid var(--border); border-radius:13px;">
+                      <div style="display:flex; align-items:center; gap:9px; margin-bottom:9px;"><span style="width:9px; height:9px; border-radius:50%; background:#3fbd6e;"></span><span style="font-size:11.5px; font-family:var(--mono); color:var(--muted);">#284 &#183; open</span></div>
+                      <div style="font-size:15px; font-weight:700; margin-bottom:5px;">Rotate refresh tokens, httpOnly cookies</div>
+                      <div style="font-size:13px; color:var(--muted); font-family:var(--mono);">+118 &#8722;37 &#183; 4 files &#183; acme/api</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="padding:16px 24px; border-top:1px solid var(--border); background:var(--surface);">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <div style="flex:1; display:flex; align-items:center; gap:10px; padding:12px 16px; background:var(--bg); border:1px solid var(--border-strong); border-radius:13px;">
+                    <span style="color:var(--faint); font-family:var(--mono); font-size:13px;">{{ agentName }} &#8250;</span>
+                    <span style="color:var(--faint); font-size:14.5px;">Message the agent</span>
+                  </div>
+                  <div style="width:46px; height:46px; border-radius:13px; background:var(--accent); display:flex; align-items:center; justify-content:center; color:var(--accent-text); font-size:18px; box-shadow:0 8px 18px -8px var(--accent);">&#8593;</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+          <!-- ============ LOGIN ============ -->
+          <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; min-height:760px; font-family:var(--font); color:var(--text);">
+            <!-- brand panel -->
+            <div style="width:46%; flex-shrink:0; background:linear-gradient(160deg, color-mix(in srgb, var(--accent) 22%, var(--surface)), var(--surface)); border-right:1px solid var(--border); padding:48px 44px; display:flex; flex-direction:column; position:relative; overflow:hidden;">
+              <div style="position:absolute; top:-140px; left:-80px; width:420px; height:420px; border-radius:50%; background:radial-gradient(circle,var(--glow),transparent 70%);"></div>
+              <div style="display:flex; align-items:center; gap:11px; position:relative;">
+                <div style="width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center;"><span style="font-size:18px;">🍹</span></div>
+                <span style="font-family:var(--display); font-weight:700; font-size:20px; white-space:nowrap;">Mai-Tai</span>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; justify-content:center; position:relative; max-width:380px;">
+                <div style="font-family:var(--mono); font-size:12.5px; color:var(--accent); font-weight:600; margin-bottom:18px; letter-spacing:0.04em;">$ docker compose up -d</div>
+                <h1 style="font-family:var(--display); font-size:40px; line-height:1.08; letter-spacing:-0.025em; font-weight:700; margin:0 0 18px;">Your agent kept working while you were out.</h1>
+                <p style="font-size:16px; line-height:1.6; color:var(--muted); margin:0;">Sign in to see what shipped. 3 questions waiting, 1 PR ready for review.</p>
+              </div>
+              <div style="position:relative; display:flex; gap:22px;">
+                <div><div style="font-family:var(--display); font-size:22px; font-weight:700;">5</div><div style="font-size:12px; color:var(--muted);">agents running</div></div>
+                <div style="width:1px; background:var(--border);"></div>
+                <div><div style="font-family:var(--display); font-size:22px; font-weight:700;">100%</div><div style="font-size:12px; color:var(--muted);">on your network</div></div>
+              </div>
+            </div>
+
+            <!-- form -->
+            <div style="flex:1; display:flex; align-items:center; justify-content:center; padding:40px; background:var(--bg);">
+              <div style="width:100%; max-width:360px;">
+                <h2 style="font-family:var(--display); font-size:28px; letter-spacing:-0.02em; font-weight:700; margin:0 0 6px;">Welcome back</h2>
+                <p style="font-size:14.5px; color:var(--muted); margin:0 0 28px;">Sign in to your self-hosted instance.</p>
+
+                <label style="display:block; font-size:12.5px; font-weight:600; color:var(--muted); margin-bottom:7px;">Email</label>
+                <div style="display:flex; align-items:center; padding:13px 15px; background:var(--surface); border:1px solid var(--border-strong); border-radius:11px; margin-bottom:16px;"><span style="font-size:14.5px; color:var(--text); text-decoration:none;">jeff<span>&#64;</span>mai-tai.local</span></div>
+
+                <label style="display:block; font-size:12.5px; font-weight:600; color:var(--muted); margin-bottom:7px;">Password</label>
+                <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 15px; background:var(--surface); border:1px solid var(--accent); border-radius:11px; margin-bottom:10px; box-shadow:0 0 0 3px var(--glow);"><span style="font-size:14.5px; color:var(--text); letter-spacing:3px;">••••••••••</span><span style="font-size:12px; color:var(--accent); font-family:var(--mono);">show</span></div>
+                <div style="text-align:right; margin-bottom:22px;"><span style="font-size:12.5px; color:var(--accent); font-weight:600;">Forgot password?</span></div>
+
+                <div style="padding:14px; background:var(--accent); color:var(--accent-text); border-radius:11px; text-align:center; font-size:15px; font-weight:700; box-shadow:0 12px 26px -10px var(--accent); cursor:pointer;">Sign in</div>
+
+                <div style="display:flex; align-items:center; gap:14px; margin:22px 0;"><div style="flex:1; height:1px; background:var(--border);"></div><span style="font-size:12px; color:var(--faint); font-family:var(--mono);">or</span><div style="flex:1; height:1px; background:var(--border);"></div></div>
+
+                <div style="display:flex; align-items:center; justify-content:center; gap:10px; padding:13px; background:var(--surface); border:1px solid var(--border-strong); border-radius:11px; font-size:14.5px; font-weight:600; cursor:pointer;"><span style="font-family:var(--mono);">⌘</span> Continue with GitHub</div>
+
+                <p style="text-align:center; font-size:13.5px; color:var(--muted); margin:24px 0 0;">New here? <span style="color:var(--accent); font-weight:600;">Create an account</span></p>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+        </div>
+      </div>
+      <div style="max-width:1180px; margin:14px auto 0; display:flex; align-items:center; justify-content:space-between; padding:0 4px;">
+        <span style="font-family:var(--mono); font-size:11.5px; color:#5b626c;">{{ dirName }} · {{ themeLabel }} mode · {{ screenName }}</span>
+        <span style="font-family:var(--mono); font-size:11.5px; color:#5b626c;">{{ fontNote }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:920}}">
+class Component extends DCLogic {
+  state = { dir: 'A', theme: 'dark', screen: 'landing', dude: false };
+
+  palettes() {
+    const A = {
+      name: 'Golden Hour',
+      font: "'Hanken Grotesk', system-ui, sans-serif",
+      display: "'Bricolage Grotesque', Georgia, serif",
+      mono: "'JetBrains Mono', monospace",
+      fontNote: 'Bricolage Grotesque · Hanken Grotesk · JetBrains Mono',
+      dot: '#e87b4c',
+      light: { bg:'#f8f1e6', surface:'#fffaf2', surface2:'#f0e5d3', text:'#2a1d12', muted:'#7d6a52', faint:'#a89madeup', border:'#e8d9c1', borderStrong:'#d9c4a4', accent:'#df6638', accent2:'#e0a23a', accentText:'#fffaf2', glow:'rgba(223,102,56,0.16)' },
+      dark:  { bg:'#16100b', surface:'#1f1812', surface2:'#291f16', text:'#f6ece0', muted:'#b39d83', faint:'#85705a', border:'#352618', borderStrong:'#48331e', accent:'#f17b4d', accent2:'#ecae4d', accentText:'#1a1006', glow:'rgba(241,123,77,0.20)' }
+    };
+    const B = {
+      name: 'Terminal Tide',
+      font: "'Hanken Grotesk', system-ui, sans-serif",
+      display: "'Space Grotesk', system-ui, sans-serif",
+      mono: "'IBM Plex Mono', monospace",
+      fontNote: 'Space Grotesk · Hanken Grotesk · IBM Plex Mono',
+      dot: '#1fb3a6',
+      light: { bg:'#eef2f2', surface:'#ffffff', surface2:'#e2eaea', text:'#0d1a1b', muted:'#566b6c', faint:'#90a5a5', border:'#d3dddc', borderStrong:'#bacac8', accent:'#0c8a81', accent2:'#0c8a81', accentText:'#ffffff', glow:'rgba(12,138,129,0.14)' },
+      dark:  { bg:'#090f10', surface:'#101a1b', surface2:'#162325', text:'#e7efef', muted:'#8aa0a0', faint:'#5e7576', border:'#1e2d2f', borderStrong:'#2c3f41', accent:'#2bd4c0', accent2:'#2bd4c0', accentText:'#04201d', glow:'rgba(43,212,192,0.16)' }
+    };
+    return this.state.dir === 'A' ? A : B;
+  }
+
+  tokens() {
+    const p = this.palettes();
+    const c = p[this.state.theme];
+    // fix faint typo fallback
+    const faint = c.faint && c.faint.indexOf('madeup') === -1 ? c.faint : '#a8967f';
+    return { ...c, faint, font: p.font, display: p.display, mono: p.mono };
+  }
+
+  set(k, v) { this.setState({ [k]: v }); }
+
+  chromeTab(active) {
+    return {
+      padding: '7px 15px', borderRadius: '8px', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+      fontFamily: 'inherit', fontSize: '12.5px', fontWeight: 600,
+      background: active ? '#2b2f37' : 'transparent',
+      color: active ? '#f4f5f7' : '#7b828c',
+      boxShadow: active ? '0 1px 2px rgba(0,0,0,0.3)' : 'none'
+    };
+  }
+  chromeDir(active, dot) {
+    return {
+      display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap',
+      padding: '7px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+      fontFamily: 'inherit', fontSize: '12.5px', fontWeight: 600,
+      background: active ? '#2b2f37' : 'transparent',
+      color: active ? '#f4f5f7' : '#7b828c'
+    };
+  }
+
+  renderVals() {
+    const t = this.tokens();
+    const p = this.palettes();
+    const s = this.state;
+
+    const rootStyle = {
+      '--bg': t.bg, '--surface': t.surface, '--surface2': t.surface2,
+      '--text': t.text, '--muted': t.muted, '--faint': t.faint,
+      '--border': t.border, '--border-strong': t.borderStrong,
+      '--accent': t.accent, '--accent2': t.accent2, '--accent-text': t.accentText,
+      '--glow': t.glow, '--font': t.font, '--display': t.display, '--mono': t.mono
+    };
+
+    const screens = [
+      { key: 'landing', label: 'Landing' },
+      { key: 'dashboard', label: 'Dashboard' },
+      { key: 'chat', label: 'Chat' },
+      { key: 'login', label: 'Login' }
+    ].map(x => ({ ...x, style: this.chromeTab(s.screen === x.key), onClick: () => this.set('screen', x.key) }));
+
+    const dirs = [
+      { key: 'A', label: 'Golden Hour', dot: '#e87b4c' },
+      { key: 'B', label: 'Terminal Tide', dot: '#1fb3a6' }
+    ].map(x => ({ ...x, style: this.chromeDir(s.dir === x.key), onClick: () => this.set('dir', x.key) }));
+
+    const screenNameMap = { landing: 'Landing', dashboard: 'Dashboard', chat: 'Workspace', login: 'Sign in' };
+    const urlMap = { landing: '/', dashboard: '/dashboard', chat: '/workspaces/scout', login: '/login' };
+
+    return {
+      rootStyle,
+      isLanding: s.screen === 'landing',
+      isDashboard: s.screen === 'dashboard',
+      isChat: s.screen === 'chat',
+      isLogin: s.screen === 'login',
+      screens, dirs,
+      toggleTheme: () => this.set('theme', s.theme === 'dark' ? 'light' : 'dark'),
+      themeIcon: s.theme === 'dark' ? '☾' : '☀',
+      themeLabel: s.theme === 'dark' ? 'Dark' : 'Light',
+      dirName: p.name,
+      dirNameLabel: p.name,
+      fontNote: p.fontNote,
+      screenName: screenNameMap[s.screen],
+      urlPath: urlMap[s.screen],
+
+      partners: ['Claude Code', 'Claude Desktop', 'Cursor', 'Gemini CLI', 'Any MCP agent'],
+      steps: [
+        { n: '01', icon: '🥃', title: 'Spin it up', body: 'Create a workspace, pick a template, and Mai-Tai launches a container running your coding agent against your repo.' },
+        { n: '02', icon: '🏄', title: 'Walk away', body: 'It works autonomously — sends updates, asks questions, and writes lessons to memory it keeps across restarts.' },
+        { n: '03', icon: '📱', title: 'Check in', body: 'Open Mai-Tai on your phone. Answer a question, unblock it, approve the PR — from wherever you happen to be.' }
+      ],
+      features: [
+        { icon: '🐳', title: 'Docker per agent', body: 'Every workspace runs in its own isolated container. Start, stop and restart straight from the UI.' },
+        { icon: '🧠', title: 'Persistent memory', body: 'Agents write lessons to a mounted volume and get sharper over time — even across restarts.' },
+        { icon: '⚡', title: 'Ships real code', body: 'Clones your repo, writes code, opens PRs. Hand it a URL and a token and let it run.' },
+        { icon: '🔌', title: 'Real-time everywhere', body: 'WebSocket messaging means updates land instantly on every device you own.' },
+        { icon: '👍', title: 'Built for thumbs', body: 'Designed to check in from your phone first. Compact, fast and one-handed.' },
+        { icon: '🏠', title: 'Runs on your metal', body: 'Fully self-hosted. No data ever leaves your network — your keys, your machine.' }
+      ],
+
+      navActive: s.screen,
+      greetingMono: 'thursday · 2:41pm',
+      goDash: () => this.set('screen', 'dashboard'),
+      goChat: () => this.set('screen', 'chat'),
+      dude: s.dude,
+      agentName: s.dude ? 'His Dudeness' : 'Scout',
+      agentAvatar: s.dude ? '🍹' : 'S',
+      agentTagline: s.dude ? 'the dude abides · connected' : 'agent · connected · plan mode',
+      toggleDude: () => this.set('dude', !this.state.dude),
+      dudeBtnStyle: {
+        display: 'flex', alignItems: 'center', gap: '7px', padding: '7px 12px', borderRadius: '9px', whiteSpace: 'nowrap',
+        cursor: 'pointer', fontSize: '12.5px', fontWeight: 600, fontFamily: 'var(--font)',
+        border: '1px solid ' + (s.dude ? 'var(--accent)' : 'var(--border)'),
+        background: s.dude ? 'color-mix(in srgb, var(--accent) 16%, transparent)' : 'var(--surface)',
+        color: s.dude ? 'var(--accent)' : 'var(--muted)'
+      },
+      chatRail: [
+        { name: 'rivian-scout', mono: 'R', sub: '2m', active: true, dot: '#3fbd6e' },
+        { name: 'api-gateway', mono: 'A', sub: '1h', active: false, dot: '#3fbd6e' },
+        { name: 'design-system', mono: 'D', sub: '3h', active: false, dot: '#e0a23a' },
+        { name: 'infra-monitor', mono: 'I', sub: '1d', active: false, dot: '#8a755f' }
+      ].map(r => ({ ...r, rowStyle: {
+        display: 'flex', alignItems: 'center', gap: '11px', padding: '10px 12px', borderRadius: '11px', cursor: 'pointer',
+        background: r.active ? 'var(--surface2)' : 'transparent',
+        border: '1px solid ' + (r.active ? 'var(--border)' : 'transparent')
+      } })),
+      statCards: [
+        { label: 'Total messages', value: '14,208', delta: '+642 this week', up: true },
+        { label: 'Active agents', value: '5', delta: '3 running now', up: true },
+        { label: 'Workspaces', value: '12', delta: '2 archived', up: false },
+        { label: 'Avg. response', value: '8.4s', delta: '−1.2s vs last wk', up: true }
+      ],
+      workspaces: [
+        { name: 'rivian-scout', sub: 'agent · deal monitor', msgs: 1284, mono: 'R', kind: 'agent', status: '#3fbd6e' },
+        { name: 'api-gateway', sub: 'coder · github.com/acme/api', msgs: 932, mono: 'A', kind: 'coder', status: '#3fbd6e' },
+        { name: 'design-system', sub: 'chat · component review', msgs: 671, mono: 'D', kind: 'chat', status: '#e0a23a' },
+        { name: 'infra-monitor', sub: 'agent · daily report', msgs: 540, mono: 'I', kind: 'agent', status: '#3fbd6e' },
+        { name: 'weekend-research', sub: 'research · market scan', msgs: 318, mono: 'W', kind: 'research', status: '#8a755f' },
+        { name: 'personal-assistant', sub: 'assistant · inbox + todos', msgs: 204, mono: 'P', kind: 'assistant', status: '#8a755f' }
+      ].map((w, i) => ({ ...w, monoStyle: {
+        width: '40px', height: '40px', borderRadius: '11px',
+        background: i % 3 === 0 ? 'var(--accent)' : 'var(--surface2)',
+        color: i % 3 === 0 ? 'var(--accent-text)' : 'var(--accent)',
+        border: '1px solid ' + (i % 3 === 0 ? 'var(--accent)' : 'var(--border)'),
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontWeight: 700, fontSize: '16px', fontFamily: 'var(--display)'
+      } })),
+      heatmap: Array.from({ length: 26 }, (_, w) => ({
+        days: Array.from({ length: 7 }, (_, d) => {
+          const i = w * 7 + d;
+          let lvl = Math.floor(Math.abs(Math.sin(i * 1.73 + 0.6)) * 5);
+          if ((i * 13) % 6 === 0) lvl = 0;
+          if (lvl > 4) lvl = 4;
+          const pct = [0, 26, 48, 72, 100][lvl];
+          const bg = lvl === 0 ? 'var(--surface2)' : 'color-mix(in oklab, var(--accent) ' + pct + '%, var(--surface2))';
+          return { bg };
+        })
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

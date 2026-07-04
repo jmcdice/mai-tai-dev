@@ -27,29 +27,29 @@ const Badge = forwardRef<HTMLElement, BadgeProps>(
 
     const typeStyles: Record<BadgeType, string> = {
       default:
-        'bg-indigo-500/80 border border-indigo-500 text-indigo-100',
+        'bg-primary/80 border border-primary text-primary-foreground',
       primary:
-        'bg-indigo-500/80 border border-indigo-500 text-indigo-100',
+        'bg-primary/80 border border-primary text-primary-foreground',
       danger:
-        'bg-red-600/80 border border-red-500 text-red-100',
+        'bg-destructive/80 border border-destructive text-destructive-foreground',
       warning:
-        'bg-yellow-500/80 border border-yellow-500 text-yellow-100',
+        'bg-warning/80 border border-warning text-warning-foreground',
       success:
-        'bg-green-500/80 border border-green-500 text-green-100',
+        'bg-success/80 border border-success text-success-foreground',
       dark:
-        'bg-gray-900 border border-gray-700 text-gray-400',
+        'bg-background border border-border text-muted-foreground',
       light:
-        'bg-gray-700 border border-gray-600 text-gray-300',
+        'bg-surface2 border border-border-strong text-muted-foreground',
     };
 
     const hoverStyles: Record<BadgeType, string> = {
-      default: 'hover:bg-indigo-500',
-      primary: 'hover:bg-indigo-500',
-      danger: 'hover:bg-red-500',
-      warning: 'hover:bg-yellow-500',
-      success: 'hover:bg-green-500',
-      dark: 'hover:bg-gray-800',
-      light: 'hover:bg-gray-600',
+      default: 'hover:bg-primary/90',
+      primary: 'hover:bg-primary/90',
+      danger: 'hover:bg-destructive/90',
+      warning: 'hover:bg-warning',
+      success: 'hover:bg-success/90',
+      dark: 'hover:bg-card',
+      light: 'hover:bg-surface2',
     };
 
     const classes = twMerge(

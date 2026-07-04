@@ -9,9 +9,9 @@ interface StatusBadgeProps {
 
 export function StatusBadge({ status, label }: StatusBadgeProps) {
   const colors = {
-    online: 'bg-green-100 text-green-800',
-    offline: 'bg-red-100 text-red-800',
-    loading: 'bg-yellow-100 text-yellow-800',
+    online: 'bg-success/15 text-success',
+    offline: 'bg-destructive/15 text-destructive',
+    loading: 'bg-warning/15 text-warning',
   };
 
   return (

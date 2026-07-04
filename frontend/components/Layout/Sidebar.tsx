@@ -149,8 +149,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                   onClick={() => setWorkspacesExpanded(!workspacesExpanded)}
                   className={`group flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-base font-medium leading-6 transition duration-150 ease-in-out lg:text-lg ${
                     isActive
-                      ? 'nav-active text-white'
-                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                      ? 'nav-active text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-surface2 hover:text-foreground'
                   }`}
                 >
                   <span className="flex items-center">
@@ -158,13 +158,13 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                     {link.label}
                   </span>
                   {workspacesExpanded ? (
-                    <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                    <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
                   ) : (
-                    <ChevronRightIcon className="h-4 w-4 text-gray-400" />
+                    <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
                   )}
                 </button>
                 {workspacesExpanded && (
-                  <div className="ml-6 mt-1 space-y-0.5 border-l border-gray-700 pl-3">
+                  <div className="ml-6 mt-1 space-y-0.5 border-l border-border pl-3">
                     {workspaces.map((ws) => {
                       const wsActive = pathname === `/workspaces/${ws.id}`;
                       return (
@@ -174,8 +174,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                           onClick={onClose}
                           className={`block px-3 py-1.5 text-sm transition ${
                             wsActive
-                              ? 'text-indigo-400'
-                              : 'text-gray-400 hover:text-white'
+                              ? 'text-primary'
+                              : 'text-muted-foreground hover:text-foreground'
                           }`}
                         >
                           {ws.name}
@@ -183,7 +183,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                       );
                     })}
                     {workspaces.length === 0 && (
-                      <span className="block px-3 py-1.5 text-sm text-gray-500">
+                      <span className="block px-3 py-1.5 text-sm text-faint">
                         No workspaces yet
                       </span>
                     )}
@@ -200,8 +200,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               onClick={onClose}
               className={`group flex items-center rounded-lg px-3 py-2.5 text-base font-medium leading-6 transition duration-150 ease-in-out lg:text-lg ${
                 isActive
-                  ? 'nav-active text-white'
-                  : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                  ? 'nav-active text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-surface2 hover:text-foreground'
               }`}
             >
               <Icon className="mr-3 h-5 w-5 flex-shrink-0 lg:h-6 lg:w-6" />
@@ -217,13 +217,13 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     <>
       {/* Desktop sidebar */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:w-64 lg:flex-col">
-        <div className="sidebar-gradient flex flex-1 flex-col border-r border-gray-700">
+        <div className="sidebar-gradient flex flex-1 flex-col border-r border-border">
           {sidebarContent}
           {/* Desktop-only feedback + logout buttons */}
-          <div className="flex-shrink-0 border-t border-gray-700 px-2 py-3">
+          <div className="flex-shrink-0 border-t border-border px-2 py-3">
             <FeedbackModal
               trigger={
-                <button className="group flex w-full items-center rounded-lg px-3 py-2.5 text-base font-medium leading-6 text-gray-300 transition duration-150 ease-in-out hover:bg-gray-700 hover:text-white lg:text-lg">
+                <button className="group flex w-full items-center rounded-lg px-3 py-2.5 text-base font-medium leading-6 text-muted-foreground transition duration-150 ease-in-out hover:bg-surface2 hover:text-foreground lg:text-lg">
                   <ChatBubbleLeftEllipsisIcon className="mr-3 h-5 w-5 flex-shrink-0 lg:h-6 lg:w-6" />
                   Feedback
                 </button>
@@ -231,7 +231,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             />
             <button
               onClick={logout}
-              className="group flex w-full items-center rounded-lg px-3 py-2.5 text-base font-medium leading-6 text-gray-300 transition duration-150 ease-in-out hover:bg-gray-700 hover:text-white lg:text-lg"
+              className="group flex w-full items-center rounded-lg px-3 py-2.5 text-base font-medium leading-6 text-muted-foreground transition duration-150 ease-in-out hover:bg-surface2 hover:text-foreground lg:text-lg"
             >
               <ArrowRightOnRectangleIcon className="mr-3 h-5 w-5 flex-shrink-0 lg:h-6 lg:w-6" />
               Sign out
@@ -245,29 +245,29 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 z-40 bg-gray-900 bg-opacity-80 lg:hidden"
+            className="fixed inset-0 z-40 bg-background/80 lg:hidden"
             onClick={onClose}
           />
 
           {/* Sidebar panel */}
           <div className="fixed inset-y-0 left-0 z-50 w-64 lg:hidden">
-            <div className="sidebar-gradient flex h-full flex-col border-r border-gray-700">
+            <div className="sidebar-gradient flex h-full flex-col border-r border-border">
               {/* Close button */}
               <div className="absolute right-0 top-0 -mr-12 pt-2">
                 <button
                   type="button"
-                  className="ml-1 flex h-10 w-10 items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+                  className="ml-1 flex h-10 w-10 items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
                   onClick={onClose}
                 >
-                  <XMarkIcon className="h-6 w-6 text-white" />
+                  <XMarkIcon className="h-6 w-6 text-foreground" />
                 </button>
               </div>
               {sidebarContent}
               {/* Mobile feedback + logout buttons */}
-              <div className="flex-shrink-0 border-t border-gray-700 px-2 py-3">
+              <div className="flex-shrink-0 border-t border-border px-2 py-3">
                 <FeedbackModal
                   trigger={
-                    <button className="group flex w-full items-center rounded-lg px-3 py-2.5 text-base font-medium leading-6 text-gray-300 transition duration-150 ease-in-out hover:bg-gray-700 hover:text-white">
+                    <button className="group flex w-full items-center rounded-lg px-3 py-2.5 text-base font-medium leading-6 text-muted-foreground transition duration-150 ease-in-out hover:bg-surface2 hover:text-foreground">
                       <ChatBubbleLeftEllipsisIcon className="mr-3 h-5 w-5 flex-shrink-0" />
                       Feedback
                     </button>
@@ -275,7 +275,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                 />
                 <button
                   onClick={logout}
-                  className="group flex w-full items-center rounded-lg px-3 py-2.5 text-base font-medium leading-6 text-gray-300 transition duration-150 ease-in-out hover:bg-gray-700 hover:text-white"
+                  className="group flex w-full items-center rounded-lg px-3 py-2.5 text-base font-medium leading-6 text-muted-foreground transition duration-150 ease-in-out hover:bg-surface2 hover:text-foreground"
                 >
                   <ArrowRightOnRectangleIcon className="mr-3 h-5 w-5 flex-shrink-0" />
                   Sign out

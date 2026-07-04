@@ -55,7 +55,7 @@ export default function PrintChatPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white">
-        <div className="text-gray-600">Loading chat...</div>
+        <div className="text-faint">Loading chat...</div>
       </div>
     );
   }
@@ -63,7 +63,7 @@ export default function PrintChatPage() {
   if (error) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white">
-        <div className="text-red-600">{error}</div>
+        <div className="text-destructive">{error}</div>
       </div>
     );
   }
@@ -104,12 +104,12 @@ export default function PrintChatPage() {
         }
       `}</style>
 
-      <div className="print-container min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 text-gray-100 lg:p-8">
+      <div className="print-container min-h-screen bg-gradient-to-br from-background via-card to-background p-4 text-foreground lg:p-8">
         {/* Header */}
         <div className="mx-auto max-w-4xl">
-          <div className="mb-6 border-b border-gray-700 pb-4">
+          <div className="mb-6 border-b border-border pb-4">
             <h1 className="text-2xl font-bold text-white">{workspace?.name}</h1>
-            <p className="timestamp mt-1 text-sm text-gray-400">
+            <p className="timestamp mt-1 text-sm text-muted-foreground">
               Exported on {exportDate} • {messages.length} messages
             </p>
           </div>
@@ -118,13 +118,13 @@ export default function PrintChatPage() {
           <div className="no-print mb-6 flex gap-4">
             <button
               onClick={() => window.print()}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700"
+              className="rounded-lg bg-primary px-4 py-2 text-white hover:bg-primary/90"
             >
               Print / Save as PDF
             </button>
             <button
               onClick={() => window.close()}
-              className="rounded-lg border border-gray-600 px-4 py-2 text-gray-300 hover:bg-gray-800"
+              className="rounded-lg border border-border-strong px-4 py-2 text-muted-foreground hover:bg-card"
             >
               Close
             </button>
@@ -145,13 +145,13 @@ export default function PrintChatPage() {
                   key={message.id}
                   className={`message message-bubble rounded-xl p-4 ${
                     isAgent
-                      ? 'border border-gray-700/50 bg-gray-800/70'
-                      : 'border border-gray-700/30 bg-gray-800/40'
+                      ? 'border border-border/50 bg-card/70'
+                      : 'border border-border/30 bg-card/40'
                   }`}
                 >
                   <div className="flex gap-3">
                     {isAgent && dudeMode ? (
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-indigo-500 to-purple-600">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-accent2">
                         <img
                           src="/the-dude-avatar.png"
                           alt="The Dude"
@@ -167,8 +167,8 @@ export default function PrintChatPage() {
                     ) : (
                       <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
                         isAgent
-                          ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
-                          : 'bg-gray-600 text-gray-200'
+                          ? 'bg-gradient-to-br from-primary to-accent2 text-white'
+                          : 'bg-surface2 text-foreground'
                       }`}>
                         {senderInitial}
                       </div>
@@ -177,11 +177,11 @@ export default function PrintChatPage() {
                     <div className="min-w-0 flex-1 overflow-hidden">
                       <div className="flex flex-wrap items-baseline gap-2">
                         <span className={`sender-name font-semibold ${
-                          isAgent ? 'sender-name-agent text-indigo-300' : 'text-gray-100'
+                          isAgent ? 'sender-name-agent text-primary' : 'text-foreground'
                         }`}>
                           {senderName}
                         </span>
-                        <span className="timestamp text-xs text-gray-500">
+                        <span className="timestamp text-xs text-faint">
                           {formatTime(message.created_at)}
                         </span>
                       </div>
@@ -196,7 +196,7 @@ export default function PrintChatPage() {
           </div>
 
           {/* Footer */}
-          <div className="mt-8 border-t border-gray-700 pt-4 text-center text-sm text-gray-500">
+          <div className="mt-8 border-t border-border pt-4 text-center text-sm text-faint">
             Exported from Mai-Tai • mai-tai.dev
           </div>
         </div>

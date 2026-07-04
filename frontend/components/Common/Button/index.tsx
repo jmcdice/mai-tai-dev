@@ -37,19 +37,22 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const baseStyles =
       'inline-flex items-center justify-center border font-medium rounded-lg focus:outline-none transition ease-in-out duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap';
 
+    // NOTE: do not use legacy `bg-opacity-*` here — tailwind-merge treats it as
+    // conflicting with `bg-{color}` and strips the color, leaving a transparent
+    // button. Use solid tokens with `/opacity` hover states instead.
     const typeStyles: Record<ButtonType, string> = {
       primary:
-        'text-white border-indigo-500 bg-indigo-600 bg-opacity-80 hover:bg-opacity-100 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900',
+        'text-primary-foreground border-primary bg-primary hover:bg-primary/90 hover:border-primary focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background',
       danger:
-        'text-white border-red-500 bg-red-600 bg-opacity-80 hover:bg-opacity-100 hover:border-red-400 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-900',
+        'text-destructive-foreground border-destructive bg-destructive hover:bg-destructive/90 hover:border-destructive focus:ring-2 focus:ring-destructive focus:ring-offset-2 focus:ring-offset-background',
       warning:
-        'text-white border-yellow-500 bg-yellow-500 bg-opacity-80 hover:bg-opacity-100 hover:border-yellow-400 focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:ring-offset-gray-900',
+        'text-warning-foreground border-warning bg-warning hover:bg-warning/90 hover:border-warning focus:ring-2 focus:ring-warning focus:ring-offset-2 focus:ring-offset-background',
       success:
-        'text-white border-green-500 bg-green-500 bg-opacity-80 hover:bg-opacity-100 hover:border-green-400 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-900',
+        'text-success-foreground border-success bg-success hover:bg-success/90 hover:border-success focus:ring-2 focus:ring-success focus:ring-offset-2 focus:ring-offset-background',
       ghost:
-        'text-gray-300 bg-transparent border-gray-600 hover:text-white hover:border-gray-500 hover:bg-gray-800 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900',
+        'text-muted-foreground bg-transparent border-border-strong hover:text-foreground hover:border-border-strong hover:bg-card focus:ring-2 focus:ring-border-strong focus:ring-offset-2 focus:ring-offset-background',
       default:
-        'text-gray-200 bg-gray-800 bg-opacity-80 border-gray-600 hover:text-white hover:bg-gray-700 hover:border-gray-500 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900',
+        'text-foreground bg-card border-border-strong hover:text-foreground hover:bg-surface2 hover:border-border-strong focus:ring-2 focus:ring-border-strong focus:ring-offset-2 focus:ring-offset-background',
     };
 
     const sizeStyles: Record<ButtonSize, string> = {

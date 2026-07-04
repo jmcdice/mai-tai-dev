@@ -13,13 +13,14 @@ export type ActivityHeatmapProps = {
   className?: string
 }
 
-// Color levels for the heatmap (0 = no activity, 4 = max activity)
+// Color levels for the heatmap (0 = no activity, 4 = max activity).
+// Uses the palette's chart ramp so intensity follows the active theme.
 const COLORS = [
-  "bg-gray-800/60", // 0 - no activity
-  "bg-indigo-900/70", // 1 - low
-  "bg-indigo-700/80", // 2 - medium-low
-  "bg-indigo-500/90", // 3 - medium-high
-  "bg-purple-500", // 4 - high
+  "bg-surface2", // 0 - no activity
+  "bg-chart-1/60", // 1 - low
+  "bg-chart-2/75", // 2 - medium-low
+  "bg-chart-3/90", // 3 - medium-high
+  "bg-chart-4", // 4 - high
 ]
 
 const DAY_LABELS = ["", "Mon", "", "Wed", "", "Fri", ""]
@@ -151,7 +152,7 @@ function ActivityHeatmap({ data, className }: ActivityHeatmapProps) {
   if (weeks === null) {
     return (
       <div ref={containerRef} className={cn("relative w-full", className)}>
-        <div className="h-[120px] w-full animate-pulse rounded bg-gray-700/30" />
+        <div className="h-[120px] w-full animate-pulse rounded bg-surface2/30" />
       </div>
     )
   }
@@ -163,7 +164,7 @@ function ActivityHeatmap({ data, className }: ActivityHeatmapProps) {
         {monthLabels.map((item, i) => (
           <div
             key={i}
-            className="absolute text-xs text-gray-500"
+            className="absolute text-xs text-faint"
             style={{ left: `${item.weekIndex * WEEK_WIDTH}px` }}
           >
             {item.label}
@@ -173,7 +174,7 @@ function ActivityHeatmap({ data, className }: ActivityHeatmapProps) {
 
       <div className="flex">
         {/* Day labels */}
-        <div className="flex flex-col gap-[3px] mr-2 text-xs text-gray-500" style={{ width: `${LEFT_PADDING - 8}px` }}>
+        <div className="flex flex-col gap-[3px] mr-2 text-xs text-faint" style={{ width: `${LEFT_PADDING - 8}px` }}>
           {DAY_LABELS.map((label, i) => (
             <div key={i} className="h-[11px] leading-[11px] text-right pr-1">
               {label}
@@ -194,8 +195,8 @@ function ActivityHeatmap({ data, className }: ActivityHeatmapProps) {
                     key={dayIndex}
                     className={cn(
                       "w-[11px] h-[11px] rounded-sm transition-colors cursor-pointer",
-                      isFuture ? "bg-gray-800/30" : COLORS[colorLevel],
-                      !isFuture && "hover:ring-1 hover:ring-gray-400"
+                      isFuture ? "bg-card/30" : COLORS[colorLevel],
+                      !isFuture && "hover:ring-1 hover:ring-border-strong"
                     )}
                     onMouseEnter={(e) => {
                       if (!isFuture) {
@@ -224,22 +225,22 @@ function ActivityHeatmap({ data, className }: ActivityHeatmapProps) {
       {/* Tooltip */}
       {tooltip && (
         <div
-          className="fixed z-50 px-2 py-1 text-xs bg-gray-900 border border-gray-700 rounded shadow-lg pointer-events-none"
+          className="fixed z-50 px-2 py-1 text-xs bg-background border border-border rounded shadow-lg pointer-events-none"
           style={{
             left: tooltip.x,
             top: tooltip.y - 32,
             transform: "translateX(-50%)",
           }}
         >
-          <span className="font-medium text-white">
+          <span className="font-medium text-foreground">
             {tooltip.count} {tooltip.count === 1 ? "message" : "messages"}
           </span>
-          <span className="text-gray-400"> on {tooltip.date}</span>
+          <span className="text-muted-foreground"> on {tooltip.date}</span>
         </div>
       )}
 
       {/* Legend */}
-      <div className="flex items-center justify-end gap-1 mt-2 text-xs text-gray-500">
+      <div className="flex items-center justify-end gap-1 mt-2 text-xs text-faint">
         <span>Less</span>
         {COLORS.map((color, i) => (
           <div key={i} className={cn("w-[11px] h-[11px] rounded-sm", color)} />

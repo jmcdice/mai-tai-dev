@@ -24,14 +24,14 @@ interface WorkspaceCardProps {
 
 // Jellyseerr-style gradient backgrounds for variety
 const gradients = [
-  'from-indigo-600 to-purple-700',
-  'from-purple-600 to-pink-700',
-  'from-blue-600 to-indigo-700',
-  'from-cyan-600 to-blue-700',
-  'from-teal-600 to-cyan-700',
-  'from-emerald-600 to-teal-700',
-  'from-violet-600 to-purple-700',
-  'from-fuchsia-600 to-pink-700',
+  'from-primary to-accent2',
+  'from-accent2 to-accent2',
+  'from-info to-primary',
+  'from-info to-info',
+  'from-success to-info',
+  'from-success to-success',
+  'from-accent2 to-accent2',
+  'from-fuchsia-600 to-accent2',
 ];
 
 export default function WorkspaceCard({
@@ -67,10 +67,10 @@ export default function WorkspaceCard({
     <div className="w-full">
       <Link href={`/workspaces/${id}`}>
         <div
-          className={`relative transform-gpu cursor-pointer overflow-hidden rounded-xl bg-gray-800 ring-1 transition duration-300 ${
+          className={`relative transform-gpu cursor-pointer overflow-hidden rounded-xl bg-card ring-1 transition duration-300 ${
             showDetail
-              ? 'scale-[1.02] shadow-lg ring-gray-500'
-              : 'scale-100 shadow ring-gray-700'
+              ? 'scale-[1.02] shadow-lg ring-border-strong'
+              : 'scale-100 shadow ring-border'
           }`}
           style={{ paddingBottom: '75%' }} /* 4:3 aspect ratio */
           onMouseEnter={() => setShowDetail(true)}
@@ -94,9 +94,9 @@ export default function WorkspaceCard({
           {/* Icon */}
           <div className="absolute inset-0 flex items-center justify-center">
             {workspaceType === 'agent' ? (
-              <CpuChipIcon className="h-16 w-16 text-white opacity-30" />
+              <CpuChipIcon className="h-16 w-16 text-foreground opacity-30" />
             ) : (
-              <ChatBubbleLeftRightIcon className="h-16 w-16 text-white opacity-30" />
+              <ChatBubbleLeftRightIcon className="h-16 w-16 text-foreground opacity-30" />
             )}
           </div>
 
@@ -104,17 +104,17 @@ export default function WorkspaceCard({
           <div className="absolute left-0 right-0 top-0 flex items-center justify-between p-2">
             <div className={`rounded-full border px-2 py-1 ${
               workspaceType === 'agent'
-                ? 'border-purple-400/30 bg-purple-500/30'
+                ? 'border-secondary/30 bg-secondary/30'
                 : 'border-white/20 bg-black/30'
             }`}>
-              <span className="text-xs font-medium text-white">
+              <span className="text-xs font-medium text-foreground">
                 {badge || (workspaceType === 'agent' ? 'Agent' : 'Workspace')}
               </span>
             </div>
             {archived && (
-              <div className="flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/20 px-2 py-1">
-                <ArchiveBoxIcon className="h-3 w-3 text-amber-400" />
-                <span className="text-xs font-medium text-amber-400">Archived</span>
+              <div className="flex items-center gap-1 rounded-full border border-warning/30 bg-warning/20 px-2 py-1">
+                <ArchiveBoxIcon className="h-3 w-3 text-warning" />
+                <span className="text-xs font-medium text-warning">Archived</span>
               </div>
             )}
           </div>
@@ -133,14 +133,14 @@ export default function WorkspaceCard({
               className="absolute inset-0 flex flex-col justify-end p-3"
               style={{
                 background:
-                  'linear-gradient(180deg, rgba(17, 24, 39, 0.2) 0%, rgba(17, 24, 39, 0.95) 100%)',
+                  'linear-gradient(180deg, hsl(var(--background) / 0.2) 0%, hsl(var(--background) / 0.95) 100%)',
               }}
             >
-              <h3 className="mb-1 text-lg font-bold text-white line-clamp-2">
+              <h3 className="mb-1 text-lg font-bold text-foreground line-clamp-2">
                 {name}
               </h3>
               {description && (
-                <p className="mb-2 text-xs text-gray-300 line-clamp-2">
+                <p className="mb-2 text-xs text-muted-foreground line-clamp-2">
                   {description}
                 </p>
               )}
@@ -158,10 +158,10 @@ export default function WorkspaceCard({
             leaveTo="opacity-0"
           >
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 pt-8">
-              <h3 className="text-sm font-semibold text-white line-clamp-2">
+              <h3 className="text-sm font-semibold text-foreground line-clamp-2">
                 {name}
               </h3>
-              <div className="mt-1 flex items-center gap-1 text-xs text-gray-400">
+              <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                 <ClockIcon className="h-3 w-3" />
                 <span>{formatDate(createdAt)}</span>
               </div>

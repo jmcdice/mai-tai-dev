@@ -171,7 +171,7 @@ export default function AdminPage() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-purple-500 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-secondary border-t-transparent" />
       </div>
     );
   }
@@ -179,14 +179,14 @@ export default function AdminPage() {
   if (error) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-red-400">{error}</p>
+        <p className="text-destructive">{error}</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6 p-6">
-      <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
+      <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
 
       {/* Stats Cards */}
       {stats && (
@@ -201,11 +201,11 @@ export default function AdminPage() {
 
       {/* Site Settings */}
       {adminSettings && (
-        <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-4">
+        <div className="rounded-lg border border-border bg-card/50 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-medium text-white">User Registration</h3>
-              <p className="text-sm text-gray-400">
+              <h3 className="font-medium text-foreground">User Registration</h3>
+              <p className="text-sm text-muted-foreground">
                 {adminSettings.registration_enabled
                   ? 'New users can create accounts'
                   : 'Registration is disabled — only existing users can log in'}
@@ -216,8 +216,8 @@ export default function AdminPage() {
               disabled={actionLoading === 'registration'}
               className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
                 adminSettings.registration_enabled
-                  ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
-                  : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                  ? 'bg-success/20 text-success hover:bg-success/30'
+                  : 'bg-destructive/20 text-destructive hover:bg-destructive/30'
               }`}
             >
               {actionLoading === 'registration'
@@ -233,21 +233,21 @@ export default function AdminPage() {
       {/* Users - Mobile Cards */}
       <div className="space-y-3 md:hidden">
         {users.map((u) => (
-          <div key={u.id} className="rounded-lg border border-gray-700 bg-gray-800/50 p-4">
+          <div key={u.id} className="rounded-lg border border-border bg-card/50 p-4">
             <div className="flex items-start justify-between">
               <div className="flex items-center">
                 {u.avatar_url ? (
                   <img src={u.avatar_url} alt="" className="h-10 w-10 rounded-full" />
                 ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-600">
-                    <span className="text-sm font-medium text-white">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface2">
+                    <span className="text-sm font-medium text-foreground">
                       {u.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
                 )}
                 <div className="ml-3">
-                  <p className="font-medium text-white">{u.name}</p>
-                  <p className="text-sm text-gray-400">{u.email}</p>
+                  <p className="font-medium text-foreground">{u.name}</p>
+                  <p className="text-sm text-muted-foreground">{u.email}</p>
                 </div>
               </div>
               <button
@@ -255,15 +255,15 @@ export default function AdminPage() {
                 disabled={u.id === user?.id || actionLoading === u.id}
                 className={`rounded px-2 py-1 text-xs font-medium ${
                   u.is_admin
-                    ? 'bg-purple-500/20 text-purple-400'
-                    : 'bg-gray-600/20 text-gray-400'
+                    ? 'bg-secondary/20 text-secondary'
+                    : 'bg-surface2/20 text-muted-foreground'
                 } ${u.id === user?.id ? 'cursor-not-allowed opacity-50' : ''}`}
               >
                 {u.is_admin ? 'Admin' : 'User'}
               </button>
             </div>
             <div className="mt-3 flex items-center justify-between text-sm">
-              <div className="flex gap-4 text-gray-400">
+              <div className="flex gap-4 text-muted-foreground">
                 <span>{u.workspace_count} workspaces</span>
                 <span>{(u.message_count ?? 0).toLocaleString()} msgs</span>
               </div>
@@ -271,7 +271,7 @@ export default function AdminPage() {
                 <button
                   onClick={() => handleImpersonate(u.id, u.name)}
                   disabled={u.id === user?.id || actionLoading === u.id}
-                  className="rounded p-1.5 text-gray-400 hover:bg-gray-700 hover:text-white disabled:opacity-50"
+                  className="rounded p-1.5 text-muted-foreground hover:bg-surface2 hover:text-foreground disabled:opacity-50"
                   title="Impersonate"
                 >
                   <UserIcon className="h-5 w-5" />
@@ -279,7 +279,7 @@ export default function AdminPage() {
                 <button
                   onClick={() => handleDelete(u.id, u.name)}
                   disabled={u.id === user?.id || actionLoading === u.id}
-                  className="rounded p-1.5 text-gray-400 hover:bg-red-500/20 hover:text-red-400 disabled:opacity-50"
+                  className="rounded p-1.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive disabled:opacity-50"
                   title="Delete"
                 >
                   <TrashIcon className="h-5 w-5" />
@@ -291,54 +291,54 @@ export default function AdminPage() {
       </div>
 
       {/* Users - Desktop Table */}
-      <div className="hidden overflow-hidden rounded-lg border border-gray-700 bg-gray-800/50 md:block">
-        <table className="min-w-full divide-y divide-gray-700">
-          <thead className="bg-gray-800">
+      <div className="hidden overflow-hidden rounded-lg border border-border bg-card/50 md:block">
+        <table className="min-w-full divide-y divide-border">
+          <thead className="bg-card">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 User
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Workspaces
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Messages
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Admin
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Joined
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-400">
+              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-700">
+          <tbody className="divide-y divide-border">
             {users.map((u) => (
-              <tr key={u.id} className="hover:bg-gray-700/50">
+              <tr key={u.id} className="hover:bg-surface2/50">
                 <td className="whitespace-nowrap px-4 py-3">
                   <div className="flex items-center">
                     {u.avatar_url ? (
                       <img src={u.avatar_url} alt="" className="h-8 w-8 rounded-full" />
                     ) : (
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-600">
-                        <span className="text-sm font-medium text-white">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface2">
+                        <span className="text-sm font-medium text-foreground">
                           {u.name.charAt(0).toUpperCase()}
                         </span>
                       </div>
                     )}
                     <div className="ml-3">
-                      <p className="text-sm font-medium text-white">{u.name}</p>
-                      <p className="text-xs text-gray-400">{u.email}</p>
+                      <p className="text-sm font-medium text-foreground">{u.name}</p>
+                      <p className="text-xs text-muted-foreground">{u.email}</p>
                     </div>
                   </div>
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-300">
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
                   {u.workspace_count}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-300">
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
                   {(u.message_count ?? 0).toLocaleString()}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">
@@ -347,14 +347,14 @@ export default function AdminPage() {
                     disabled={u.id === user?.id || actionLoading === u.id}
                     className={`rounded px-2 py-1 text-xs font-medium ${
                       u.is_admin
-                        ? 'bg-purple-500/20 text-purple-400'
-                        : 'bg-gray-600/20 text-gray-400'
+                        ? 'bg-secondary/20 text-secondary'
+                        : 'bg-surface2/20 text-muted-foreground'
                     } ${u.id === user?.id ? 'cursor-not-allowed opacity-50' : 'hover:opacity-80'}`}
                   >
                     {u.is_admin ? 'Admin' : 'User'}
                   </button>
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-400">
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
                   {new Date(u.created_at).toLocaleDateString()}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right">
@@ -362,7 +362,7 @@ export default function AdminPage() {
                     <button
                       onClick={() => handleImpersonate(u.id, u.name)}
                       disabled={u.id === user?.id || actionLoading === u.id}
-                      className="rounded p-1 text-gray-400 hover:bg-gray-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      className="rounded p-1 text-muted-foreground hover:bg-surface2 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                       title="Impersonate"
                     >
                       <UserIcon className="h-4 w-4" />
@@ -370,7 +370,7 @@ export default function AdminPage() {
                     <button
                       onClick={() => handleDelete(u.id, u.name)}
                       disabled={u.id === user?.id || actionLoading === u.id}
-                      className="rounded p-1 text-gray-400 hover:bg-red-500/20 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="rounded p-1 text-muted-foreground hover:bg-destructive/20 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
                       title="Delete"
                     >
                       <TrashIcon className="h-4 w-4" />
@@ -386,7 +386,7 @@ export default function AdminPage() {
       {/* Feedback Section */}
       <div className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="flex items-center gap-2 text-xl font-bold text-white">
+          <h2 className="flex items-center gap-2 text-xl font-bold text-foreground">
             <ChatBubbleLeftEllipsisIcon className="h-6 w-6" />
             User Feedback
           </h2>
@@ -395,8 +395,8 @@ export default function AdminPage() {
               onClick={() => setFeedbackFilter(null)}
               className={`rounded px-3 py-1 text-sm ${
                 feedbackFilter === null
-                  ? 'bg-purple-500/20 text-purple-400'
-                  : 'bg-gray-700 text-gray-400 hover:text-white'
+                  ? 'bg-secondary/20 text-secondary'
+                  : 'bg-surface2 text-muted-foreground hover:text-foreground'
               }`}
             >
               All ({feedback.length})
@@ -405,8 +405,8 @@ export default function AdminPage() {
               onClick={() => setFeedbackFilter('new')}
               className={`rounded px-3 py-1 text-sm ${
                 feedbackFilter === 'new'
-                  ? 'bg-red-500/20 text-red-400'
-                  : 'bg-gray-700 text-gray-400 hover:text-white'
+                  ? 'bg-destructive/20 text-destructive'
+                  : 'bg-surface2 text-muted-foreground hover:text-foreground'
               }`}
             >
               New ({feedbackCounts.new})
@@ -415,8 +415,8 @@ export default function AdminPage() {
               onClick={() => setFeedbackFilter('read')}
               className={`rounded px-3 py-1 text-sm ${
                 feedbackFilter === 'read'
-                  ? 'bg-blue-500/20 text-blue-400'
-                  : 'bg-gray-700 text-gray-400 hover:text-white'
+                  ? 'bg-info/20 text-info'
+                  : 'bg-surface2 text-muted-foreground hover:text-foreground'
               }`}
             >
               Read ({feedbackCounts.read})
@@ -425,8 +425,8 @@ export default function AdminPage() {
               onClick={() => setFeedbackFilter('archived')}
               className={`rounded px-3 py-1 text-sm ${
                 feedbackFilter === 'archived'
-                  ? 'bg-gray-500/20 text-gray-400'
-                  : 'bg-gray-700 text-gray-400 hover:text-white'
+                  ? 'bg-surface2/20 text-muted-foreground'
+                  : 'bg-surface2 text-muted-foreground hover:text-foreground'
               }`}
             >
               Archived ({feedbackCounts.archived})
@@ -435,16 +435,16 @@ export default function AdminPage() {
         </div>
 
         {filteredFeedback.length === 0 ? (
-          <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-8 text-center">
-            <EnvelopeIcon className="mx-auto h-12 w-12 text-gray-500" />
-            <p className="mt-2 text-gray-400">No feedback yet</p>
+          <div className="rounded-lg border border-border bg-card/50 p-8 text-center">
+            <EnvelopeIcon className="mx-auto h-12 w-12 text-faint" />
+            <p className="mt-2 text-muted-foreground">No feedback yet</p>
           </div>
         ) : (
           <div className="space-y-3">
             {filteredFeedback.map((f) => (
               <div
                 key={f.id}
-                className="rounded-lg border border-gray-700 bg-gray-800/50 p-4"
+                className="rounded-lg border border-border bg-card/50 p-4"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -452,16 +452,16 @@ export default function AdminPage() {
                       <span
                         className={`inline-block h-2 w-2 rounded-full ${
                           f.status === 'new'
-                            ? 'bg-red-400'
+                            ? 'bg-destructive'
                             : f.status === 'read'
-                            ? 'bg-blue-400'
-                            : 'bg-gray-400'
+                            ? 'bg-info'
+                            : 'bg-surface2'
                         }`}
                       />
-                      <h3 className="font-medium text-white">{f.subject}</h3>
+                      <h3 className="font-medium text-foreground">{f.subject}</h3>
                     </div>
-                    <p className="mt-1 text-sm text-gray-300">{f.message}</p>
-                    <p className="mt-2 text-xs text-gray-500">
+                    <p className="mt-1 text-sm text-muted-foreground">{f.message}</p>
+                    <p className="mt-2 text-xs text-faint">
                       From {f.user_name} ({f.user_email}) •{' '}
                       {new Date(f.created_at).toLocaleString()}
                     </p>
@@ -471,7 +471,7 @@ export default function AdminPage() {
                       <button
                         onClick={() => handleFeedbackStatus(f.id, 'read')}
                         disabled={actionLoading === f.id}
-                        className="rounded p-1.5 text-gray-400 hover:bg-blue-500/20 hover:text-blue-400 disabled:opacity-50"
+                        className="rounded p-1.5 text-muted-foreground hover:bg-info/20 hover:text-info disabled:opacity-50"
                         title="Mark as read"
                       >
                         <CheckIcon className="h-4 w-4" />
@@ -481,7 +481,7 @@ export default function AdminPage() {
                       <button
                         onClick={() => handleFeedbackStatus(f.id, 'archived')}
                         disabled={actionLoading === f.id}
-                        className="rounded p-1.5 text-gray-400 hover:bg-gray-500/20 hover:text-gray-300 disabled:opacity-50"
+                        className="rounded p-1.5 text-muted-foreground hover:bg-surface2/20 hover:text-muted-foreground disabled:opacity-50"
                         title="Archive"
                       >
                         <ArchiveBoxIcon className="h-4 w-4" />
@@ -508,12 +508,12 @@ function StatCard({
   value: number;
 }) {
   return (
-    <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-4">
+    <div className="rounded-lg border border-border bg-card/50 p-4">
       <div className="flex items-center">
-        <Icon className="h-8 w-8 text-purple-400" />
+        <Icon className="h-8 w-8 text-secondary" />
         <div className="ml-3">
-          <p className="text-2xl font-bold text-white">{value.toLocaleString()}</p>
-          <p className="text-sm text-gray-400">{label}</p>
+          <p className="text-2xl font-bold text-foreground">{value.toLocaleString()}</p>
+          <p className="text-sm text-muted-foreground">{label}</p>
         </div>
       </div>
     </div>

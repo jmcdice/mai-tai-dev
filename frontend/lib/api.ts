@@ -91,6 +91,8 @@ export interface UserShortcut {
 export interface UserSettings {
   timezone?: string | null;
   time_format?: '12h' | '24h' | null;
+  theme?: 'light' | 'dark' | 'system' | null;
+  palette?: 'golden-hour' | 'terminal-tide' | 'jellyseerr' | null;
   shortcuts?: UserShortcut[] | null;
   anthropic_api_key?: string | null;
   github_token?: string | null;

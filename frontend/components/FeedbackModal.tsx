@@ -67,7 +67,7 @@ export function FeedbackModal({ trigger }: FeedbackModalProps) {
 
   const defaultTrigger = (
     <button
-      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-400 transition-colors hover:bg-gray-700/50 hover:text-white"
+      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-surface2/50 hover:text-foreground"
       title="Send Feedback"
     >
       <ChatBubbleLeftEllipsisIcon className="h-5 w-5" />
@@ -78,27 +78,27 @@ export function FeedbackModal({ trigger }: FeedbackModalProps) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{trigger || defaultTrigger}</DialogTrigger>
-      <DialogContent className="border-gray-700 bg-gray-800 sm:max-w-md">
+      <DialogContent className="border-border bg-card sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-white">Send Feedback</DialogTitle>
-          <DialogDescription className="text-gray-400">
+          <DialogTitle className="text-foreground">Send Feedback</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
             We read every piece of feedback. Let us know how we can improve!
           </DialogDescription>
         </DialogHeader>
 
         {success ? (
           <div className="flex flex-col items-center justify-center py-8">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20">
-              <svg className="h-6 w-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-success/20">
+              <svg className="h-6 w-6 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <p className="text-lg font-medium text-white">Thanks for your feedback!</p>
+            <p className="text-lg font-medium text-foreground">Thanks for your feedback!</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="subject" className="text-gray-300">
+              <Label htmlFor="subject" className="text-muted-foreground">
                 Subject
               </Label>
               <Input
@@ -106,13 +106,13 @@ export function FeedbackModal({ trigger }: FeedbackModalProps) {
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="What's this about?"
-                className="border-gray-600 bg-gray-700 text-white placeholder:text-gray-500"
+                className="border-border-strong bg-surface2 text-foreground placeholder:text-faint"
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="message" className="text-gray-300">
+              <Label htmlFor="message" className="text-muted-foreground">
                 Message
               </Label>
               <textarea
@@ -121,26 +121,26 @@ export function FeedbackModal({ trigger }: FeedbackModalProps) {
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Tell us more..."
                 rows={4}
-                className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white placeholder:text-gray-500 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                className="w-full rounded-md border border-border-strong bg-surface2 px-3 py-2 text-foreground placeholder:text-faint focus:border-secondary focus:outline-none focus:ring-1 focus:ring-secondary"
                 required
               />
             </div>
 
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            {error && <p className="text-sm text-destructive">{error}</p>}
 
             <DialogFooter>
               <Button
                 type="button"
                 variant="ghost"
                 onClick={() => setOpen(false)}
-                className="text-gray-400 hover:text-white"
+                className="text-muted-foreground hover:text-foreground"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={loading || !subject.trim() || !message.trim()}
-                className="bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+                className="bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50"
               >
                 {loading ? 'Sending...' : 'Send Feedback'}
               </Button>

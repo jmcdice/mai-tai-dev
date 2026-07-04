@@ -194,27 +194,27 @@ export default function WorkspaceSettings({
       {isAgentWorkspace && (
         <>
           <div>
-            <h3 className="mb-2 text-base font-semibold text-white">Agent Container</h3>
-            <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+            <h3 className="mb-2 text-base font-semibold text-foreground">Agent Container</h3>
+            <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-3">
               <div className="flex items-center gap-3">
                 <span
                   className={`h-3 w-3 rounded-full ${
                     agentRunning === null
-                      ? 'bg-gray-500'
+                      ? 'bg-surface2'
                       : agentRunning
-                      ? 'bg-green-500 animate-pulse'
-                      : 'bg-red-500'
+                      ? 'bg-success animate-pulse'
+                      : 'bg-destructive'
                   }`}
                 />
                 <div>
-                  <p className="font-medium text-white">
+                  <p className="font-medium text-foreground">
                     {agentRunning === null
                       ? 'Checking...'
                       : agentRunning
                       ? 'Running'
                       : 'Stopped'}
                   </p>
-                  <p className="text-sm text-gray-400">
+                  <p className="text-sm text-muted-foreground">
                     {agentRunning
                       ? 'Agent is active and connected'
                       : 'Agent container is not running'}
@@ -244,17 +244,17 @@ export default function WorkspaceSettings({
               </div>
             </div>
           </div>
-          <div className="border-t border-gray-700" />
+          <div className="border-t border-border" />
         </>
       )}
 
       {/* Notifications Section */}
       <div>
-        <h3 className="mb-2 text-base font-semibold text-white">Notifications</h3>
-        <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+        <h3 className="mb-2 text-base font-semibold text-foreground">Notifications</h3>
+        <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-3">
           <div>
-            <p className="font-medium text-white">Sound notifications</p>
-            <p className="text-sm text-gray-400">Play a sound when new messages arrive</p>
+            <p className="font-medium text-foreground">Sound notifications</p>
+            <p className="text-sm text-muted-foreground">Play a sound when new messages arrive</p>
           </div>
           <Button
             buttonType={soundEnabled ? 'primary' : 'ghost'}
@@ -266,15 +266,15 @@ export default function WorkspaceSettings({
         </div>
       </div>
 
-      <div className="border-t border-gray-700" />
+      <div className="border-t border-border" />
 
       {/* Dude Mode Section */}
       <div>
-        <h3 className="mb-2 text-base font-semibold text-white">Agent Personality</h3>
-        <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+        <h3 className="mb-2 text-base font-semibold text-foreground">Agent Personality</h3>
+        <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-3">
           <div>
-            <p className="font-medium text-white">Dude Mode</p>
-            <p className="text-sm text-gray-400">Agent responds in the style of The Dude, man.</p>
+            <p className="font-medium text-foreground">Dude Mode</p>
+            <p className="text-sm text-muted-foreground">Agent responds in the style of The Dude, man.</p>
           </div>
           <Button
             buttonType={dudeMode ? 'primary' : 'ghost'}
@@ -286,7 +286,7 @@ export default function WorkspaceSettings({
         </div>
       </div>
 
-      <div className="border-t border-gray-700" />
+      <div className="border-t border-border" />
 
       {/* Connect Project (Collapsible) */}
       <div>
@@ -294,20 +294,20 @@ export default function WorkspaceSettings({
           onClick={() => setShowMcpConfig(!showMcpConfig)}
           className="flex items-center justify-between w-full text-left mb-2"
         >
-          <h3 className="text-base font-semibold text-white">Connect a Project</h3>
+          <h3 className="text-base font-semibold text-foreground">Connect a Project</h3>
           {showMcpConfig ? (
-            <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+            <ChevronDownIcon className="h-5 w-5 text-muted-foreground" />
           ) : (
-            <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+            <ChevronRightIcon className="h-5 w-5 text-muted-foreground" />
           )}
         </button>
         {showMcpConfig && (
           <div className="space-y-4">
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Run this command in your project directory to link it to this workspace:
             </p>
             <div className="relative">
-              <pre className="overflow-x-auto rounded-lg border border-gray-700 bg-gray-900 p-4 pr-12 font-mono text-sm text-gray-100">
+              <pre className="overflow-x-auto rounded-lg border border-border bg-background p-4 pr-12 font-mono text-sm text-foreground">
                 <code>{projectConfigCommand}</code>
               </pre>
               <Button
@@ -323,24 +323,24 @@ export default function WorkspaceSettings({
                 )}
               </Button>
             </div>
-            <p className="text-sm text-gray-500">
-              Then start your AI agent and say <code className="rounded bg-gray-800 px-1.5 py-0.5 text-indigo-400">start mai tai mode</code>
+            <p className="text-sm text-faint">
+              Then start your AI agent and say <code className="rounded bg-card px-1.5 py-0.5 text-primary">start mai tai mode</code>
             </p>
           </div>
         )}
       </div>
 
-      <div className="border-t border-gray-700" />
+      <div className="border-t border-border" />
 
       {/* Workspace Settings */}
       <div>
-        <h3 className="mb-2 text-base font-semibold text-white">Workspace</h3>
+        <h3 className="mb-2 text-base font-semibold text-foreground">Workspace</h3>
         <div className="space-y-2">
           {/* Export Chat */}
-          <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+          <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-3">
             <div>
-              <p className="font-medium text-white">Export Chat</p>
-              <p className="text-sm text-gray-400">Open print-friendly view to save as PDF</p>
+              <p className="font-medium text-foreground">Export Chat</p>
+              <p className="text-sm text-muted-foreground">Open print-friendly view to save as PDF</p>
             </div>
             <Button
               buttonType="primary"
@@ -353,10 +353,10 @@ export default function WorkspaceSettings({
           </div>
 
           {/* Rename Workspace */}
-          <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+          <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-3">
             <div>
-              <p className="font-medium text-white">Rename Workspace</p>
-              <p className="text-sm text-gray-400">Change the name of this workspace</p>
+              <p className="font-medium text-foreground">Rename Workspace</p>
+              <p className="text-sm text-muted-foreground">Change the name of this workspace</p>
             </div>
             <Button
               buttonType="ghost"
@@ -371,10 +371,10 @@ export default function WorkspaceSettings({
           </div>
 
           {/* Project Context */}
-          <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+          <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-3">
             <div>
-              <p className="font-medium text-white">Project Context</p>
-              <p className="text-sm text-gray-400">Add notes the AI agent should always know</p>
+              <p className="font-medium text-foreground">Project Context</p>
+              <p className="text-sm text-muted-foreground">Add notes the AI agent should always know</p>
             </div>
             <Button
               buttonType={(workspace?.settings?.project_context as string) ? 'primary' : 'ghost'}
@@ -389,12 +389,12 @@ export default function WorkspaceSettings({
           </div>
 
           {/* Archive Workspace */}
-          <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+          <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-3">
             <div>
-              <p className="font-medium text-white">
+              <p className="font-medium text-foreground">
                 {workspace?.archived ? 'Unarchive Workspace' : 'Archive Workspace'}
               </p>
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-muted-foreground">
                 {workspace?.archived
                   ? 'Restore this workspace to active status'
                   : 'Hide this workspace from the main list'}
@@ -410,10 +410,10 @@ export default function WorkspaceSettings({
           </div>
 
           {/* Delete Workspace */}
-          <div className="flex items-center justify-between rounded-lg border border-red-900/50 bg-red-950/30 p-3">
+          <div className="flex items-center justify-between rounded-lg border border-destructive/50 bg-destructive/30 p-3">
             <div>
-              <p className="font-medium text-red-400">Delete Workspace</p>
-              <p className="text-sm text-gray-400">
+              <p className="font-medium text-destructive">Delete Workspace</p>
+              <p className="text-sm text-muted-foreground">
                 Permanently delete this workspace and all its data
               </p>
             </div>
@@ -444,7 +444,7 @@ export default function WorkspaceSettings({
             onChange={(e) => setNewWorkspaceName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleRenameWorkspace()}
             autoFocus
-            className="w-full rounded-lg border border-gray-600 bg-gray-700/80 px-4 py-3 text-white placeholder-gray-400 transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="w-full rounded-lg border border-border-strong bg-surface2/80 px-4 py-3 text-foreground placeholder-muted-foreground transition focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring"
           />
           <div className="flex justify-end gap-2">
             <Button buttonType="ghost" onClick={() => setShowRenameModal(false)}>
@@ -465,7 +465,7 @@ export default function WorkspaceSettings({
         size="sm"
       >
         <div className="space-y-4 py-2">
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-muted-foreground">
             Add notes about this project that the AI agent should always keep in mind.
           </p>
           <div className="relative">
@@ -475,9 +475,9 @@ export default function WorkspaceSettings({
               onChange={(e) => setProjectContext(e.target.value.slice(0, 500))}
               autoFocus
               rows={4}
-              className="w-full rounded-lg border border-gray-600 bg-gray-700/80 px-4 py-3 text-white placeholder-gray-400 transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+              className="w-full rounded-lg border border-border-strong bg-surface2/80 px-4 py-3 text-foreground placeholder-muted-foreground transition focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring resize-none"
             />
-            <span className="absolute bottom-2 right-2 text-xs text-gray-500">
+            <span className="absolute bottom-2 right-2 text-xs text-faint">
               {projectContext.length}/500
             </span>
           </div>
@@ -503,16 +503,16 @@ export default function WorkspaceSettings({
         size="sm"
       >
         <div className="space-y-4 py-2">
-          <div className="rounded-lg border border-red-900/50 bg-red-950/30 p-3">
-            <p className="text-sm text-red-400">
+          <div className="rounded-lg border border-destructive/50 bg-destructive/30 p-3">
+            <p className="text-sm text-destructive">
               This action cannot be undone. This will permanently delete the workspace
-              <strong className="text-white"> {workspace?.name}</strong> and all its messages,
+              <strong className="text-foreground"> {workspace?.name}</strong> and all its messages,
               API keys, and settings.
             </p>
           </div>
           <div>
-            <label className="mb-2 block text-sm text-gray-400">
-              Type <strong className="text-white">{workspace?.name}</strong> to confirm:
+            <label className="mb-2 block text-sm text-muted-foreground">
+              Type <strong className="text-foreground">{workspace?.name}</strong> to confirm:
             </label>
             <input
               type="text"
@@ -521,7 +521,7 @@ export default function WorkspaceSettings({
               onChange={(e) => setDeleteConfirmText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && deleteConfirmText === workspace?.name && handleDeleteWorkspace()}
               autoFocus
-              className="w-full rounded-lg border border-gray-600 bg-gray-700/80 px-4 py-3 text-white placeholder-gray-400 transition focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+              className="w-full rounded-lg border border-border-strong bg-surface2/80 px-4 py-3 text-foreground placeholder-muted-foreground transition focus:border-destructive focus:outline-none focus:ring-1 focus:ring-destructive"
             />
           </div>
           <div className="flex justify-end gap-2">

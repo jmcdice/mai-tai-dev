@@ -51,7 +51,7 @@ export default function WorkspacesPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <p className="text-gray-400">Loading...</p>
+        <p className="text-muted-foreground">Loading...</p>
       </div>
     );
   }
@@ -70,8 +70,8 @@ export default function WorkspacesPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white lg:text-3xl">Workspaces</h1>
-          <p className="mt-1 text-gray-400">
+          <h1 className="text-2xl font-bold text-foreground lg:text-3xl">Workspaces</h1>
+          <p className="mt-1 text-muted-foreground">
             {sortedWorkspaces.length} {sortedWorkspaces.length === 1 ? 'workspace' : 'workspaces'}
             {showArchived && archivedCount > 0 && ` (${archivedCount} archived)`}
           </p>
@@ -79,12 +79,12 @@ export default function WorkspacesPage() {
         <div className="flex flex-wrap items-center gap-3">
           {/* Show archived toggle */}
           {archivedCount > 0 && (
-            <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
               <input
                 type="checkbox"
                 checked={showArchived}
                 onChange={(e) => setShowArchived(e.target.checked)}
-                className="rounded border-gray-600 bg-gray-700 text-indigo-500 focus:ring-indigo-500"
+                className="rounded border-border-strong bg-surface2 text-primary focus:ring-ring"
               />
               Show archived
             </label>
@@ -93,7 +93,7 @@ export default function WorkspacesPage() {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'name')}
-            className="rounded-lg border border-gray-600 bg-gray-700 px-4 py-2.5 text-white transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="rounded-lg border border-border-strong bg-surface2 px-4 py-2.5 text-foreground transition focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="newest">Newest First</option>
             <option value="oldest">Oldest First</option>

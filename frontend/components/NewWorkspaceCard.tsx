@@ -81,21 +81,21 @@ export default function NewWorkspaceCard({ workspaceId, workspaceName, workspace
 
   // Code block component for consistent styling (used in Quick Setup tab)
   const CodeBlock = ({ code, copyId, label }: { code: string; copyId: string; label?: string }) => (
-    <div className="rounded-lg border border-gray-700 bg-gray-900/80 p-3">
+    <div className="rounded-lg border border-border bg-background/80 p-3">
       {label && (
-        <p className="mb-2 text-xs font-medium text-gray-400">{label}</p>
+        <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>
       )}
       <div className="flex items-start justify-between gap-2">
-        <pre className="flex-1 overflow-x-auto font-mono text-sm text-green-300 whitespace-pre-wrap break-all">
+        <pre className="flex-1 overflow-x-auto font-mono text-sm text-success whitespace-pre-wrap break-all">
           <code>{code}</code>
         </pre>
         <button
           onClick={() => copyToClipboard(code, copyId)}
-          className="flex-shrink-0 rounded-lg p-2 text-gray-400 transition hover:bg-gray-700 hover:text-white"
+          className="flex-shrink-0 rounded-lg p-2 text-muted-foreground transition hover:bg-surface2 hover:text-foreground"
           title="Copy"
         >
           {copiedSection === copyId ? (
-            <CheckIcon className="h-4 w-4 text-green-400" />
+            <CheckIcon className="h-4 w-4 text-success" />
           ) : (
             <ClipboardDocumentIcon className="h-4 w-4" />
           )}
@@ -107,28 +107,28 @@ export default function NewWorkspaceCard({ workspaceId, workspaceName, workspace
   // Agent workspace: show a simple "starting up" message
   if (workspaceType === 'agent') {
     return (
-      <div className="mb-6 rounded-xl border border-purple-500/30 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 p-4 sm:p-6">
+      <div className="mb-6 rounded-xl border border-secondary/30 bg-gradient-to-r from-accent2/10 to-primary/10 p-4 sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-purple-500/20">
-              <SparklesIcon className="h-5 w-5 text-purple-400" />
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-secondary/20">
+              <SparklesIcon className="h-5 w-5 text-secondary" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-foreground">
                 {workspaceName} is starting up!
               </h3>
-              <p className="mt-1 text-sm text-gray-400">
+              <p className="mt-1 text-sm text-muted-foreground">
                 Your agent is spinning up and will be right with you. This usually takes a few seconds.
               </p>
-              <div className="mt-3 flex items-center gap-2 text-sm text-purple-300">
-                <span className="h-2 w-2 rounded-full bg-purple-400 animate-pulse" />
+              <div className="mt-3 flex items-center gap-2 text-sm text-secondary">
+                <span className="h-2 w-2 rounded-full bg-secondary animate-pulse" />
                 Connecting...
               </div>
             </div>
           </div>
           <button
             onClick={onDismiss}
-            className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-700 hover:text-white"
+            className="rounded-lg p-1 text-muted-foreground transition hover:bg-surface2 hover:text-foreground"
             title="Dismiss"
           >
             <XMarkIcon className="h-5 w-5" />
@@ -139,25 +139,25 @@ export default function NewWorkspaceCard({ workspaceId, workspaceName, workspace
   }
 
   return (
-    <div className="mb-6 rounded-xl border border-green-500/30 bg-gradient-to-r from-green-500/10 to-indigo-500/10 p-4 sm:p-6">
+    <div className="mb-6 rounded-xl border border-success/30 bg-gradient-to-r from-success/10 to-primary/10 p-4 sm:p-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20">
-            <SparklesIcon className="h-5 w-5 text-green-400" />
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-success/20">
+            <SparklesIcon className="h-5 w-5 text-success" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-white">
+            <h3 className="text-lg font-semibold text-foreground">
               Workspace &quot;{workspaceName}&quot; created!
             </h3>
-            <p className="mt-1 text-sm text-gray-400">
+            <p className="mt-1 text-sm text-muted-foreground">
               Configure your AI agent to connect to this workspace.
             </p>
           </div>
         </div>
         <button
           onClick={onDismiss}
-          className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-700 hover:text-white"
+          className="rounded-lg p-1 text-muted-foreground transition hover:bg-surface2 hover:text-foreground"
           title="Dismiss"
         >
           <XMarkIcon className="h-5 w-5" />
@@ -165,13 +165,13 @@ export default function NewWorkspaceCard({ workspaceId, workspaceName, workspace
       </div>
 
       {/* Tabs */}
-      <div className="mt-4 flex gap-2 border-b border-gray-700 pb-2">
+      <div className="mt-4 flex gap-2 border-b border-border pb-2">
         <button
           onClick={() => setActiveTab('quick')}
           className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
             activeTab === 'quick'
-              ? 'bg-indigo-600 text-white'
-              : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:bg-surface2 hover:text-foreground'
           }`}
         >
           <BoltIcon className="h-4 w-4" />
@@ -181,8 +181,8 @@ export default function NewWorkspaceCard({ workspaceId, workspaceName, workspace
           onClick={() => setActiveTab('full')}
           className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
             activeTab === 'full'
-              ? 'bg-indigo-600 text-white'
-              : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:bg-surface2 hover:text-foreground'
           }`}
         >
           <WrenchScrewdriverIcon className="h-4 w-4" />
@@ -194,7 +194,7 @@ export default function NewWorkspaceCard({ workspaceId, workspaceName, workspace
       <div className="mt-4 space-y-4">
         {activeTab === 'quick' && (
           <>
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Already have mai-tai configured on this machine? Just add the workspace ID:
             </p>
             <CodeBlock
@@ -202,11 +202,11 @@ export default function NewWorkspaceCard({ workspaceId, workspaceName, workspace
               copyId="quick-env"
               label="Run in your project directory:"
             />
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-faint">
               Need to set up from scratch?{' '}
               <button
                 onClick={() => setActiveTab('full')}
-                className="text-indigo-400 hover:underline"
+                className="text-primary hover:underline"
               >
                 Use Full Setup →
               </button>
@@ -219,28 +219,28 @@ export default function NewWorkspaceCard({ workspaceId, workspaceName, workspace
             {/* Step 1: API Key Generation */}
             {!generatedKey ? (
               <div className="space-y-3">
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-muted-foreground">
                   New machine or first time using mai-tai? First, generate an API key:
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={handleGenerateApiKey}
                     disabled={isGeneratingKey}
-                    className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50"
+                    className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
                   >
                     <PlusIcon className="h-4 w-4" />
                     {isGeneratingKey ? 'Generating...' : 'Generate New API Key'}
                   </button>
-                  <span className="text-sm text-gray-500">or</span>
+                  <span className="text-sm text-faint">or</span>
                   <a
                     href="/settings?tab=api-keys"
-                    className="text-sm text-indigo-400 hover:underline"
+                    className="text-sm text-primary hover:underline"
                   >
                     View existing keys →
                   </a>
                 </div>
                 {keyError && (
-                  <p className="text-sm text-red-400">{keyError}</p>
+                  <p className="text-sm text-destructive">{keyError}</p>
                 )}
               </div>
             ) : (

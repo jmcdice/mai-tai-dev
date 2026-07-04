@@ -53,28 +53,28 @@ export function OnboardingCard({ projectId, workspaceId, hasMessages = false, on
   }
 
   return (
-    <div className="mx-4 mt-4 mb-4 shrink-0 rounded-xl border border-indigo-500/30 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 p-4 sm:p-6 lg:mx-6">
+    <div className="mx-4 mt-4 mb-4 shrink-0 rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-accent2/10 p-4 sm:p-6 lg:mx-6">
       {/* Header */}
       <div className="mb-4 flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500/20">
-            <RocketLaunchIcon className="h-5 w-5 text-indigo-400" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20">
+            <RocketLaunchIcon className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-white">🍹 Welcome to Mai-Tai!</h2>
-            <p className="text-sm text-gray-400">Connect your agent to start chatting</p>
+            <h2 className="text-lg font-semibold text-foreground">🍹 Welcome to Mai-Tai!</h2>
+            <p className="text-sm text-muted-foreground">Connect your agent to start chatting</p>
           </div>
         </div>
         <button
           onClick={handleDismiss}
-          className="rounded-full p-1 text-gray-400 hover:bg-gray-700 hover:text-white"
+          className="rounded-full p-1 text-muted-foreground hover:bg-surface2 hover:text-foreground"
         >
           <XMarkIcon className="h-5 w-5" />
         </button>
       </div>
 
       {/* Agent Setup */}
-      <div className="rounded-lg bg-gray-800/50 p-4">
+      <div className="rounded-lg bg-card/50 p-4">
         <AgentSetupBlob
           apiKey={onboardingData.apiKey || ''}
           workspaceId={wsId || ''}
@@ -82,9 +82,9 @@ export function OnboardingCard({ projectId, workspaceId, hasMessages = false, on
       </div>
 
       {/* Dismiss hint */}
-      <p className="mt-4 text-center text-xs text-gray-500">
+      <p className="mt-4 text-center text-xs text-faint">
         Once your agent connects, this card will disappear. You can also{' '}
-        <button onClick={handleDismiss} className="text-indigo-400 hover:underline">
+        <button onClick={handleDismiss} className="text-primary hover:underline">
           dismiss it now
         </button>
         .

@@ -226,7 +226,7 @@ export default function WorkspacePage() {
   if (isLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <p className="text-gray-400">Loading...</p>
+        <p className="text-muted-foreground">Loading...</p>
       </div>
     );
   }
@@ -267,7 +267,7 @@ export default function WorkspacePage() {
   return (
     <div className="fixed inset-x-0 top-0 bottom-20 flex flex-col overflow-x-hidden lg:static lg:-mx-8 lg:-my-6 lg:h-[calc(100dvh-4rem-1.5rem)] lg:w-auto lg:max-w-none">
       {/* Header */}
-      <div className="shrink-0 border-b border-gray-700 bg-gray-800/50 px-4 py-4 lg:px-6">
+      <div className="shrink-0 border-b border-border bg-card/50 px-4 py-4 lg:px-6">
         <div className="flex items-center justify-between">
           {/* Workspace Name & Status */}
           <div className="flex flex-col">
@@ -275,13 +275,13 @@ export default function WorkspacePage() {
               currentWorkspaceId={workspaceId}
               currentWorkspaceName={workspace?.name || 'Loading...'}
             />
-            <div className="flex items-center gap-1.5 text-sm text-gray-400">
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <button
                 onClick={() => {
                   setCustomAgentName(agentName);
                   setShowAgentNameModal(true);
                 }}
-                className="flex items-center gap-1 hover:text-indigo-400 transition-colors"
+                className="flex items-center gap-1 hover:text-primary/80 transition-colors"
                 title="Click to rename agent"
               >
                 {agentName}
@@ -289,10 +289,10 @@ export default function WorkspacePage() {
                   <span
                     className={`ml-1 h-2 w-2 rounded-full ${
                       agentStatus.status === 'connected'
-                        ? 'bg-green-500'
+                        ? 'bg-success'
                         : agentStatus.status === 'idle'
-                        ? 'bg-yellow-500'
-                        : 'bg-gray-500'
+                        ? 'bg-warning'
+                        : 'bg-surface2'
                     }`}
                     title={agentStatus.message}
                   />
@@ -302,7 +302,7 @@ export default function WorkspacePage() {
               <button
                 onClick={handleTogglePlanMode}
                 className={`ml-1 transition-colors ${
-                  planMode ? 'text-amber-400' : 'text-gray-500 hover:text-gray-300'
+                  planMode ? 'text-warning' : 'text-faint hover:text-muted-foreground'
                 }`}
                 title={planMode ? 'Plan Mode ON - Click to disable' : 'Plan Mode OFF - Click to enable'}
               >
@@ -320,7 +320,7 @@ export default function WorkspacePage() {
             {/* Participant Avatars */}
             <div className="flex -space-x-2">
               {/* User Avatar */}
-              <div className="relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 border-gray-800 bg-gray-700 text-sm font-semibold text-gray-200">
+              <div className="relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 border-border bg-surface2 text-sm font-semibold text-foreground">
                 {user?.avatar_url ? (
                   <img
                     src={user.avatar_url}
@@ -332,7 +332,7 @@ export default function WorkspacePage() {
                 )}
               </div>
               {/* Agent Avatar */}
-              <div className="relative z-0 flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-gray-800 bg-gradient-to-br from-indigo-500 to-purple-600 text-sm">
+              <div className="relative z-0 flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-border bg-gradient-to-br from-primary to-accent2 text-sm">
                 {dudeMode ? (
                   <img
                     src="/the-dude-avatar.png"
@@ -382,7 +382,7 @@ export default function WorkspacePage() {
       <div className="flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
         <div className="mx-auto w-full space-y-4 p-4 lg:max-w-4xl lg:p-6">
           {messages.length === 0 ? (
-            <p className="py-16 text-center text-base text-gray-500">
+            <p className="py-16 text-center text-base text-faint">
               No messages yet. Start the conversation!
             </p>
           ) : (
@@ -397,13 +397,13 @@ export default function WorkspacePage() {
                   key={message.id}
                   className={`rounded-xl p-4 ${
                     isAgent
-                      ? 'bg-gray-800/70 border border-gray-700/50'
-                      : 'bg-gray-800/40 border border-gray-700/30'
+                      ? 'bg-card/70 border border-border/50'
+                      : 'bg-card/40 border border-border/30'
                   }`}
                 >
                   <div className="flex gap-3">
                     {isAgent && dudeMode ? (
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-indigo-500 to-purple-600">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-accent2">
                         <img
                           src="/the-dude-avatar.png"
                           alt="The Dude"
@@ -419,8 +419,8 @@ export default function WorkspacePage() {
                     ) : (
                       <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
                         isAgent
-                          ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
-                          : 'bg-gray-600 text-gray-200'
+                          ? 'bg-gradient-to-br from-primary to-accent2 text-primary-foreground'
+                          : 'bg-surface2 text-foreground'
                       }`}>
                         {senderInitial}
                       </div>
@@ -429,11 +429,11 @@ export default function WorkspacePage() {
                     <div className="min-w-0 flex-1 overflow-hidden">
                       <div className="flex flex-wrap items-baseline gap-2">
                         <span className={`font-semibold ${
-                          isAgent ? 'text-indigo-300' : 'text-gray-100'
+                          isAgent ? 'text-primary' : 'text-foreground'
                         }`}>
                           {senderName}
                         </span>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-faint">
                           {formatTime(message.created_at)}
                         </span>
                       </div>
@@ -452,7 +452,7 @@ export default function WorkspacePage() {
       </div>
 
       {/* Message Input - Fixed at Bottom */}
-      <div className="shrink-0 overflow-hidden border-t border-gray-700 bg-gray-800/50 px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4">
+      <div className="shrink-0 overflow-hidden border-t border-border bg-card/50 px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4">
         <div className="mx-auto flex w-full items-end gap-1.5 sm:gap-2 lg:max-w-4xl lg:gap-3">
           <textarea
             ref={textareaRef}
@@ -473,7 +473,7 @@ export default function WorkspacePage() {
               }, 100);
             }}
             rows={1}
-            className="min-h-[40px] max-h-[200px] min-w-0 flex-1 resize-none rounded-lg border border-gray-600 bg-gray-700 px-2.5 py-2 text-base leading-relaxed text-white placeholder-gray-500 transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:min-h-[44px] sm:px-3 sm:py-2.5 lg:min-h-[48px] lg:px-4 lg:py-3"
+            className="min-h-[40px] max-h-[200px] min-w-0 flex-1 resize-none rounded-lg border border-border-strong bg-surface2 px-2.5 py-2 text-base leading-relaxed text-foreground placeholder-faint transition focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring sm:min-h-[44px] sm:px-3 sm:py-2.5 lg:min-h-[48px] lg:px-4 lg:py-3"
           />
           <Button
             buttonType="primary"
@@ -515,7 +515,7 @@ export default function WorkspacePage() {
             onChange={(e) => setCustomAgentName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSaveAgentName()}
             autoFocus
-            className="w-full rounded-lg border border-gray-600 bg-gray-700/80 px-4 py-3 text-white placeholder-gray-400 transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="w-full rounded-lg border border-border-strong bg-surface2/80 px-4 py-3 text-foreground placeholder-muted-foreground transition focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring"
           />
           <div className="flex justify-end gap-2">
             <Button buttonType="ghost" onClick={() => setShowAgentNameModal(false)}>

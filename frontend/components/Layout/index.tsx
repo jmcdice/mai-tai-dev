@@ -6,6 +6,7 @@ import Sidebar from './Sidebar';
 import MobileMenu from './MobileMenu';
 import UserMenu from './UserMenu';
 import SearchInput from './SearchInput';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -32,7 +33,7 @@ export default function Layout({ children }: LayoutProps) {
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-gray-900">
+    <div className="flex min-h-screen bg-background">
       {/* Sidebar */}
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
@@ -42,7 +43,7 @@ export default function Layout({ children }: LayoutProps) {
         <header
           className={`sticky top-0 z-30 hidden h-16 items-center gap-4 px-4 transition-colors duration-200 lg:flex lg:px-6 ${
             isScrolled
-              ? 'glass-effect border-b border-gray-700'
+              ? 'glass-effect border-b border-border'
               : 'bg-transparent'
           }`}
         >
@@ -54,11 +55,12 @@ export default function Layout({ children }: LayoutProps) {
             <SearchInput />
           </div>
 
-          {/* Spacer to push user menu to right */}
+          {/* Spacer to push controls to right */}
           <div className="flex-1" />
 
-          {/* Right side - User menu */}
-          <div className="flex-shrink-0">
+          {/* Right side - theme switcher + user menu */}
+          <div className="flex flex-shrink-0 items-center gap-1">
+            <ThemeToggle />
             <UserMenu />
           </div>
         </header>

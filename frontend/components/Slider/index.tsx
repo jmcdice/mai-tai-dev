@@ -67,15 +67,15 @@ export default function Slider({
   return (
     <div className="relative">
       {/* Navigation arrows */}
-      <div className="absolute -top-8 right-0 flex gap-1 text-gray-400">
+      <div className="absolute -top-8 right-0 flex gap-1 text-muted-foreground">
         <button
           type="button"
           onClick={() => slide('left')}
           disabled={scrollPos.isStart}
           className={`rounded p-1 transition-colors ${
             scrollPos.isStart
-              ? 'cursor-not-allowed text-gray-700'
-              : 'hover:bg-gray-800 hover:text-white'
+              ? 'cursor-not-allowed text-faint'
+              : 'hover:bg-card hover:text-foreground'
           }`}
         >
           <ChevronLeftIcon className="h-5 w-5" />
@@ -86,8 +86,8 @@ export default function Slider({
           disabled={scrollPos.isEnd}
           className={`rounded p-1 transition-colors ${
             scrollPos.isEnd
-              ? 'cursor-not-allowed text-gray-700'
-              : 'hover:bg-gray-800 hover:text-white'
+              ? 'cursor-not-allowed text-faint'
+              : 'hover:bg-card hover:text-foreground'
           }`}
         >
           <ChevronRightIcon className="h-5 w-5" />
@@ -117,7 +117,7 @@ export default function Slider({
         {/* Empty state */}
         {isEmpty && (
           <div className="flex min-h-[200px] w-full items-center justify-center">
-            <p className="text-gray-500">{emptyMessage}</p>
+            <p className="text-faint">{emptyMessage}</p>
           </div>
         )}
       </div>
@@ -130,7 +130,7 @@ function PlaceholderCard() {
   return (
     <div className="w-36 sm:w-44 md:w-52">
       <div
-        className="animate-pulse rounded-xl bg-gray-800"
+        className="animate-pulse rounded-xl bg-card"
         style={{ paddingBottom: '133%' }}
       />
     </div>

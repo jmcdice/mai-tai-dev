@@ -38,9 +38,9 @@ export default function SearchInput() {
         <label htmlFor="search_field" className="sr-only">
           Search
         </label>
-        <div className="relative flex w-full items-center text-white focus-within:text-gray-200">
+        <div className="relative flex w-full items-center text-foreground focus-within:text-foreground">
           <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center">
-            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+            <MagnifyingGlassIcon className="h-5 w-5 text-muted-foreground" />
           </div>
           <input
             id="search_field"
@@ -52,10 +52,10 @@ export default function SearchInput() {
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             onKeyUp={handleKeyUp}
-            className={`block w-full rounded-full border bg-gray-900 bg-opacity-80 py-2 pl-10 text-white placeholder-gray-500 transition-colors focus:bg-opacity-100 focus:placeholder-gray-400 focus:outline-none focus:ring-0 sm:text-base ${
+            className={`block w-full rounded-full border bg-background/80 py-2 pl-10 text-foreground placeholder-faint transition-colors focus:bg-background focus:placeholder-muted-foreground focus:outline-none focus:ring-0 sm:text-base ${
               isFocused
-                ? 'border-gray-500'
-                : 'border-gray-700 hover:border-gray-600'
+                ? 'border-border-strong'
+                : 'border-border hover:border-border-strong'
             }`}
             style={{ paddingRight: searchValue.length > 0 ? '2.5rem' : '1rem' }}
           />
@@ -63,7 +63,7 @@ export default function SearchInput() {
             <button
               type="button"
               onClick={handleClear}
-              className="absolute inset-y-0 right-2 m-auto flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:text-white focus:outline-none"
+              className="absolute inset-y-0 right-2 m-auto flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition hover:text-foreground focus:outline-none"
             >
               <XCircleIcon className="h-5 w-5" />
             </button>

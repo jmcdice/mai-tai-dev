@@ -178,36 +178,36 @@ export default function RegisterPage() {
   // Show loading screen while processing OAuth callback or email/password registration
   if (processingOAuth || status === "loading" || isLoading) {
     return (
-      <div className="relative flex min-h-screen flex-col items-center justify-center bg-gray-900">
+      <div className="relative flex min-h-screen flex-col items-center justify-center bg-background">
         {/* Background gradient */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -top-1/2 -left-1/4 h-[800px] w-[800px] rounded-full bg-gradient-to-br from-purple-500/20 to-indigo-600/20 blur-3xl" />
-          <div className="absolute -bottom-1/2 -right-1/4 h-[600px] w-[600px] rounded-full bg-gradient-to-tr from-indigo-500/10 to-purple-600/10 blur-3xl" />
+          <div className="absolute -top-1/2 -left-1/4 h-[800px] w-[800px] rounded-full bg-gradient-to-br from-accent2/20 to-primary/20 blur-3xl" />
+          <div className="absolute -bottom-1/2 -right-1/4 h-[600px] w-[600px] rounded-full bg-gradient-to-tr from-primary/10 to-accent2/10 blur-3xl" />
         </div>
 
         <div className="relative z-10 flex flex-col items-center">
           <img
             src="/logo.png"
             alt="Mai-Tai"
-            className="h-20 w-20 rounded-full object-cover shadow-lg shadow-indigo-500/30 animate-pulse"
+            className="h-20 w-20 rounded-full object-cover shadow-lg shadow-primary/30 animate-pulse"
           />
           <h1 className="text-gradient mt-6 text-3xl font-bold">
             Setting up your workspace...
           </h1>
-          <p className="mt-3 text-gray-400">
+          <p className="mt-3 text-muted-foreground">
             Just a moment while we get everything ready
           </p>
           <div className="mt-8 flex space-x-2">
             <div
-              className="h-2 w-2 rounded-full bg-indigo-500 animate-bounce"
+              className="h-2 w-2 rounded-full bg-primary animate-bounce"
               style={{ animationDelay: "0ms" }}
             />
             <div
-              className="h-2 w-2 rounded-full bg-indigo-500 animate-bounce"
+              className="h-2 w-2 rounded-full bg-primary animate-bounce"
               style={{ animationDelay: "150ms" }}
             />
             <div
-              className="h-2 w-2 rounded-full bg-indigo-500 animate-bounce"
+              className="h-2 w-2 rounded-full bg-primary animate-bounce"
               style={{ animationDelay: "300ms" }}
             />
           </div>
@@ -217,11 +217,11 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-gray-900 py-14">
+    <div className="relative flex min-h-screen flex-col bg-background py-14">
       {/* Background gradient */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-1/2 -left-1/4 h-[800px] w-[800px] rounded-full bg-gradient-to-br from-purple-500/20 to-indigo-600/20 blur-3xl" />
-        <div className="absolute -bottom-1/2 -right-1/4 h-[600px] w-[600px] rounded-full bg-gradient-to-tr from-indigo-500/10 to-purple-600/10 blur-3xl" />
+        <div className="absolute -top-1/2 -left-1/4 h-[800px] w-[800px] rounded-full bg-gradient-to-br from-accent2/20 to-primary/20 blur-3xl" />
+        <div className="absolute -bottom-1/2 -right-1/4 h-[600px] w-[600px] rounded-full bg-gradient-to-tr from-primary/10 to-accent2/10 blur-3xl" />
       </div>
 
       {/* Logo */}
@@ -233,17 +233,17 @@ export default function RegisterPage() {
           <img
             src="/logo.png"
             alt="Mai-Tai"
-            className="h-16 w-16 rounded-full object-cover shadow-lg shadow-indigo-500/30"
+            className="h-16 w-16 rounded-full object-cover shadow-lg shadow-primary/30"
           />
           <h1 className="text-gradient text-4xl font-bold">Mai-Tai</h1>
         </Link>
-        <p className="mt-4 text-gray-400">Your data stays on your machine.</p>
+        <p className="mt-4 text-muted-foreground">Your data stays on your machine.</p>
       </div>
 
       {/* Register card */}
       <div className="relative z-50 mt-10 sm:mx-auto sm:w-full sm:max-w-md">
         <div
-          className="mx-4 rounded-xl border border-gray-700 bg-gray-800/50 shadow-xl sm:mx-0"
+          className="mx-4 rounded-xl border border-border bg-card/50 shadow-xl sm:mx-0"
           style={{ backdropFilter: "blur(12px)" }}
         >
           {/* Error message */}
@@ -256,16 +256,16 @@ export default function RegisterPage() {
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
-            <div className="mx-4 mt-4 rounded-lg bg-red-600/90 p-4">
+            <div className="mx-4 mt-4 rounded-lg bg-destructive/90 p-4">
               <div className="flex">
-                <XCircleIcon className="h-5 w-5 flex-shrink-0 text-red-200" />
-                <p className="ml-3 text-sm font-medium text-red-100">{error}</p>
+                <XCircleIcon className="h-5 w-5 flex-shrink-0 text-destructive" />
+                <p className="ml-3 text-sm font-medium text-destructive">{error}</p>
               </div>
             </div>
           </Transition>
 
           <div className="px-8 py-10 sm:px-10">
-            <h2 className="mb-6 text-center text-xl font-bold text-gray-100">
+            <h2 className="mb-6 text-center text-xl font-bold text-foreground">
               Create a local account
             </h2>
 
@@ -278,7 +278,7 @@ export default function RegisterPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  className="w-full rounded-lg border border-gray-600 bg-gray-700/80 px-4 py-3 text-white placeholder-gray-400 transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-border-strong bg-surface2/80 px-4 py-3 text-foreground placeholder-muted-foreground transition focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
               <div>
@@ -289,7 +289,7 @@ export default function RegisterPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full rounded-lg border border-gray-600 bg-gray-700/80 px-4 py-3 text-white placeholder-gray-400 transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-border-strong bg-surface2/80 px-4 py-3 text-foreground placeholder-muted-foreground transition focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
               <div>
@@ -301,14 +301,14 @@ export default function RegisterPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
-                  className="w-full rounded-lg border border-gray-600 bg-gray-700/80 px-4 py-3 text-white placeholder-gray-400 transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-border-strong bg-surface2/80 px-4 py-3 text-foreground placeholder-muted-foreground transition focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-3 text-base font-medium text-white shadow-lg shadow-indigo-500/25 transition hover:from-indigo-500 hover:to-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-primary to-accent2 px-4 py-3 text-base font-medium text-primary-foreground shadow-lg shadow-primary/25 transition hover:from-primary hover:to-accent2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <UserPlusIcon className="h-5 w-5" />
                 {isLoading ? "Creating account..." : "Create local account"}
@@ -319,11 +319,11 @@ export default function RegisterPage() {
             {(oauthProviders.github || oauthProviders.google) && (
               <>
                 <div className="mt-6 flex items-center">
-                  <div className="flex-grow border-t border-gray-600" />
-                  <span className="mx-4 flex-shrink text-sm text-gray-500">
+                  <div className="flex-grow border-t border-border-strong" />
+                  <span className="mx-4 flex-shrink text-sm text-faint">
                     or continue with
                   </span>
-                  <div className="flex-grow border-t border-gray-600" />
+                  <div className="flex-grow border-t border-border-strong" />
                 </div>
 
                 {/* OAuth Buttons */}
@@ -333,7 +333,7 @@ export default function RegisterPage() {
                       type="button"
                       onClick={handleGitHubSignUp}
                       disabled={!!oauthLoading || isLoading}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-600 bg-gray-700/50 px-4 py-3 text-sm font-medium text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border-strong bg-surface2/50 px-4 py-3 text-sm font-medium text-foreground transition hover:bg-surface2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <GitHubIcon className="h-5 w-5" />
                       {oauthLoading === "github" ? "Connecting..." : "GitHub"}
@@ -344,7 +344,7 @@ export default function RegisterPage() {
                       type="button"
                       onClick={handleGoogleSignUp}
                       disabled={!!oauthLoading || isLoading}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-600 bg-gray-700/50 px-4 py-3 text-sm font-medium text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border-strong bg-surface2/50 px-4 py-3 text-sm font-medium text-foreground transition hover:bg-surface2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <GoogleIcon className="h-5 w-5" />
                       {oauthLoading === "google" ? "Connecting..." : "Google"}
@@ -354,11 +354,11 @@ export default function RegisterPage() {
               </>
             )}
 
-            <p className="mt-6 text-center text-sm text-gray-400">
+            <p className="mt-6 text-center text-sm text-muted-foreground">
               Already have an account?{" "}
               <Link
                 href="/login"
-                className="font-medium text-indigo-400 transition hover:text-indigo-300"
+                className="font-medium text-primary transition hover:text-primary/80"
               >
                 Sign in
               </Link>

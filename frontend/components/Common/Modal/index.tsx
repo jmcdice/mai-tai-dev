@@ -69,7 +69,7 @@ export default function Modal({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm" />
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm" />
         </Transition.Child>
 
         {/* Modal container */}
@@ -85,12 +85,12 @@ export default function Modal({
               leaveTo="opacity-0 scale-95"
             >
               <Dialog.Panel
-                className={`relative w-full transform overflow-hidden rounded-xl border border-gray-700 bg-gray-800 px-6 pb-6 pt-5 text-left shadow-xl transition-all sm:my-8 ${sizeClasses[size]}`}
+                className={`relative w-full transform overflow-hidden rounded-xl border border-border bg-card px-6 pb-6 pt-5 text-left shadow-xl transition-all sm:my-8 ${sizeClasses[size]}`}
               >
                 {/* Close button */}
                 <button
                   type="button"
-                  className="absolute right-4 top-4 rounded-lg p-1 text-gray-400 transition hover:bg-gray-700 hover:text-white"
+                  className="absolute right-4 top-4 rounded-lg p-1 text-muted-foreground transition hover:bg-surface2 hover:text-foreground"
                   onClick={onClose}
                 >
                   <XMarkIcon className="h-5 w-5" />
@@ -105,13 +105,13 @@ export default function Modal({
                       </Dialog.Title>
                     )}
                     {subTitle && (
-                      <p className="mt-1 text-sm text-gray-400">{subTitle}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{subTitle}</p>
                     )}
                   </div>
                 )}
 
                 {/* Content */}
-                {children && <div className="text-gray-300">{children}</div>}
+                {children && <div className="text-muted-foreground">{children}</div>}
 
                 {/* Actions */}
                 {(onOk || onCancel) && (
@@ -120,7 +120,7 @@ export default function Modal({
                       type="button"
                       ref={cancelButtonRef}
                       onClick={handleCancel}
-                      className="rounded-lg border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-medium text-gray-300 transition hover:bg-gray-700 hover:text-white"
+                      className="rounded-lg border border-border-strong bg-transparent px-4 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-surface2 hover:text-foreground"
                     >
                       {cancelText}
                     </button>
@@ -129,7 +129,7 @@ export default function Modal({
                         type="button"
                         onClick={onOk}
                         disabled={okDisabled || okLoading}
-                        className="rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-indigo-500/25 transition hover:from-indigo-500 hover:to-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-lg bg-gradient-to-r from-primary to-accent2 px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/25 transition hover:from-primary hover:to-accent2 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {okLoading ? 'Loading...' : okText}
                       </button>

@@ -25,13 +25,13 @@ export default function SetupStep({
         {/* Step circle */}
         <div
           className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border-2 transition-all duration-200
-            ${active ? 'border-indigo-500 bg-indigo-500/10' : 'border-gray-600'}
-            ${completed ? 'border-green-500 bg-green-500' : ''}`}
+            ${active ? 'border-primary bg-primary/10' : 'border-border-strong'}
+            ${completed ? 'border-success bg-success' : ''}`}
         >
           {completed ? (
-            <CheckIcon className="h-5 w-5 text-white" />
+            <CheckIcon className="h-5 w-5 text-foreground" />
           ) : (
-            <span className={`text-sm font-semibold ${active ? 'text-indigo-400' : 'text-gray-400'}`}>
+            <span className={`text-sm font-semibold ${active ? 'text-primary' : 'text-muted-foreground'}`}>
               {stepNumber}
             </span>
           )}
@@ -41,13 +41,13 @@ export default function SetupStep({
         <div className="flex flex-col">
           <span
             className={`text-sm font-medium transition-colors ${
-              active ? 'text-white' : completed ? 'text-green-400' : 'text-gray-400'
+              active ? 'text-foreground' : completed ? 'text-success' : 'text-muted-foreground'
             }`}
           >
             {title}
           </span>
           {description && (
-            <span className="text-xs text-gray-500">{description}</span>
+            <span className="text-xs text-faint">{description}</span>
           )}
         </div>
       </div>
@@ -56,7 +56,7 @@ export default function SetupStep({
       {!isLastStep && (
         <div className="absolute right-0 top-0 hidden h-full w-5 md:block">
           <svg
-            className="h-full w-full text-gray-600"
+            className="h-full w-full text-faint"
             viewBox="0 0 22 80"
             fill="none"
             preserveAspectRatio="none"
@@ -82,7 +82,7 @@ interface SetupStepsProps {
 export function SetupSteps({ currentStep, steps }: SetupStepsProps) {
   return (
     <nav className="relative z-10">
-      <ul className="divide-y divide-gray-700 rounded-lg border border-gray-700 bg-gray-800/50 backdrop-blur-sm md:flex md:divide-y-0">
+      <ul className="divide-y divide-border rounded-lg border border-border bg-card/50 backdrop-blur-sm md:flex md:divide-y-0">
         {steps.map((step, index) => (
           <SetupStep
             key={index}

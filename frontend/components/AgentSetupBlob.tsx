@@ -93,11 +93,11 @@ Once connected, the human can send you messages through the mai-tai web interfac
   return (
     <div className="space-y-4">
       {/* Security note for humans */}
-      <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-        <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 text-amber-400 mt-0.5" />
+      <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
+        <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 text-warning mt-0.5" />
         <div className="text-sm">
-          <p className="font-medium text-amber-200">Important</p>
-          <p className="mt-1 text-amber-100/80">
+          <p className="font-medium text-warning">Important</p>
+          <p className="mt-1 text-warning/80">
             You&apos;re responsible for running your coding agent in a trusted environment.
             Consider using a container, VM, or your agent&apos;s built-in sandboxing features.
           </p>
@@ -105,22 +105,22 @@ Once connected, the human can send you messages through the mai-tai web interfac
       </div>
 
       <div>
-        <h3 className="text-lg font-semibold text-white">Paste this to your coding agent</h3>
-        <p className="mt-1 text-sm text-gray-400">
+        <h3 className="text-lg font-semibold text-foreground">Paste this to your coding agent</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
           Make sure you&apos;re in your project root, then copy and paste this to your AI coding agent:
         </p>
       </div>
 
       {/* The blob display */}
       <div className="relative">
-        <div className="max-h-72 overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/80 p-4">
-          <pre className="whitespace-pre-wrap font-mono text-sm text-green-300">
+        <div className="max-h-72 overflow-y-auto rounded-lg border border-border bg-background/80 p-4">
+          <pre className="whitespace-pre-wrap font-mono text-sm text-success">
             {setupBlob}
           </pre>
         </div>
 
         {/* Gradient fade at bottom */}
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 rounded-b-lg bg-gradient-to-t from-gray-900/90 to-transparent" />
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 rounded-b-lg bg-gradient-to-t from-background/90 to-transparent" />
       </div>
 
       {/* Copy button */}
@@ -128,8 +128,8 @@ Once connected, the human can send you messages through the mai-tai web interfac
         onClick={copyToClipboard}
         className={`flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition ${
           copied
-            ? 'bg-green-600 text-white'
-            : 'bg-indigo-600 text-white hover:bg-indigo-500'
+            ? 'bg-success text-foreground'
+            : 'bg-primary text-primary-foreground hover:bg-primary/90'
         }`}
       >
         {copied ? (
@@ -145,7 +145,7 @@ Once connected, the human can send you messages through the mai-tai web interfac
         )}
       </button>
 
-      <p className="text-center text-xs text-gray-500">
+      <p className="text-center text-xs text-faint">
         Works with Claude Code, Gemini CLI, and other MCP-compatible agents
       </p>
     </div>

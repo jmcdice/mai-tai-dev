@@ -2,31 +2,253 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Jellyseerr-inspired dark theme for Mai-Tai */
+/* =========================================================================
+   Mai-Tai theming system
+   -------------------------------------------------------------------------
+   Colors are CSS variables holding space-separated HSL triplets (H S% L%)
+   consumed via hsl(var(--x)) so Tailwind /opacity modifiers keep working.
+
+   Two axes:
+     - palette  → data-palette="golden-hour | terminal-tide | jellyseerr"
+     - mode     → .dark class (light = no class)
+
+   Selector convention per palette:
+     [data-palette="x"]        → light values
+     [data-palette="x"].dark   → dark values
+
+   Defaults (no data-palette attr) = Golden Hour, so the app still themes
+   correctly before the provider hydrates.
+   ========================================================================= */
 
 @layer base {
+  /* ---- shared, palette-independent tokens ---- */
   :root {
-    /* Dark theme only - Jellyseerr style */
-    --background: 222 47% 6%;  /* gray-900: #111827 */
-    --foreground: 210 40% 98%; /* gray-100 */
-    --card: 217 33% 12%;       /* gray-800: #1f2937 */
+    --radius: 0.75rem;
+
+    /* status colors — conventional, shared across palettes (light values) */
+    --success: 142 71% 35%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 45%;
+    --warning-foreground: 0 0% 100%;
+    --info: 217 91% 55%;
+    --info-foreground: 0 0% 100%;
+    --destructive: 0 72% 46%;
+    --destructive-foreground: 0 0% 100%;
+  }
+
+  .dark {
+    /* status colors — dark values */
+    --success: 142 65% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 30 62% 8%;
+    --info: 213 90% 65%;
+    --info-foreground: 0 0% 100%;
+    --destructive: 0 74% 55%;
+    --destructive-foreground: 0 0% 100%;
+  }
+
+  /* =======================================================================
+     GOLDEN HOUR  (default palette)
+     ======================================================================= */
+  :root,
+  [data-palette="golden-hour"] {
+    --font-sans: var(--font-hanken), 'Hanken Grotesk', system-ui, sans-serif;
+    --font-display: var(--font-bricolage), 'Bricolage Grotesque', Georgia, serif;
+    --font-mono: var(--font-jetbrains), 'JetBrains Mono', ui-monospace, monospace;
+    --background: 37 56% 94%;
+    --foreground: 28 40% 12%;
+    --card: 37 100% 97%;
+    --card-foreground: 28 40% 12%;
+    --popover: 37 100% 97%;
+    --popover-foreground: 28 40% 12%;
+    --surface-2: 37 49% 88%;
+    --muted: 37 49% 88%;
+    --muted-foreground: 33 21% 41%;
+    --faint: 34 19% 58%;
+    --border: 37 46% 83%;
+    --border-strong: 36 41% 75%;
+    --input: 37 46% 83%;
+    --primary: 17 72% 55%;
+    --primary-foreground: 37 100% 97%;
+    --accent: 17 72% 55%;
+    --accent-foreground: 37 100% 97%;
+    --accent-2: 38 73% 55%;
+    --secondary: 38 73% 55%;
+    --secondary-foreground: 30 62% 8%;
+    --ring: 17 72% 55%;
+    --glow: rgba(223,102,56,0.16);
+    --chart-1: 17 72% 55%;
+    --chart-2: 25 74% 52%;
+    --chart-3: 32 74% 53%;
+    --chart-4: 38 73% 55%;
+    --chart-5: 43 78% 58%;
+  }
+
+  [data-palette="golden-hour"].dark,
+  .dark {
+    --background: 27 33% 6%;
+    --foreground: 33 55% 92%;
+    --card: 28 27% 10%;
+    --card-foreground: 33 55% 92%;
+    --popover: 28 27% 10%;
+    --popover-foreground: 33 55% 92%;
+    --surface-2: 28 30% 12%;
+    --muted: 28 30% 12%;
+    --muted-foreground: 33 24% 61%;
+    --faint: 31 19% 44%;
+    --border: 29 38% 15%;
+    --border-strong: 30 41% 20%;
+    --input: 29 38% 15%;
+    --primary: 17 85% 62%;
+    --primary-foreground: 30 62% 6%;
+    --accent: 17 85% 62%;
+    --accent-foreground: 30 62% 6%;
+    --accent-2: 37 81% 61%;
+    --secondary: 37 81% 61%;
+    --secondary-foreground: 30 62% 6%;
+    --ring: 17 85% 62%;
+    --glow: rgba(241,123,77,0.20);
+    --chart-1: 17 85% 62%;
+    --chart-2: 24 83% 60%;
+    --chart-3: 31 82% 60%;
+    --chart-4: 37 81% 61%;
+    --chart-5: 43 84% 64%;
+  }
+
+  /* =======================================================================
+     TERMINAL TIDE
+     ======================================================================= */
+  [data-palette="terminal-tide"] {
+    --font-sans: var(--font-hanken), 'Hanken Grotesk', system-ui, sans-serif;
+    --font-display: var(--font-space), 'Space Grotesk', system-ui, sans-serif;
+    --font-mono: var(--font-plex), 'IBM Plex Mono', ui-monospace, monospace;
+    --background: 180 13% 94%;
+    --foreground: 184 35% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 184 35% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 184 35% 8%;
+    --surface-2: 180 16% 90%;
+    --muted: 180 16% 90%;
+    --muted-foreground: 183 11% 38%;
+    --faint: 180 10% 61%;
+    --border: 174 13% 85%;
+    --border-strong: 173 13% 76%;
+    --input: 174 13% 85%;
+    --primary: 176 84% 29%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 176 84% 29%;
+    --accent-foreground: 0 0% 100%;
+    --accent-2: 176 84% 29%;
+    --secondary: 176 84% 29%;
+    --secondary-foreground: 0 0% 100%;
+    --ring: 176 84% 29%;
+    --glow: rgba(12,138,129,0.14);
+    --chart-1: 176 84% 29%;
+    --chart-2: 176 70% 38%;
+    --chart-3: 174 62% 46%;
+    --chart-4: 173 66% 55%;
+    --chart-5: 172 70% 65%;
+  }
+
+  [data-palette="terminal-tide"].dark {
+    --background: 189 28% 5%;
+    --foreground: 180 20% 92%;
+    --card: 185 26% 8%;
+    --card-foreground: 180 20% 92%;
+    --popover: 185 26% 8%;
+    --popover-foreground: 180 20% 92%;
+    --surface-2: 188 25% 12%;
+    --muted: 188 25% 12%;
+    --muted-foreground: 180 10% 58%;
+    --faint: 183 11% 42%;
+    --border: 187 22% 15%;
+    --border-strong: 186 19% 21%;
+    --input: 187 22% 15%;
+    --primary: 173 66% 50%;
+    --primary-foreground: 174 78% 7%;
+    --accent: 173 66% 50%;
+    --accent-foreground: 174 78% 7%;
+    --accent-2: 173 66% 50%;
+    --secondary: 173 66% 50%;
+    --secondary-foreground: 174 78% 7%;
+    --ring: 173 66% 50%;
+    --glow: rgba(43,212,192,0.16);
+    --chart-1: 173 66% 50%;
+    --chart-2: 174 60% 44%;
+    --chart-3: 175 56% 38%;
+    --chart-4: 176 60% 32%;
+    --chart-5: 177 66% 26%;
+  }
+
+  /* =======================================================================
+     JELLYSEERR  (the original indigo/purple look, preserved)
+     ======================================================================= */
+  [data-palette="jellyseerr"] {
+    /* keeps the original Inter look */
+    --font-sans: var(--font-inter), 'Inter', system-ui, sans-serif;
+    --font-display: var(--font-inter), 'Inter', system-ui, sans-serif;
+    --font-mono: var(--font-jetbrains), 'JetBrains Mono', ui-monospace, monospace;
+    /* light variant derived from the original dark palette */
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --surface-2: 214 32% 91%;
+    --muted: 214 32% 91%;
+    --muted-foreground: 215 16% 40%;
+    --faint: 215 14% 55%;
+    --border: 214 32% 88%;
+    --border-strong: 213 27% 78%;
+    --input: 214 32% 88%;
+    --primary: 239 84% 60%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 239 84% 60%;
+    --accent-foreground: 0 0% 100%;
+    --accent-2: 270 67% 55%;
+    --secondary: 270 67% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --ring: 239 84% 60%;
+    --glow: rgba(99,102,241,0.16);
+    --chart-1: 239 84% 60%;
+    --chart-2: 252 75% 60%;
+    --chart-3: 262 70% 58%;
+    --chart-4: 270 67% 55%;
+    --chart-5: 280 65% 60%;
+  }
+
+  [data-palette="jellyseerr"].dark {
+    /* the original :root values, verbatim */
+    --background: 222 47% 6%;
+    --foreground: 210 40% 98%;
+    --card: 217 33% 12%;
     --card-foreground: 210 40% 98%;
     --popover: 217 33% 12%;
     --popover-foreground: 210 40% 98%;
-    --primary: 239 84% 67%;    /* indigo-500 */
-    --primary-foreground: 0 0% 100%;
-    --secondary: 270 67% 58%;  /* purple-500 */
-    --secondary-foreground: 0 0% 100%;
-    --muted: 215 28% 17%;      /* gray-700 */
-    --muted-foreground: 215 20% 65%; /* gray-400 */
-    --accent: 239 84% 67%;     /* indigo-500 */
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 215 28% 17%;     /* gray-700 */
+    --surface-2: 215 28% 17%;
+    --muted: 215 28% 17%;
+    --muted-foreground: 215 20% 65%;
+    --faint: 215 16% 50%;
+    --border: 215 28% 17%;
+    --border-strong: 215 20% 30%;
     --input: 215 28% 17%;
-    --ring: 239 84% 67%;       /* indigo-500 */
-    --radius: 0.75rem;
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 239 84% 67%;
+    --accent-foreground: 0 0% 100%;
+    --accent-2: 270 67% 58%;
+    --secondary: 270 67% 58%;
+    --secondary-foreground: 0 0% 100%;
+    --ring: 239 84% 67%;
+    --glow: rgba(99,102,241,0.20);
+    --chart-1: 239 84% 67%;
+    --chart-2: 252 78% 66%;
+    --chart-3: 262 72% 62%;
+    --chart-4: 270 67% 58%;
+    --chart-5: 280 66% 63%;
   }
 }
 
@@ -40,15 +262,20 @@
   }
 
   body {
-    @apply bg-gray-900 text-gray-100 antialiased;
-    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  }
+
+  /* Headings use the palette's display font */
+  h1, h2, h3, h4 {
+    font-family: var(--font-display, var(--font-sans, ui-sans-serif, system-ui, sans-serif));
   }
 }
 
 @layer components {
-  /* Jellyseerr gradient text effect */
+  /* Brand gradient text effect (primary → accent2) */
   .text-gradient {
-    @apply bg-gradient-to-br from-indigo-400 to-purple-400 bg-clip-text text-transparent;
+    @apply bg-gradient-to-br from-primary to-accent2 bg-clip-text text-transparent;
   }
 
   /* Hide scrollbar utility */
@@ -65,25 +292,25 @@
     @apply w-2;
   }
   .custom-scrollbar::-webkit-scrollbar-track {
-    @apply bg-gray-800 rounded;
+    @apply bg-card rounded;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-gray-600 rounded hover:bg-gray-500;
+    @apply bg-border-strong rounded hover:bg-faint;
   }
 
-  /* Sidebar gradient background */
+  /* Sidebar gradient background (card → background) */
   .sidebar-gradient {
-    background: linear-gradient(180deg, rgba(31, 41, 55, 1) 0%, #131928 100%);
+    background: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%);
   }
 
-  /* Active nav item gradient */
+  /* Active nav item gradient (primary → accent2) */
   .nav-active {
-    @apply bg-gradient-to-br from-indigo-600 to-purple-600;
+    @apply bg-gradient-to-br from-primary to-accent2;
   }
 
   /* Glass effect for mobile menu */
   .glass-effect {
-    @apply bg-gray-800 bg-opacity-90 backdrop-blur;
+    @apply bg-card/90 backdrop-blur;
   }
 }
 
@@ -102,4 +329,3 @@
     padding-right: env(safe-area-inset-right);
   }
 }
-

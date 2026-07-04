@@ -19,8 +19,8 @@ export default function Home() {
   // Show loading while checking auth
   if (isLoading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gray-900">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+      <main className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </main>
     );
   }
@@ -32,8 +32,8 @@ export default function Home() {
 
   // Redirecting to dashboard...
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-900">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+    <main className="flex min-h-screen items-center justify-center bg-background">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
     </main>
   );
 }

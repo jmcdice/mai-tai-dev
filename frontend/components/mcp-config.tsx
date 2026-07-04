@@ -46,7 +46,7 @@ function CodeBlock({
 }) {
   return (
     <div className="relative group">
-      <pre className="overflow-x-auto rounded-lg bg-neutral-900 dark:bg-neutral-950 p-4 pr-12 font-mono text-sm text-neutral-100 border border-neutral-800">
+      <pre className="overflow-x-auto rounded-lg bg-background dark:bg-background p-4 pr-12 font-mono text-sm text-foreground border border-border">
         <code>{code}</code>
       </pre>
       <Button
@@ -56,9 +56,9 @@ function CodeBlock({
         onClick={() => onCopy(code, copyId)}
       >
         {copiedSection === copyId ? (
-          <Check className="h-4 w-4 text-green-400" />
+          <Check className="h-4 w-4 text-success" />
         ) : (
-          <Copy className="h-4 w-4 text-neutral-400" />
+          <Copy className="h-4 w-4 text-muted-foreground" />
         )}
       </Button>
     </div>
@@ -80,7 +80,7 @@ function Step({
   return (
     <div className="space-y-3">
       <div className="flex items-start gap-3">
-        <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-sm font-semibold">
+        <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary text-sm font-semibold">
           {number}
         </span>
         <div className="flex-1 min-w-0">
@@ -100,11 +100,11 @@ function Step({
 // Warning callout component
 function WarningCallout({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="flex gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-      <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+    <div className="flex gap-3 p-3 rounded-lg bg-warning/10 border border-warning/20">
+      <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
       <div className="space-y-1">
-        <h6 className="text-sm font-medium text-amber-200">{title}</h6>
-        <p className="text-sm text-amber-200/70">{children}</p>
+        <h6 className="text-sm font-medium text-warning">{title}</h6>
+        <p className="text-sm text-warning/70">{children}</p>
       </div>
     </div>
   );
@@ -257,7 +257,7 @@ EOF`;
       {selectedTool === 'claude-code' && (
         <section className="space-y-6">
           <div className="flex items-center gap-2">
-            <Terminal className="h-5 w-5 text-indigo-400" />
+            <Terminal className="h-5 w-5 text-primary" />
             <h3 className="text-base font-semibold">Claude Code Setup</h3>
           </div>
 
@@ -273,7 +273,7 @@ EOF`;
               onCopy={copyToClipboard}
             />
             <InfoCallout>
-              Requires <a href="https://docs.astral.sh/uv/" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline underline-offset-2 hover:text-indigo-300">uv</a> to be installed. Config files provide the API key and workspace ID.
+              Requires <a href="https://docs.astral.sh/uv/" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80">uv</a> to be installed. Config files provide the API key and workspace ID.
             </InfoCallout>
           </Step>
 
@@ -299,7 +299,7 @@ EOF`;
             description="Tell your agent to connect to the chat"
           >
             <InfoCallout>
-              Once Claude is running, type <code className="rounded-md bg-neutral-800 px-1.5 py-0.5 text-sm text-pink-400">start mai tai mode</code> to connect to this project&apos;s chat.
+              Once Claude is running, type <code className="rounded-md bg-card px-1.5 py-0.5 text-sm text-secondary">start mai tai mode</code> to connect to this project&apos;s chat.
             </InfoCallout>
           </Step>
         </section>
@@ -309,7 +309,7 @@ EOF`;
       {selectedTool === 'augment-cli' && (
         <section className="space-y-6">
           <div className="flex items-center gap-2">
-            <Terminal className="h-5 w-5 text-indigo-400" />
+            <Terminal className="h-5 w-5 text-primary" />
             <h3 className="text-base font-semibold">Augment Code Setup</h3>
           </div>
 
@@ -325,7 +325,7 @@ EOF`;
               onCopy={copyToClipboard}
             />
             <InfoCallout>
-              Requires <a href="https://docs.astral.sh/uv/" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline underline-offset-2 hover:text-indigo-300">uv</a> to be installed. Config files provide the API key and workspace ID.
+              Requires <a href="https://docs.astral.sh/uv/" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80">uv</a> to be installed. Config files provide the API key and workspace ID.
             </InfoCallout>
           </Step>
 
@@ -348,7 +348,7 @@ EOF`;
             description="Tell your agent to connect to the chat"
           >
             <InfoCallout>
-              Once Auggie is running, type <code className="rounded-md bg-neutral-800 px-1.5 py-0.5 text-sm text-pink-400">start mai tai mode</code> to connect to this project&apos;s chat.
+              Once Auggie is running, type <code className="rounded-md bg-card px-1.5 py-0.5 text-sm text-secondary">start mai tai mode</code> to connect to this project&apos;s chat.
             </InfoCallout>
           </Step>
         </section>
@@ -377,7 +377,7 @@ EOF`;
               This flag is saved in your config and bypasses tool confirmation prompts. Required for mai-tai mode. Only use in trusted environments.
             </WarningCallout>
             <InfoCallout>
-              Requires <a href="https://docs.astral.sh/uv/" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline underline-offset-2 hover:text-indigo-300">uv</a> to be installed. Config files provide the API key and workspace ID.
+              Requires <a href="https://docs.astral.sh/uv/" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80">uv</a> to be installed. Config files provide the API key and workspace ID.
             </InfoCallout>
           </Step>
 
@@ -403,7 +403,7 @@ EOF`;
             description="Tell your agent to connect to the chat"
           >
             <InfoCallout>
-              Once Gemini is running, type <code className="rounded-md bg-neutral-800 px-1.5 py-0.5 text-sm text-pink-400">start mai tai mode</code> to connect to this project&apos;s chat.
+              Once Gemini is running, type <code className="rounded-md bg-card px-1.5 py-0.5 text-sm text-secondary">start mai tai mode</code> to connect to this project&apos;s chat.
             </InfoCallout>
           </Step>
         </section>
@@ -429,7 +429,7 @@ EOF`;
               onCopy={copyToClipboard}
             />
             <InfoCallout>
-              Requires <a href="https://docs.astral.sh/uv/" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline underline-offset-2 hover:text-indigo-300">uv</a> to be installed. Config files provide the API key and workspace ID.
+              Requires <a href="https://docs.astral.sh/uv/" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80">uv</a> to be installed. Config files provide the API key and workspace ID.
             </InfoCallout>
           </Step>
 
@@ -452,7 +452,7 @@ EOF`;
             description="Tell your agent to connect to the chat"
           >
             <InfoCallout>
-              Once Codex is running, type <code className="rounded-md bg-neutral-800 px-1.5 py-0.5 text-sm text-pink-400">start mai tai mode</code> to connect to this project&apos;s chat.
+              Once Codex is running, type <code className="rounded-md bg-card px-1.5 py-0.5 text-sm text-secondary">start mai tai mode</code> to connect to this project&apos;s chat.
             </InfoCallout>
           </Step>
         </section>
@@ -476,7 +476,7 @@ EOF`;
             description="Merge this into your claude_desktop_config.json"
           >
             <div className="relative group">
-              <pre className="overflow-x-auto overflow-y-auto max-h-48 rounded-lg bg-neutral-900 dark:bg-neutral-950 p-4 pr-12 font-mono text-sm text-neutral-100 border border-neutral-800">
+              <pre className="overflow-x-auto overflow-y-auto max-h-48 rounded-lg bg-background dark:bg-background p-4 pr-12 font-mono text-sm text-foreground border border-border">
                 <code>{configString}</code>
               </pre>
               <Button
@@ -486,9 +486,9 @@ EOF`;
                 onClick={() => copyToClipboard(configString, 'desktop-config')}
               >
                 {copiedSection === 'desktop-config' ? (
-                  <Check className="h-4 w-4 text-green-400" />
+                  <Check className="h-4 w-4 text-success" />
                 ) : (
-                  <Copy className="h-4 w-4 text-neutral-400" />
+                  <Copy className="h-4 w-4 text-muted-foreground" />
                 )}
               </Button>
             </div>
@@ -510,7 +510,7 @@ EOF`;
             description="Tell your agent to connect to the chat"
           >
             <InfoCallout>
-              In a new conversation, type <code className="rounded-md bg-neutral-800 px-1.5 py-0.5 text-sm text-pink-400">start mai tai mode</code> to connect to this project&apos;s chat.
+              In a new conversation, type <code className="rounded-md bg-card px-1.5 py-0.5 text-sm text-secondary">start mai tai mode</code> to connect to this project&apos;s chat.
             </InfoCallout>
           </Step>
         </section>
@@ -525,7 +525,7 @@ EOF`;
           </div>
 
           <InfoCallout>
-            For CLI tools, run the config commands in Steps 1 &amp; 2 above. The MCP server reads from <code className="rounded bg-neutral-800 px-1 py-0.5 text-pink-400">~/.config/mai-tai/config</code> and <code className="rounded bg-neutral-800 px-1 py-0.5 text-pink-400">.env.mai-tai</code> automatically.
+            For CLI tools, run the config commands in Steps 1 &amp; 2 above. The MCP server reads from <code className="rounded bg-card px-1 py-0.5 text-secondary">~/.config/mai-tai/config</code> and <code className="rounded bg-card px-1 py-0.5 text-secondary">.env.mai-tai</code> automatically.
           </InfoCallout>
 
           <Step
@@ -534,7 +534,7 @@ EOF`;
             description="Use this if your tool requires a static JSON config"
           >
             <div className="relative group">
-              <pre className="overflow-x-auto overflow-y-auto max-h-48 rounded-lg bg-neutral-900 dark:bg-neutral-950 p-4 pr-12 font-mono text-sm text-neutral-100 border border-neutral-800">
+              <pre className="overflow-x-auto overflow-y-auto max-h-48 rounded-lg bg-background dark:bg-background p-4 pr-12 font-mono text-sm text-foreground border border-border">
                 <code>{configString}</code>
               </pre>
               <Button
@@ -544,16 +544,16 @@ EOF`;
                 onClick={() => copyToClipboard(configString, 'manual-config')}
               >
                 {copiedSection === 'manual-config' ? (
-                  <Check className="h-4 w-4 text-green-400" />
+                  <Check className="h-4 w-4 text-success" />
                 ) : (
-                  <Copy className="h-4 w-4 text-neutral-400" />
+                  <Copy className="h-4 w-4 text-muted-foreground" />
                 )}
               </Button>
             </div>
             <div className="flex flex-wrap gap-2 mt-3">
-              <code className="rounded-md bg-neutral-800 px-2 py-1 text-sm text-pink-400">MAI_TAI_API_URL</code>
-              <code className="rounded-md bg-neutral-800 px-2 py-1 text-sm text-pink-400">MAI_TAI_API_KEY</code>
-              <code className="rounded-md bg-neutral-800 px-2 py-1 text-sm text-pink-400">MAI_TAI_WORKSPACE_ID</code>
+              <code className="rounded-md bg-card px-2 py-1 text-sm text-secondary">MAI_TAI_API_URL</code>
+              <code className="rounded-md bg-card px-2 py-1 text-sm text-secondary">MAI_TAI_API_KEY</code>
+              <code className="rounded-md bg-card px-2 py-1 text-sm text-secondary">MAI_TAI_WORKSPACE_ID</code>
             </div>
           </Step>
 
@@ -573,7 +573,7 @@ EOF`;
             description="Tell your agent to connect to the chat"
           >
             <InfoCallout>
-              Once your agent is running, type <code className="rounded-md bg-neutral-800 px-1.5 py-0.5 text-sm text-pink-400">start mai tai mode</code> to connect to this project&apos;s chat.
+              Once your agent is running, type <code className="rounded-md bg-card px-1.5 py-0.5 text-sm text-secondary">start mai tai mode</code> to connect to this project&apos;s chat.
             </InfoCallout>
           </Step>
         </section>

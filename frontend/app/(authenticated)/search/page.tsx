@@ -12,16 +12,16 @@ export default function SearchPage() {
       <div>
         <h1 className="text-gradient text-3xl font-bold">Search Results</h1>
         {query && (
-          <p className="mt-2 text-gray-400">
-            Showing results for &quot;<span className="text-gray-200">{query}</span>&quot;
+          <p className="mt-2 text-muted-foreground">
+            Showing results for &quot;<span className="text-foreground">{query}</span>&quot;
           </p>
         )}
       </div>
 
-      <div className="flex flex-col items-center justify-center rounded-xl border border-gray-700 bg-gray-800 bg-opacity-50 p-16 text-center">
-        <MagnifyingGlassIcon className="h-16 w-16 text-gray-600" />
-        <h2 className="mt-6 text-xl font-semibold text-gray-300">Coming Soon</h2>
-        <p className="mt-2 max-w-md text-gray-500">
+      <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card/50 p-16 text-center">
+        <MagnifyingGlassIcon className="h-16 w-16 text-faint" />
+        <h2 className="mt-6 text-xl font-semibold text-muted-foreground">Coming Soon</h2>
+        <p className="mt-2 max-w-md text-faint">
           Search will let you find projects, channels, agents, and messages across your entire workspace.
         </p>
       </div>

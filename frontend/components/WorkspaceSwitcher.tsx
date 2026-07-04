@@ -72,21 +72,21 @@ export default function WorkspaceSwitcher({
   };
 
   const getStatusColor = (status?: AgentStatus) => {
-    if (!status) return 'bg-gray-500';
+    if (!status) return 'bg-surface2';
     switch (status.status) {
       case 'connected':
-        return 'bg-green-500';
+        return 'bg-success';
       case 'idle':
-        return 'bg-yellow-500';
+        return 'bg-warning';
       default:
-        return 'bg-gray-500';
+        return 'bg-surface2';
     }
   };
 
   // If only one workspace (or still loading count), show plain text
   if (workspaceCount === null || workspaceCount <= 1) {
     return (
-      <h1 className="text-xl font-bold text-white lg:text-2xl">
+      <h1 className="text-xl font-bold text-foreground lg:text-2xl">
         {currentWorkspaceName || 'Loading...'}
       </h1>
     );
@@ -101,7 +101,7 @@ export default function WorkspaceSwitcher({
             onClick={() => {
               if (!open) fetchWorkspaces();
             }}
-            className="flex items-center gap-1 text-xl font-bold text-white hover:text-indigo-300 transition-colors lg:text-2xl"
+            className="flex items-center gap-1 text-xl font-bold text-foreground hover:text-primary/80 transition-colors lg:text-2xl"
           >
             {currentWorkspaceName || 'Loading...'}
             <ChevronDownIcon className="h-5 w-5" />
@@ -116,12 +116,12 @@ export default function WorkspaceSwitcher({
             leaveFrom="transform opacity-100 scale-100"
             leaveTo="transform opacity-0 scale-95"
           >
-            <Menu.Items className="absolute left-0 mt-2 w-72 origin-top-left rounded-lg shadow-lg ring-1 ring-gray-700 focus:outline-none overflow-hidden z-50">
+            <Menu.Items className="absolute left-0 mt-2 w-72 origin-top-left rounded-lg shadow-lg ring-1 ring-border focus:outline-none overflow-hidden z-50">
               <div className="glass-effect max-h-80 overflow-y-auto">
                 {isLoading ? (
-                  <div className="px-4 py-3 text-sm text-gray-400">Loading...</div>
+                  <div className="px-4 py-3 text-sm text-muted-foreground">Loading...</div>
                 ) : workspaces.length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-gray-400">No workspaces found</div>
+                  <div className="px-4 py-3 text-sm text-muted-foreground">No workspaces found</div>
                 ) : (
                   workspaces.map((ws) => (
                     <Menu.Item key={ws.id}>
@@ -129,18 +129,18 @@ export default function WorkspaceSwitcher({
                         <button
                           onClick={() => handleWorkspaceClick(ws.id)}
                           className={`flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors ${
-                            active ? 'bg-gray-700/50' : ''
-                          } ${ws.id === currentWorkspaceId ? 'bg-indigo-500/20' : ''}`}
+                            active ? 'bg-surface2/50' : ''
+                          } ${ws.id === currentWorkspaceId ? 'bg-primary/20' : ''}`}
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <span
                               className={`h-2 w-2 shrink-0 rounded-full ${getStatusColor(ws.agentStatus)}`}
                               title={ws.agentStatus?.message || 'Unknown status'}
                             />
-                            <span className="truncate text-white font-medium">{ws.name}</span>
+                            <span className="truncate text-foreground font-medium">{ws.name}</span>
                           </div>
                           {ws.id === currentWorkspaceId && (
-                            <CheckIcon className="h-4 w-4 shrink-0 text-indigo-400" />
+                            <CheckIcon className="h-4 w-4 shrink-0 text-primary" />
                           )}
                         </button>
                       )}

@@ -15,7 +15,7 @@ export default function ShortcutsPopup({ disabled = false }: ShortcutsPopupProps
   // If not in chat context, show disabled state
   if (!isInChatContext || disabled) {
     return (
-      <div className="flex flex-1 flex-col items-center py-3 text-xs font-medium text-gray-600 cursor-not-allowed">
+      <div className="flex flex-1 flex-col items-center py-3 text-xs font-medium text-faint cursor-not-allowed">
         <BoltIcon className="h-6 w-6" />
         <span className="mt-1">Quick</span>
       </div>
@@ -26,13 +26,13 @@ export default function ShortcutsPopup({ disabled = false }: ShortcutsPopupProps
     <Popover className="relative flex flex-1">
       {({ open, close }) => (
         <>
-          <Popover.Button className="flex flex-1 flex-col items-center py-3 text-xs font-medium text-gray-400 active:text-gray-200 transition-colors touch-manipulation focus:outline-none">
+          <Popover.Button className="flex flex-1 flex-col items-center py-3 text-xs font-medium text-muted-foreground active:text-foreground transition-colors touch-manipulation focus:outline-none">
             {open ? (
-              <XMarkIcon className="h-6 w-6 text-indigo-400" />
+              <XMarkIcon className="h-6 w-6 text-primary" />
             ) : (
               <BoltIcon className="h-6 w-6" />
             )}
-            <span className={`mt-1 ${open ? 'text-indigo-400' : ''}`}>Quick</span>
+            <span className={`mt-1 ${open ? 'text-primary' : ''}`}>Quick</span>
           </Popover.Button>
 
           <Transition
@@ -44,11 +44,11 @@ export default function ShortcutsPopup({ disabled = false }: ShortcutsPopupProps
             leaveFrom="opacity-100 translate-y-0"
             leaveTo="opacity-0 translate-y-4"
           >
-            <Popover.Panel className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 origin-bottom rounded-lg shadow-lg ring-1 ring-gray-700 focus:outline-none overflow-hidden z-50">
+            <Popover.Panel className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 origin-bottom rounded-lg shadow-lg ring-1 ring-border focus:outline-none overflow-hidden z-50">
               <div className="glass-effect">
-                <div className="px-4 py-3 border-b border-gray-700">
-                  <h3 className="text-sm font-medium text-gray-200">Quick Shortcuts</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Tap to add to chat</p>
+                <div className="px-4 py-3 border-b border-border">
+                  <h3 className="text-sm font-medium text-foreground">Quick Shortcuts</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Tap to add to chat</p>
                 </div>
                 <div className="py-1">
                   {shortcuts.map((shortcut) => {
@@ -63,7 +63,7 @@ export default function ShortcutsPopup({ disabled = false }: ShortcutsPopupProps
                           selectShortcut(shortcut.text);
                           close();
                         }}
-                        className="flex w-full items-center px-4 py-3 text-sm text-gray-300 hover:bg-gray-700/50 hover:text-white transition-colors touch-manipulation"
+                        className="flex w-full items-center px-4 py-3 text-sm text-muted-foreground hover:bg-surface2/50 hover:text-foreground transition-colors touch-manipulation"
                         title={shortcut.label}
                       >
                         <span className="font-medium">{displayLabel}</span>

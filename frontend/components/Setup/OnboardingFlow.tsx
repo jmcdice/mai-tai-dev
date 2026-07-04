@@ -99,11 +99,11 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     <div className="mx-auto max-w-3xl space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-white">🍹 Welcome to Mai-Tai!</h1>
-        <p className="mt-2 text-gray-400">
+        <h1 className="text-3xl font-bold text-foreground">🍹 Welcome to Mai-Tai!</h1>
+        <p className="mt-2 text-muted-foreground">
           Connect your AI coding agent and chat in real-time.
         </p>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-faint">
           Each workspace is a chat room for you and your AI agent — create one for each codebase.
         </p>
       </div>
@@ -112,17 +112,17 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       <SetupSteps currentStep={currentStep} steps={STEPS} />
 
       {/* Step content */}
-      <div className="min-w-0 overflow-hidden rounded-xl border border-gray-700 bg-gray-800/50 p-4 backdrop-blur-sm sm:p-6">
+      <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card/50 p-4 backdrop-blur-sm sm:p-6">
         {/* Step 1: Create Workspace */}
         {currentStep === 1 && (
           <div className="space-y-6">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-indigo-500/20">
-                <RocketLaunchIcon className="h-5 w-5 text-indigo-400" />
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/20">
+                <RocketLaunchIcon className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-white">Create Your First Workspace</h2>
-                <p className="text-sm text-gray-400">Give it a name like your repo (e.g., &quot;frontend&quot;, &quot;backend-api&quot;)</p>
+                <h2 className="text-lg font-semibold text-foreground">Create Your First Workspace</h2>
+                <p className="text-sm text-muted-foreground">Give it a name like your repo (e.g., &quot;frontend&quot;, &quot;backend-api&quot;)</p>
               </div>
             </div>
 
@@ -134,7 +134,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 onChange={(e) => setWorkspaceName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !isCreating && workspaceName.trim() && handleCreateWorkspace()}
                 autoFocus
-                className="w-full rounded-lg border border-gray-600 bg-gray-700/80 px-4 py-3 text-white placeholder-gray-400 transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:flex-1"
+                className="w-full rounded-lg border border-border-strong bg-surface2/80 px-4 py-3 text-foreground placeholder-muted-foreground transition focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring sm:flex-1"
               />
               <Button
                 buttonType="primary"
@@ -152,12 +152,12 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         {currentStep === 2 && createdWorkspace && apiKey && (
           <div className="space-y-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20">
-                <CheckIcon className="h-5 w-5 text-green-400" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/20">
+                <CheckIcon className="h-5 w-5 text-success" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-white">Workspace &quot;{createdWorkspace.name}&quot; created!</h2>
-                <p className="text-sm text-gray-400">Now configure your AI agent to connect</p>
+                <h2 className="text-lg font-semibold text-foreground">Workspace &quot;{createdWorkspace.name}&quot; created!</h2>
+                <p className="text-sm text-muted-foreground">Now configure your AI agent to connect</p>
               </div>
             </div>
 
@@ -179,18 +179,18 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         {currentStep === 3 && createdWorkspace && (
           <div className="space-y-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500/20">
-                <ChatBubbleLeftRightIcon className="h-5 w-5 text-indigo-400" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20">
+                <ChatBubbleLeftRightIcon className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-white">You&apos;re All Set!</h2>
-                <p className="text-sm text-gray-400">Open your coding agent and send this message:</p>
+                <h2 className="text-lg font-semibold text-foreground">You&apos;re All Set!</h2>
+                <p className="text-sm text-muted-foreground">Open your coding agent and send this message:</p>
               </div>
             </div>
 
-            <div className="rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-4">
+            <div className="rounded-lg border border-primary/30 bg-primary/10 p-4">
               <div className="flex items-center justify-between">
-                <code className="text-lg font-semibold text-indigo-300">Start mai tai mode</code>
+                <code className="text-lg font-semibold text-primary">Start mai tai mode</code>
                 <Button
                   buttonType={commandCopied ? 'success' : 'ghost'}
                   buttonSize="sm"
@@ -209,7 +209,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   )}
                 </Button>
               </div>
-              <p className="mt-2 text-sm text-gray-400">
+              <p className="mt-2 text-sm text-muted-foreground">
                 This activates mai-tai mode — your agent will chat with you here in real-time!
               </p>
             </div>
