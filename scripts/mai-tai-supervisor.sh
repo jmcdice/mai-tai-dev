@@ -48,11 +48,17 @@ backoff=$MIN_BACKOFF
 
 stamp() { date '+%Y-%m-%d %H:%M:%S'; }
 
-# Run Claude, bounded by ROTATE_AFTER when set. `timeout` keeps the pane TTY
-# (no new pty), so the window stays interactive when you `tmux attach`.
+# Run Claude, bounded by ROTATE_AFTER when set.
+#
+# `--foreground` is REQUIRED: without it, `timeout` runs claude in a separate
+# process group that cannot become the terminal's foreground group, so claude's
+# TTY detection fails, its interactive UI never renders, and it never brings up
+# the mai-tai MCP server -- the window looks "running" but the bot is dead
+# (blank pane, no MCP, never answers). `--foreground` lets claude own the pane
+# TTY while still being bounded by the timeout.
 run_claude() {
   if [ -n "$ROTATE_AFTER" ] && [ "$ROTATE_AFTER" != "0" ] && command -v timeout >/dev/null 2>&1; then
-    timeout -k 30 "$ROTATE_AFTER" "${CLAUDE_CMD[@]}"
+    timeout -k 30 --foreground "$ROTATE_AFTER" "${CLAUDE_CMD[@]}"
   else
     "${CLAUDE_CMD[@]}"
   fi
