@@ -50,7 +50,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       success:
         'text-success-foreground border-success bg-success hover:bg-success/90 hover:border-success focus:ring-2 focus:ring-success focus:ring-offset-2 focus:ring-offset-background',
       ghost:
-        'text-muted-foreground bg-transparent border-border-strong hover:text-foreground hover:border-border-strong hover:bg-card focus:ring-2 focus:ring-border-strong focus:ring-offset-2 focus:ring-offset-background',
+        'text-foreground bg-surface2 border-border-strong hover:bg-surface2/70 hover:text-foreground hover:border-border-strong focus:ring-2 focus:ring-border-strong focus:ring-offset-2 focus:ring-offset-background',
       default:
         'text-foreground bg-card border-border-strong hover:text-foreground hover:bg-surface2 hover:border-border-strong focus:ring-2 focus:ring-border-strong focus:ring-offset-2 focus:ring-offset-background',
     };
