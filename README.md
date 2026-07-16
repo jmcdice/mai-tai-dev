@@ -143,10 +143,17 @@ See `.env.example` for all options. Key settings:
 ### Building the Agent Image
 
 ```bash
-docker build -t mai-tai-agent:latest ./agent
+docker build -t mai-tai-agent:latest -f agents/claude-code/Dockerfile agents/
 ```
 
-This image is required for agent workspaces. Rebuild after changes to `agent/`.
+This image is required for agent workspaces. Rebuild after changes to `agents/`.
+
+Agent containers run a **driver loop**: each user message triggers one CLI
+turn (`claude -p --resume`), so there is no long-lived agent process to babysit.
+Persistent memory lives on the per-workspace volume: `MEMORY.md` (curated,
+size-capped, loaded every session), `journal/` (daily notes), and
+`tasks/lessons.md` — plus a `search_history` tool backed by Postgres full-text
+search over the workspace's entire message history.
 
 ## Contributing
 

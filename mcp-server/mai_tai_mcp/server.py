@@ -13,8 +13,14 @@ from typing import Any, Optional
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
+from . import memory as memory_store
 from .backend import MaiTaiBackend, MaiTaiBackendError, create_backend
 from .config import ConfigurationError, get_config, is_project_configured
+
+# Driver mode: the container driver delivers user messages as new prompts and
+# posts the turn result back automatically. In this mode chat_with_human must
+# NOT block-poll — it sends and returns, and the reply arrives as the next turn.
+DRIVER_MODE = os.environ.get("MAI_TAI_DRIVER_MODE") == "1"
 
 # Load .env from current working directory BEFORE any config is read.
 # This allows per-project configuration to override global env vars.
@@ -290,6 +296,22 @@ async def chat_with_human(
     """
     global _chat_in_progress
 
+    if DRIVER_MODE:
+        # Send without waiting — the driver delivers the human's reply as the
+        # next prompt, so blocking here would deadlock the turn.
+        backend = get_backend()
+        backend.send_message(
+            content=message,
+            metadata={"type": "chat", "awaiting_response": True},
+        )
+        return {
+            "status": "sent",
+            "note": (
+                "Driver mode: message delivered. The human's reply will arrive "
+                "as your next prompt — finish your turn now instead of waiting."
+            ),
+        }
+
     # Prevent concurrent calls - if a chat is already in progress, reject this call
     if _chat_in_progress:
         return {
@@ -485,6 +507,92 @@ def get_messages(
     result = backend.get_messages(limit=limit)
     result["workspace"] = backend.workspace_name
     return result
+
+
+# ============================================================================
+# Memory Tools
+# ============================================================================
+
+
+@mcp.tool()
+def search_history(query: str, limit: int = 10) -> dict[str, Any]:
+    """Search the workspace's FULL message history (all past sessions).
+
+    Use this to recall past conversations: "did we discuss X?", "what did the
+    human decide about Y last week?", "have I solved this error before?".
+    Full-text search over everything ever said in this workspace — much older
+    than your current context. Free and fast; search before asking the human
+    to repeat themselves.
+
+    Args:
+        query: Search terms (2-200 chars), e.g. "deploy caddy tls"
+        limit: Max results (default 10)
+
+    Returns:
+        Ranked matches with highlighted snippets and timestamps
+    """
+    backend = get_backend()
+    if not backend.workspace_id:
+        return {"status": "error", "error": "No workspace bound to this API key."}
+    return backend.search_messages(query=query, limit=limit)
+
+
+@mcp.tool()
+def memory(action: str, content: str = "", old_content: str = "") -> dict[str, Any]:
+    """Maintain your curated long-term memory (MEMORY.md).
+
+    MEMORY.md is loaded at the start of EVERY session — it's how you remember
+    across restarts. It is small on purpose (2200 chars): keep only durable
+    facts, preferences, and decisions that will still matter next week.
+    Session-specific happenings belong in the journal tool instead.
+
+    Actions:
+        read    — return current MEMORY.md with usage stats
+        add     — append `content` as a new entry
+        replace — swap the entry matching `old_content` (substring) with `content`
+        remove  — delete the entry matching `old_content` (substring)
+
+    If a write would exceed the cap, it fails — consolidate (replace/remove)
+    and retry with tighter wording.
+
+    Args:
+        action: read | add | replace | remove
+        content: New entry text (add/replace)
+        old_content: Substring identifying the existing entry (replace/remove)
+    """
+    backend = get_backend()
+    memory_dir = memory_store.resolve_memory_dir(backend.workspace_id)
+
+    if action == "read":
+        text = memory_store.read_memory(memory_dir)
+        return {"status": "ok", "memory": text or "(empty)", **memory_store._usage(text)}
+    if action == "add":
+        return memory_store.memory_add(memory_dir, content)
+    if action == "replace":
+        return memory_store.memory_replace(memory_dir, old_content, content)
+    if action == "remove":
+        return memory_store.memory_remove(memory_dir, old_content)
+    return {"status": "error", "error": f"Unknown action '{action}'. Use read/add/replace/remove."}
+
+
+@mcp.tool()
+def journal(entry: str) -> dict[str, Any]:
+    """Append a note to today's journal (memory/journal/YYYY-MM-DD.md).
+
+    The journal is your working diary: decisions made, task state, things in
+    flight, observations. Today's and yesterday's entries load at session
+    start, so journal anything your future self needs to pick up smoothly —
+    especially before finishing a long task or when the session may end.
+
+    Durable facts that matter beyond this week belong in the memory tool, not
+    the journal.
+
+    Args:
+        entry: The note to append (timestamped automatically, max 2000 chars)
+    """
+    backend = get_backend()
+    memory_dir = memory_store.resolve_memory_dir(backend.workspace_id)
+    return memory_store.journal_append(memory_dir, entry)
 
 
 # ============================================================================
