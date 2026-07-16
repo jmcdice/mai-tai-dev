@@ -3,9 +3,10 @@
 from app.models.api_key import ApiKey
 from app.models.feedback import Feedback
 from app.models.message import Message
+from app.models.scheduled_task import ScheduledTask
 from app.models.stash_link import StashLink
 from app.models.workspace import Workspace
 from app.models.workspace_agent_activity import WorkspaceAgentActivity
 from app.models.user import User
 
-__all__ = ["User", "Workspace", "Message", "ApiKey", "Feedback", "WorkspaceAgentActivity", "StashLink"]
+__all__ = ["User", "Workspace", "Message", "ApiKey", "Feedback", "WorkspaceAgentActivity", "StashLink", "ScheduledTask"]
