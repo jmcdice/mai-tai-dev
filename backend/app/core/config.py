@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     # Set REGISTRATION_ENABLED=false to prevent new user sign-ups
     registration_enabled: bool = True
 
+    # Fernet key for encrypting secrets at rest (users' API keys/tokens).
+    # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # Falls back to a key derived from SECRET_KEY when unset.
+    encryption_key: str | None = None
+
     # JWT (for local development)
     secret_key: str = DEFAULT_SECRET_KEY
     algorithm: str = "HS256"

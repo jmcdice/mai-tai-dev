@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core.crypto import get_user_secret
 from app.models.stash_link import StashLink
 from app.models.user import User
 from app.schemas.stash import (
@@ -215,7 +216,7 @@ async def create_link(
     settings = current_user.settings or {}
     llm_provider = settings.get("stash_llm_provider")
     llm_model = settings.get("stash_llm_model")
-    llm_api_key = settings.get("stash_llm_api_key")
+    llm_api_key = get_user_secret(settings, "stash_llm_api_key")
 
     if llm_provider and llm_model and llm_api_key:
         try:

@@ -81,6 +81,12 @@ jobs:
       - name: Install dependencies
         run: cd backend && pip install -r requirements.txt -r requirements-dev.txt
 
+      - name: Run migrations (full chain up + down + up)
+        run: cd backend && alembic upgrade head && alembic downgrade base && alembic upgrade head
+        env:
+          DATABASE_URL: postgresql://maitai:maitai@localhost:5432/maitai_test
+          SECRET_KEY: test-secret-key-for-ci-only
+
       - name: Run tests
         run: cd backend && pytest tests -v
         env:

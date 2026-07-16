@@ -7,7 +7,15 @@ from sqlalchemy import create_engine, pool
 
 from app.core.config import get_settings
 from app.db.base import Base
-from app.models import Agent, ApiKey, Message, User, Workspace  # noqa: F401
+from app.models import (  # noqa: F401
+    ApiKey,
+    Feedback,
+    Message,
+    StashLink,
+    User,
+    Workspace,
+    WorkspaceAgentActivity,
+)
 
 config = context.config
 settings = get_settings()

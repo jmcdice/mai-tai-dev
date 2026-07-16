@@ -33,6 +33,7 @@ services:
       - DEBUG=${DEBUG:-false}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-maitai}:${POSTGRES_PASSWORD:-maitai_dev_password}@postgres:5432/${POSTGRES_DB:-maitai}
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
       - CORS_ORIGINS=${CORS_ORIGINS}
       - EXTRA_CORS_ORIGIN=${EXTRA_CORS_ORIGIN:-}
       - REGISTRATION_ENABLED=${REGISTRATION_ENABLED:-true}

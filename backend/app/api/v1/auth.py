@@ -12,6 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.config import get_settings
+from app.core.crypto import (
+    SENSITIVE_USER_SETTINGS,
+    encrypt_user_settings,
+    is_masked_echo,
+    masked_user_settings,
+)
 from app.models.system_settings import SystemSetting
 from app.core.security import (
     create_access_token,
@@ -48,6 +54,13 @@ def generate_api_key() -> tuple[str, str]:
     raw_key = f"mt_{secrets.token_urlsafe(32)}"
     key_hash = hashlib.sha256(raw_key.encode(), usedforsecurity=False).hexdigest()
     return raw_key, key_hash
+
+
+def user_response_masked(user: User) -> UserResponse:
+    """Serialize a user with sensitive settings masked — secrets never leave the server."""
+    resp = UserResponse.model_validate(user)
+    resp.settings = masked_user_settings(resp.settings)
+    return resp
 
 
 async def is_registration_enabled(db: AsyncSession) -> bool:
@@ -218,9 +231,9 @@ async def refresh_token(
 @router.get("/me", response_model=UserResponse)
 async def get_me(
     current_user: User = Depends(get_current_user),
-) -> User:
-    """Get current user info."""
-    return current_user
+) -> UserResponse:
+    """Get current user info (sensitive settings masked)."""
+    return user_response_masked(current_user)
 
 
 @router.put("/me", response_model=UserResponse)
@@ -228,22 +241,36 @@ async def update_me(
     data: UserUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> User:
-    """Update current user's profile."""
+) -> UserResponse:
+    """Update current user's profile.
+
+    Sensitive settings are encrypted at rest. The UI round-trips masked
+    values, so a submitted value that is just the mask of the stored secret
+    means "unchanged" and is dropped before merging.
+    """
     if data.name is not None:
         current_user.name = data.name
     if data.avatar_url is not None:
         current_user.avatar_url = data.avatar_url
     if data.settings is not None:
-        # Merge settings instead of replacing (preserve keys from other tabs)
         existing = dict(current_user.settings or {})
-        existing.update(data.settings)
-        # Remove keys explicitly set to None
-        current_user.settings = {k: v for k, v in existing.items() if v is not None}
+        incoming = dict(data.settings)
+
+        # Drop masked echoes of stored secrets (unchanged fields)
+        for key in SENSITIVE_USER_SETTINGS & incoming.keys():
+            value = incoming[key]
+            if isinstance(value, str) and value and is_masked_echo(value, existing.get(key)):
+                incoming.pop(key)
+
+        # Merge settings instead of replacing (preserve keys from other tabs)
+        existing.update(incoming)
+        # Remove keys explicitly set to None, encrypt secrets before storage
+        merged = {k: v for k, v in existing.items() if v is not None}
+        current_user.settings = encrypt_user_settings(merged)
 
     await db.commit()
     await db.refresh(current_user)
-    return current_user
+    return user_response_masked(current_user)
 
 
 @router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
@@ -402,7 +429,7 @@ async def oauth_login(
         "refresh_token": refresh_token,
         "token_type": "bearer",
         "is_new_user": is_new_user,
-        "user": user,
+        "user": user_response_masked(user),
         "workspace": provisioned_workspace,
         "api_key": provisioned_api_key,
     }

@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core.crypto import get_user_secret
 from app.core.websocket import manager as ws_manager
 from app.models.api_key import ApiKey
 from app.models.workspace import Workspace
@@ -489,9 +490,9 @@ async def start_agent_endpoint(
             detail=f"Agent runtime '{config.runtime}' is not available on this server.",
         )
 
-    # Resolve the credential this runtime needs from user settings
+    # Resolve (and decrypt) the credential this runtime needs from user settings
     user_settings = current_user.settings or {}
-    credential = user_settings.get(runtime.credential_setting)
+    credential = get_user_secret(user_settings, runtime.credential_setting)
     if not credential:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -509,7 +510,7 @@ async def start_agent_endpoint(
         auth_env = {"OPENAI_API_KEY": credential}
 
     # Get GitHub token for coder agents
-    github_token = user_settings.get("github_token") if config.template == "coder" else None
+    github_token = get_user_secret(user_settings, "github_token") if config.template == "coder" else None
     repo_url = config.repo_url if config.template == "coder" else None
 
     # Start the Docker container
