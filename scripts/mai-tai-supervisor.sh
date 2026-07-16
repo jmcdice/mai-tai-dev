@@ -39,6 +39,15 @@ set -u
 mkdir -p "$LOG_DIR"
 cd "$REPO_DIR" || { echo "FATAL: cannot cd to $REPO_DIR"; exit 1; }
 
+# Disable Claude Code's MCP idle-timeout. `chat_with_human` blocks silently at
+# "home base" polling for a human reply, sending no progress notifications, so
+# after the stdio-server idle default (~30m) Claude ABORTS the tool call and
+# drops back to an idle REPL -- alive but out of the mai-tai loop, no longer
+# picking up messages. 0 disables the idle check so the bot can wait for hours.
+# (Requires Claude Code >= 2.1.187; wall-clock MCP_TOOL_TIMEOUT ~28h still caps
+# it, safely above our 24h rotation.) Value is in milliseconds; 0 = never abort.
+export CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT=0
+
 # Expanded form of the `yolo` alias plus the mai-tai activation prompt.
 CLAUDE_CMD=(claude --model claude-opus-4-8 --dangerously-skip-permissions "/mai-tai start")
 
