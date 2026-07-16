@@ -95,16 +95,22 @@ async def websocket_workspace(
     - {"type": "error", "message": "..."} - Error occurred
     """
     auth_info = None
+    # Plain literal for logging — never log token-derived values (auth_info
+    # carries data derived from the credential; CodeQL py/clear-text-logging)
+    auth_kind = "none"
 
     # Try API key first (starts with mt_)
     if token.startswith("mt_"):
         auth_info = await validate_api_key(token, workspace_id)
+        if auth_info:
+            auth_kind = "api_key"
 
     # Fall back to JWT token
     if not auth_info:
         user_id = get_user_from_token(token)
         if user_id:
             auth_info = {"user_id": user_id, "type": "jwt"}
+            auth_kind = "jwt"
 
     if not auth_info:
         await websocket.close(code=4001, reason="Invalid token or API key")
@@ -131,7 +137,7 @@ async def websocket_workspace(
     logger = logging.getLogger(__name__)
 
     await manager.connect(websocket, workspace_id)
-    logger.info(f"WebSocket connected for workspace {workspace_id}, auth_type={auth_info.get('type', 'unknown')}")
+    logger.info(f"WebSocket connected for workspace {workspace_id}, auth_type={auth_kind}")
 
     try:
         # Send connection confirmation
