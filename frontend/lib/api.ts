@@ -95,6 +95,7 @@ export interface UserSettings {
   palette?: 'golden-hour' | 'terminal-tide' | 'jellyseerr' | null;
   shortcuts?: UserShortcut[] | null;
   anthropic_api_key?: string | null;
+  openai_api_key?: string | null;
   github_token?: string | null;
   stash_llm_provider?: string | null;
   stash_llm_model?: string | null;
@@ -324,6 +325,20 @@ export interface AgentTemplate {
 
 export async function getAgentTemplates(token: string): Promise<{ templates: Record<string, AgentTemplate> }> {
   return api('/api/v1/workspaces/agent-templates', { token });
+}
+
+export interface AgentRuntime {
+  id: string;
+  label: string;
+  description: string;
+  default_model: string;
+  models: { id: string; label: string }[];
+  credential_label: string;
+  enabled: boolean;
+}
+
+export async function getAgentRuntimes(token: string): Promise<{ runtimes: Record<string, AgentRuntime> }> {
+  return api('/api/v1/workspaces/agent-runtimes', { token });
 }
 
 export async function startAgent(token: string, workspaceId: string): Promise<{ status: string; container?: string; container_id?: string; message?: string }> {

@@ -63,10 +63,11 @@ RUNTIMES: dict[str, RuntimeSpec] = {
         credential_label="OpenAI API key",
         default_model="gpt-5-codex",
         models=[
-            {"id": "gpt-5-codex", "label": "GPT-5 Codex"},
-            {"id": "gpt-5-mini", "label": "GPT-5 Mini (fast, affordable)"},
+            {"id": "gpt-5-codex-mini", "label": "GPT-5 Codex Mini (fast, cheap)"},
+            {"id": "gpt-5-codex", "label": "GPT-5 Codex (balanced)"},
+            {"id": "gpt-5.3-codex", "label": "GPT-5.3 Codex (coding-optimized)"},
+            {"id": "gpt-5.5", "label": "GPT-5.5 (most capable)"},
         ],
-        enabled=False,  # flips on when the codex image lands
     ),
 }
 

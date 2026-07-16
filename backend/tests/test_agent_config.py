@@ -29,9 +29,9 @@ def test_agent_runtimes_endpoint(client, user_a):
     assert runtimes["claude-code"]["default_model"] == "sonnet"
     assert any(m["id"] == "opus" for m in runtimes["claude-code"]["models"])
 
-    # Codex is registered but gated until its image ships
-    assert "codex" in runtimes
-    assert runtimes["codex"]["enabled"] is False
+    assert runtimes["codex"]["enabled"] is True
+    assert runtimes["codex"]["credential_label"] == "OpenAI API key"
+    assert any(m["id"] == "gpt-5.5" for m in runtimes["codex"]["models"])
 
 
 def test_agent_config_defaults_and_storage(client, user_a):
@@ -107,8 +107,19 @@ def test_start_agent_rejects_chat_workspace(client, user_a):
     assert "agent workspaces" in resp.json()["detail"].lower()
 
 
-def test_start_agent_rejects_disabled_runtime(client, user_a):
-    ws = make_agent_workspace(client, user_a["token"], {"runtime": "codex"})
+def test_start_agent_rejects_unknown_stored_runtime(client, user_a):
+    """Legacy configs may hold runtimes the registry no longer knows."""
+    from sqlalchemy import text
+
+    from tests.conftest import sync_engine
+
+    ws = make_agent_workspace(client, user_a["token"], {"runtime": "claude-code"})
+    with sync_engine.begin() as conn:
+        conn.execute(
+            text("UPDATE workspaces SET agent_config = '{\"runtime\": \"retired-runtime\"}' WHERE id = :id"),
+            {"id": ws["id"]},
+        )
+
     resp = client.post(
         f"/api/v1/workspaces/{ws['id']}/agent/start",
         headers=auth_headers(user_a["token"]),
@@ -125,3 +136,13 @@ def test_start_agent_requires_credential(client, user_a):
     )
     assert resp.status_code == 400
     assert "Anthropic API key" in resp.json()["detail"]
+
+
+def test_start_agent_codex_requires_openai_key(client, user_a):
+    ws = make_agent_workspace(client, user_a["token"], {"runtime": "codex"})
+    resp = client.post(
+        f"/api/v1/workspaces/{ws['id']}/agent/start",
+        headers=auth_headers(user_a["token"]),
+    )
+    assert resp.status_code == 400
+    assert "OpenAI API key" in resp.json()["detail"]

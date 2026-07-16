@@ -12,12 +12,14 @@ import {
   getDailyActivity,
   getBusiestWorkspaces,
   getAgentTemplates,
+  getAgentRuntimes,
   startAgent,
   Workspace,
   DashboardStats,
   DailyActivityItem,
   WorkspaceActivityItem,
   AgentTemplate,
+  AgentRuntime,
   ApiError,
 } from '@/lib/api';
 import {
@@ -46,6 +48,9 @@ export default function DashboardPage() {
   const [agentTemplate, setAgentTemplate] = useState('custom');
   const [agentRepoUrl, setAgentRepoUrl] = useState('');
   const [agentTemplates, setAgentTemplates] = useState<Record<string, AgentTemplate>>({});
+  const [agentRuntime, setAgentRuntime] = useState('claude-code');
+  const [agentModel, setAgentModel] = useState('');
+  const [agentRuntimes, setAgentRuntimes] = useState<Record<string, AgentRuntime>>({});
   const [isCreating, setIsCreating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { token } = useAuth();
@@ -80,6 +85,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (isDialogOpen && workspaceType === 'agent' && token && Object.keys(agentTemplates).length === 0) {
       getAgentTemplates(token).then((res) => setAgentTemplates(res.templates)).catch(() => {});
+      getAgentRuntimes(token).then((res) => setAgentRuntimes(res.runtimes)).catch(() => {});
     }
   }, [isDialogOpen, workspaceType, token, agentTemplates]);
 
@@ -88,7 +94,10 @@ export default function DashboardPage() {
     setIsCreating(true);
 
     try {
-      const agentConfig: Record<string, string> = { template: agentTemplate };
+      const agentConfig: Record<string, string> = { template: agentTemplate, runtime: agentRuntime };
+      if (agentModel) {
+        agentConfig.model = agentModel;
+      }
       if (agentTemplate === 'coder' && agentRepoUrl.trim()) {
         agentConfig.repo_url = agentRepoUrl.trim();
       }
@@ -222,6 +231,51 @@ export default function DashboardPage() {
                   <p className="mt-1 text-xs text-faint">{agentTemplates[agentTemplate].description}</p>
                 )}
               </div>
+
+              {/* Runtime + model */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-muted-foreground">Runtime</label>
+                  <select
+                    value={agentRuntime}
+                    onChange={(e) => {
+                      setAgentRuntime(e.target.value);
+                      setAgentModel(''); // reset to the new runtime's default
+                    }}
+                    className="w-full rounded-lg border border-border-strong bg-surface2/80 px-4 py-3 text-foreground transition focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    {Object.keys(agentRuntimes).length > 0 ? (
+                      Object.values(agentRuntimes)
+                        .filter((rt) => rt.enabled)
+                        .map((rt) => (
+                          <option key={rt.id} value={rt.id}>{rt.label}</option>
+                        ))
+                    ) : (
+                      <option value="claude-code">Claude Code</option>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-muted-foreground">Model</label>
+                  <select
+                    value={agentModel}
+                    onChange={(e) => setAgentModel(e.target.value)}
+                    className="w-full rounded-lg border border-border-strong bg-surface2/80 px-4 py-3 text-foreground transition focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">
+                      Default{agentRuntimes[agentRuntime] ? ` (${agentRuntimes[agentRuntime].default_model})` : ''}
+                    </option>
+                    {(agentRuntimes[agentRuntime]?.models || []).map((m) => (
+                      <option key={m.id} value={m.id}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {agentRuntimes[agentRuntime] && (
+                <p className="-mt-2 text-xs text-faint">
+                  Requires your {agentRuntimes[agentRuntime].credential_label} in Settings → AI.
+                </p>
+              )}
 
               {/* Purpose */}
               <div>
