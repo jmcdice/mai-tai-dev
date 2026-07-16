@@ -1,7 +1,8 @@
-"""Agent workspace spawner service.
+"""Agent container spawner.
 
-Manages Claude Code agent containers via Docker. Each agent workspace
-gets its own container running Claude Code connected to Mai-Tai via MCP.
+Manages agent containers via Docker, one per workspace. Runtime-agnostic: the
+image and model defaults come from the RuntimeSpec; auth env vars come from
+the caller (which knows which credential the runtime needs).
 """
 
 import logging
@@ -12,10 +13,9 @@ from uuid import UUID
 import docker
 from docker.errors import NotFound, APIError
 
-logger = logging.getLogger(__name__)
+from app.services.agents.runtimes import RuntimeSpec, get_runtime
 
-# Docker image for agent containers
-AGENT_IMAGE = os.environ.get("AGENT_IMAGE", "mai-tai-agent:latest")
+logger = logging.getLogger(__name__)
 
 # Docker network for agent containers. Defaults to the isolated agents network
 # (backend is attached to it too, so agents can reach the API but not postgres).
@@ -23,6 +23,9 @@ AGENT_NETWORK = os.environ.get("AGENT_NETWORK", "mai-tai-dev_agents")
 
 # Host mai-tai config (mounted read-only into backend container)
 HOST_CONFIG_PATH = Path(os.environ.get("HOST_MAI_TAI_CONFIG", "/host-mai-tai-config/config"))
+
+# Container name prefix
+CONTAINER_PREFIX = "maitai-agent-"
 
 
 def _get_host_mai_tai_key() -> str | None:
@@ -40,33 +43,6 @@ def _get_host_mai_tai_key() -> str | None:
         pass
     return None
 
-# Container name prefix
-CONTAINER_PREFIX = "maitai-agent-"
-
-# Agent templates (used by frontend for template picker)
-AGENT_TEMPLATES = {
-    "research": {
-        "label": "Research Assistant",
-        "description": "General-purpose research agent that can search the web and compile reports.",
-    },
-    "monitor": {
-        "label": "Daily Monitor",
-        "description": "Scheduled monitoring agent that runs periodic checks and reports.",
-    },
-    "assistant": {
-        "label": "Personal Assistant",
-        "description": "General-purpose assistant for daily tasks and questions.",
-    },
-    "coder": {
-        "label": "Coding Agent",
-        "description": "Software engineering agent that clones a repo and helps with code, PRs, and bug fixes.",
-    },
-    "custom": {
-        "label": "Custom Agent",
-        "description": "A custom agent with user-defined purpose and behavior.",
-    },
-}
-
 
 def _get_docker_client() -> docker.DockerClient:
     """Get a Docker client connected to the host daemon."""
@@ -81,32 +57,41 @@ def _container_name(workspace_id: UUID) -> str:
 def start_agent(
     workspace_id: UUID,
     workspace_name: str,
+    runtime: str = "claude-code",
+    model: str | None = None,
     api_key: str | None = None,
-    anthropic_api_key: str | None = None,
-    claude_oauth_token: str | None = None,
+    auth_env: dict[str, str] | None = None,
     api_url: str | None = None,
     purpose: str | None = None,
     template: str = "custom",
     github_token: str | None = None,
     repo_url: str | None = None,
 ) -> dict:
-    """Start a Claude Code agent in a Docker container.
+    """Start an agent container for a workspace.
 
     Args:
         workspace_id: The workspace UUID this agent connects to.
         workspace_name: Human-readable name for the agent.
+        runtime: Runtime id from the registry (claude-code, codex, ...).
+        model: Model id for the runtime; falls back to the runtime default.
         api_key: Mai-Tai API key (mt_...) for MCP authentication.
-        anthropic_api_key: Standard Anthropic API key (sk-ant-api03-*).
-        claude_oauth_token: OAuth token for Pro/Max subscription (sk-ant-oat01-*).
-        api_url: Mai-Tai backend URL. Defaults to http://backend:8000 (Docker internal).
+        auth_env: Runtime credential env vars (e.g. {"ANTHROPIC_API_KEY": ...}
+            or {"CLAUDE_CODE_OAUTH_TOKEN": ...} or {"OPENAI_API_KEY": ...}).
+        api_url: Mai-Tai backend URL. Defaults to http://backend:8000.
         purpose: What this agent should do.
-        template: Agent template type (research, monitor, assistant, custom).
+        template: Agent template type (research, monitor, assistant, coder, custom).
+        github_token: GitHub token for coder agents.
+        repo_url: Repository to clone for coder agents.
 
     Returns:
         Dict with status and container info.
     """
-    if not anthropic_api_key and not claude_oauth_token:
-        return {"status": "error", "message": "Either anthropic_api_key or claude_oauth_token is required"}
+    spec: RuntimeSpec | None = get_runtime(runtime)
+    if spec is None or not spec.enabled:
+        return {"status": "error", "message": f"Unknown or disabled runtime: {runtime}"}
+
+    if not auth_env:
+        return {"status": "error", "message": f"{spec.credential_label} is required to start a {spec.label} agent"}
 
     client = _get_docker_client()
     name = _container_name(workspace_id)
@@ -141,26 +126,23 @@ def start_agent(
         "AGENT_NAME": workspace_name,
         "AGENT_PURPOSE": purpose or "General-purpose agent.",
         "AGENT_TEMPLATE": template,
+        "AGENT_RUNTIME": spec.id,
+        "AGENT_MODEL": model or spec.default_model,
+        **auth_env,
     }
 
-    # Set GitHub token and repo URL for coder template
+    # Set GitHub token and repo URL for coder templates
     if github_token:
         environment["GITHUB_TOKEN"] = github_token
     if repo_url:
         environment["REPO_URL"] = repo_url
-
-    # Set auth: prefer OAuth token (Pro/Max subscription), fall back to API key
-    if claude_oauth_token:
-        environment["CLAUDE_CODE_OAUTH_TOKEN"] = claude_oauth_token
-    elif anthropic_api_key:
-        environment["ANTHROPIC_API_KEY"] = anthropic_api_key
 
     # Persistent memory volume — survives container restarts
     memory_volume = f"maitai-agent-memory-{str(workspace_id)}"
 
     try:
         container = client.containers.run(
-            AGENT_IMAGE,
+            spec.image,
             name=name,
             environment=environment,
             network=AGENT_NETWORK,
@@ -175,13 +157,16 @@ def start_agent(
                 "mai-tai.workspace-id": str(workspace_id),
                 "mai-tai.workspace-name": workspace_name,
                 "mai-tai.template": template,
+                "mai-tai.runtime": spec.id,
             },
         )
-        logger.info(f"Started agent container {name} for workspace {workspace_id}")
+        logger.info(f"Started {spec.id} agent container {name} for workspace {workspace_id}")
         return {
             "status": "started",
             "container": name,
             "container_id": container.short_id,
+            "runtime": spec.id,
+            "model": environment["AGENT_MODEL"],
         }
     except APIError as e:
         logger.error(f"Failed to start agent container: {e}")
@@ -266,6 +251,7 @@ def list_agents() -> list[dict]:
                 "workspace_id": c.labels.get("mai-tai.workspace-id", ""),
                 "workspace_name": c.labels.get("mai-tai.workspace-name", ""),
                 "template": c.labels.get("mai-tai.template", ""),
+                "runtime": c.labels.get("mai-tai.runtime", "claude-code"),
             }
             for c in containers
         ]
