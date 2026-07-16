@@ -20,9 +20,6 @@ class Settings(BaseSettings):
     # Database (sync URL for alembic, async for app)
     database_url: str = "postgresql://maitai:maitai@postgres:5432/maitai"
 
-    # Redis
-    redis_url: str = "redis://redis:6379/0"
-
     # CORS - defaults to localhost, use CORS_ORIGINS env var for additional origins
     # Accepts JSON array string: CORS_ORIGINS='["http://example.com"]'
     # or comma-separated: CORS_ORIGINS=http://a.com,http://b.com

@@ -3,7 +3,7 @@
 import hashlib
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -74,6 +74,26 @@ async def list_workspaces(
     result = await db.execute(query)
     workspaces = result.scalars().all()
     return {"workspaces": workspaces, "total": len(workspaces)}
+
+
+@router.get("/agent-templates")
+async def get_agent_templates(
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return available agent workspace templates.
+
+    NOTE: must be registered before /{workspace_id} routes — FastAPI matches
+    in registration order, and a later static path would be shadowed by the
+    UUID path parameter.
+    """
+    templates = {}
+    for key, tmpl in AGENT_TEMPLATES.items():
+        templates[key] = {
+            "id": key,
+            "label": tmpl["label"],
+            "description": tmpl["description"],
+        }
+    return {"templates": templates}
 
 
 async def check_workspace_access(
@@ -154,7 +174,9 @@ async def create_api_key(
     raw_key, key_hash = generate_api_key()
     expires_at = None
     if data.expires_in_days:
-        expires_at = datetime.now(timezone.utc) + timedelta(days=data.expires_in_days)
+        # Naive UTC to match the TIMESTAMP WITHOUT TIME ZONE column and the
+        # naive datetime.utcnow() comparisons in deps.py / websocket.py.
+        expires_at = datetime.utcnow() + timedelta(days=data.expires_in_days)
 
     api_key = ApiKey(
         workspace_id=workspace_id,
@@ -397,21 +419,6 @@ async def get_agent_status(
 
 
 # Agent workspace endpoints
-
-@router.get("/agent-templates")
-async def get_agent_templates(
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    """Return available agent workspace templates."""
-    templates = {}
-    for key, tmpl in AGENT_TEMPLATES.items():
-        templates[key] = {
-            "id": key,
-            "label": tmpl["label"],
-            "description": tmpl["description"],
-        }
-    return {"templates": templates}
-
 
 @router.post("/{workspace_id}/agent/start", status_code=status.HTTP_200_OK)
 async def start_agent_endpoint(

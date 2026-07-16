@@ -37,7 +37,12 @@ services:
       - EXTRA_CORS_ORIGIN=${EXTRA_CORS_ORIGIN:-}
       - REGISTRATION_ENABLED=${REGISTRATION_ENABLED:-true}
       - AGENT_IMAGE=${AGENT_IMAGE:-mai-tai-agent:latest}
-      - AGENT_NETWORK=mai-tai-dev_default
+      # Agents get their own network: they can reach the backend (and the
+      # internet) but NOT postgres or other infra containers.
+      - AGENT_NETWORK=mai-tai-dev_agents
+    networks:
+      - default
+      - agents
     depends_on:
       postgres:
         condition: service_healthy
@@ -97,6 +102,13 @@ services:
       - frontend
       - backend
     restart: unless-stopped
+
+networks:
+  default:
+  # Isolated network for spawned agent containers. Agents run LLM-driven code
+  # with broad permissions; keeping postgres off this network means a
+  # misbehaving agent can only talk to the backend API (and the internet).
+  agents:
 
 volumes:
   postgres_data:

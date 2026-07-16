@@ -42,7 +42,10 @@ mkdir -p "${MEMORY_DIR}/tasks"
 # 3. Write project-level .env.mai-tai (workspace ID)
 echo "MAI_TAI_WORKSPACE_ID=${MAI_TAI_WORKSPACE_ID}" > "${WORKDIR}/.env.mai-tai"
 
-# 4. Build CLAUDE.md — template-specific content + shared principles + past lessons
+# 4. Build CLAUDE.md — template-specific content + shared principles + past lessons.
+# Built at a temp path first: the coder template wipes and re-creates WORKDIR
+# when cloning, so CLAUDE.md is only copied into WORKDIR at the end (step 6b).
+CLAUDE_MD_TMP="/tmp/claude_md_tmp"
 case "${AGENT_TEMPLATE}" in
   research)
     TEMPLATE_CONTENT="## Role
@@ -77,7 +80,7 @@ You are a general-purpose agent. Help the user with whatever they need."
     ;;
 esac
 
-cat > "${WORKDIR}/CLAUDE.md" << CLAUDE_EOF
+cat > "${CLAUDE_MD_TMP}" << CLAUDE_EOF
 # ${AGENT_NAME}
 
 ## Purpose
@@ -127,7 +130,7 @@ CLAUDE_EOF
 LESSONS_FILE="${MEMORY_DIR}/tasks/lessons.md"
 if [ -f "${LESSONS_FILE}" ] && [ -s "${LESSONS_FILE}" ]; then
   echo "[mai-tai-agent] Loading past lessons from memory..."
-  cat >> "${WORKDIR}/CLAUDE.md" << LESSONS_EOF
+  cat >> "${CLAUDE_MD_TMP}" << LESSONS_EOF
 
 ## Past Lessons (from previous sessions)
 $(cat "${LESSONS_FILE}")
@@ -157,13 +160,12 @@ if [ "${AGENT_TEMPLATE}" = "coder" ] && [ -n "${REPO_URL:-}" ]; then
 
   # Re-write .env.mai-tai since we replaced WORKDIR
   echo "MAI_TAI_WORKSPACE_ID=${MAI_TAI_WORKSPACE_ID}" > "${WORKDIR}/.env.mai-tai"
-
-  # Copy the CLAUDE.md we already built into the repo root
-  cp /tmp/claude_md_tmp "${WORKDIR}/CLAUDE.md" 2>/dev/null || true
 fi
 
-# Save CLAUDE.md to a temp location before potential coder clone overwrites it
-cp "${WORKDIR}/CLAUDE.md" /tmp/claude_md_tmp 2>/dev/null || true
+# 6b. Install the built CLAUDE.md into the (possibly freshly cloned) workspace.
+# This intentionally overwrites any CLAUDE.md from a cloned repo — the agent's
+# purpose, template role, and past lessons take precedence.
+cp "${CLAUDE_MD_TMP}" "${WORKDIR}/CLAUDE.md"
 
 # 7. Write Claude Code settings with permissions + MCP server
 mkdir -p "${WORKDIR}/.claude"
