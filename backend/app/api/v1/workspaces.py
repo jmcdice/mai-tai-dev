@@ -18,9 +18,17 @@ from app.models.workspace_agent_activity import WorkspaceAgentActivity
 from app.models.message import Message
 from app.models.user import User
 from app.schemas.api_key import ApiKeyCreate, ApiKeyListItem, ApiKeyListResponse, ApiKeyResponse
-from app.schemas.workspace import WorkspaceCreate, WorkspaceListResponse, WorkspaceResponse, WorkspaceUpdate
+from app.schemas.workspace import AgentConfig, WorkspaceCreate, WorkspaceListResponse, WorkspaceResponse, WorkspaceUpdate
 from app.schemas.message import MessageCreate, MessageListResponse, MessageResponse
-from app.services.agent_spawner import AGENT_TEMPLATES, start_agent, stop_agent, get_agent_status as get_container_status, get_agent_logs
+from app.services.agents import (
+    AGENT_TEMPLATES,
+    RUNTIMES,
+    get_runtime,
+    start_agent,
+    stop_agent,
+    get_agent_status as get_container_status,
+    get_agent_logs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +55,7 @@ async def create_workspace(
         settings=data.settings,
         workspace_type=data.workspace_type,
         agent_purpose=data.agent_purpose,
-        agent_config=data.agent_config,
+        agent_config=data.agent_config.model_dump() if data.agent_config else None,
     )
     db.add(workspace)
     await db.commit()
@@ -96,6 +104,28 @@ async def get_agent_templates(
     return {"templates": templates}
 
 
+@router.get("/agent-runtimes")
+async def get_agent_runtimes(
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return available agent runtimes and their model choices.
+
+    Registered before /{workspace_id} routes (see get_agent_templates).
+    """
+    runtimes = {}
+    for key, spec in RUNTIMES.items():
+        runtimes[key] = {
+            "id": spec.id,
+            "label": spec.label,
+            "description": spec.description,
+            "default_model": spec.default_model,
+            "models": spec.models,
+            "credential_label": spec.credential_label,
+            "enabled": spec.enabled,
+        }
+    return {"runtimes": runtimes}
+
+
 async def check_workspace_access(
     workspace_id: UUID,
     db: AsyncSession,
@@ -140,7 +170,7 @@ async def update_workspace(
     if data.agent_purpose is not None:
         workspace.agent_purpose = data.agent_purpose
     if data.agent_config is not None:
-        workspace.agent_config = data.agent_config
+        workspace.agent_config = data.agent_config.model_dump()
     workspace.updated_at = datetime.utcnow()
 
     await db.commit()
@@ -440,35 +470,49 @@ async def start_agent_endpoint(
             detail="Only agent workspaces can have agents started",
         )
 
-    # Get Anthropic auth from user settings (supports both API key and OAuth token)
-    user_settings = current_user.settings or {}
-    anthropic_api_key = user_settings.get("anthropic_api_key")
-    if not anthropic_api_key:
+    # Parse agent config through the schema (tolerates legacy free-form dicts)
+    config = AgentConfig.model_validate(workspace.agent_config or {})
+
+    runtime = get_runtime(config.runtime)
+    if runtime is None or not runtime.enabled:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Anthropic API key not configured. Add it in Settings > AI.",
+            detail=f"Agent runtime '{config.runtime}' is not available on this server.",
         )
 
-    # Detect key type: OAuth tokens start with sk-ant-oat, API keys with sk-ant-api
-    is_oauth_token = anthropic_api_key.startswith("sk-ant-oat")
+    # Resolve the credential this runtime needs from user settings
+    user_settings = current_user.settings or {}
+    credential = user_settings.get(runtime.credential_setting)
+    if not credential:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{runtime.credential_label} not configured. Add it in Settings > AI.",
+        )
 
-    # Get agent config
-    agent_config = workspace.agent_config or {}
-    template = agent_config.get("template", "custom")
+    # Build runtime auth env. Claude Code distinguishes OAuth tokens
+    # (sk-ant-oat*, Pro/Max subscription) from standard API keys.
+    if runtime.id == "claude-code":
+        if credential.startswith("sk-ant-oat"):
+            auth_env = {"CLAUDE_CODE_OAUTH_TOKEN": credential}
+        else:
+            auth_env = {"ANTHROPIC_API_KEY": credential}
+    else:
+        auth_env = {"OPENAI_API_KEY": credential}
 
     # Get GitHub token for coder agents
-    github_token = user_settings.get("github_token") if template == "coder" else None
-    repo_url = agent_config.get("repo_url") if template == "coder" else None
+    github_token = user_settings.get("github_token") if config.template == "coder" else None
+    repo_url = config.repo_url if config.template == "coder" else None
 
     # Start the Docker container
     # Mai-Tai API key is read from host's ~/.config/mai-tai/config (mounted into backend)
     result = start_agent(
         workspace_id=workspace.id,
         workspace_name=workspace.name,
-        anthropic_api_key=None if is_oauth_token else anthropic_api_key,
-        claude_oauth_token=anthropic_api_key if is_oauth_token else None,
+        runtime=runtime.id,
+        model=config.model,
+        auth_env=auth_env,
         purpose=workspace.agent_purpose,
-        template=template,
+        template=config.template,
         github_token=github_token,
         repo_url=repo_url,
     )

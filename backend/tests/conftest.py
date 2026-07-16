@@ -37,8 +37,14 @@ sync_engine = create_engine(os.environ["DATABASE_URL"])
 
 @pytest.fixture(scope="session", autouse=True)
 def _create_schema():
-    """Create all tables once for the test session."""
-    Base.metadata.drop_all(sync_engine)
+    """Create all tables once for the test session.
+
+    The schema is dropped wholesale (not via metadata.drop_all) so tables
+    removed from the models can't linger and break FK ordering.
+    """
+    with sync_engine.begin() as conn:
+        conn.execute(text("DROP SCHEMA public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
     Base.metadata.create_all(sync_engine)
     yield
 

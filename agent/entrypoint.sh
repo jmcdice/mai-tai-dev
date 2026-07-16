@@ -261,5 +261,5 @@ MCP_EOF
 cd "${WORKDIR}"
 exec claude -p "start mai tai mode" \
   --dangerously-skip-permissions \
-  --model sonnet \
+  --model "${AGENT_MODEL:-sonnet}" \
   --mcp-config /tmp/mcp-config.json
