@@ -17,8 +17,9 @@ logger = logging.getLogger(__name__)
 # Docker image for agent containers
 AGENT_IMAGE = os.environ.get("AGENT_IMAGE", "mai-tai-agent:latest")
 
-# Docker network (same network as the backend)
-AGENT_NETWORK = os.environ.get("AGENT_NETWORK", "mai-tai-dev_default")
+# Docker network for agent containers. Defaults to the isolated agents network
+# (backend is attached to it too, so agents can reach the API but not postgres).
+AGENT_NETWORK = os.environ.get("AGENT_NETWORK", "mai-tai-dev_agents")
 
 # Host mai-tai config (mounted read-only into backend container)
 HOST_CONFIG_PATH = Path(os.environ.get("HOST_MAI_TAI_CONFIG", "/host-mai-tai-config/config"))
