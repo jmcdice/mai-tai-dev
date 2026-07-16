@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import {
+  ClockIcon,
   Cog6ToothIcon,
   PaperAirplaneIcon,
   LightBulbIcon,
@@ -29,6 +30,7 @@ import {
   AgentStatus,
 } from '@/lib/api';
 import WorkspaceSettings from './WorkspaceSettings';
+import SchedulesSheet from '@/components/SchedulesSheet';
 import WorkspaceSwitcher from '@/components/WorkspaceSwitcher';
 
 export default function WorkspacePage() {
@@ -44,6 +46,7 @@ export default function WorkspacePage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [showSchedules, setShowSchedules] = useState(false);
   const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null);
   const [showAgentNameModal, setShowAgentNameModal] = useState(false);
   const [customAgentName, setCustomAgentName] = useState('');
@@ -348,6 +351,14 @@ export default function WorkspacePage() {
             <Button
               buttonType="ghost"
               buttonSize="sm"
+              onClick={() => setShowSchedules(true)}
+            >
+              <ClockIcon className="h-5 w-5" />
+            </Button>
+
+            <Button
+              buttonType="ghost"
+              buttonSize="sm"
               onClick={() => setShowSettings(true)}
             >
               <Cog6ToothIcon className="h-5 w-5" />
@@ -387,6 +398,23 @@ export default function WorkspacePage() {
             </p>
           ) : (
             messages.filter((m) => m.message_type !== 'system').map((message) => {
+              // Scheduled-task firings render as a compact centered chip + muted prompt
+              if (message.message_type === 'scheduled') {
+                const taskName =
+                  (message.message_metadata as Record<string, unknown> | null)?.scheduled_task_name || 'Scheduled task';
+                return (
+                  <div key={message.id} className="space-y-1.5">
+                    <div className="flex justify-center">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface2/70 px-3 py-1 text-xs text-muted-foreground">
+                        <ClockIcon className="h-3.5 w-3.5" />
+                        {String(taskName)}
+                      </span>
+                    </div>
+                    <p className="px-4 text-center text-xs text-faint">{message.content}</p>
+                  </div>
+                );
+              }
+
               const isAgent = !!message.agent_name;
               // Use proper agent name based on dude mode, not the API key name
               const senderName = isAgent ? agentName : (message.sender_name || user?.name || 'You');
@@ -484,6 +512,13 @@ export default function WorkspacePage() {
           </Button>
         </div>
       </div>
+
+      {/* Schedules Sheet */}
+      <SchedulesSheet
+        workspaceId={workspaceId}
+        open={showSchedules}
+        onClose={() => setShowSchedules(false)}
+      />
 
       {/* Settings Modal */}
       <Modal

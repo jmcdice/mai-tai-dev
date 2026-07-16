@@ -11,6 +11,7 @@ from app.models import (  # noqa: F401
     ApiKey,
     Feedback,
     Message,
+    ScheduledTask,
     StashLink,
     User,
     Workspace,

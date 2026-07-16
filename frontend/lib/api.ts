@@ -341,6 +341,56 @@ export async function getAgentRuntimes(token: string): Promise<{ runtimes: Recor
   return api('/api/v1/workspaces/agent-runtimes', { token });
 }
 
+// Scheduled tasks
+
+export interface ScheduledTask {
+  id: string;
+  workspace_id: string;
+  name: string;
+  prompt: string;
+  cron_expression: string;
+  timezone: string;
+  enabled: boolean;
+  wake_agent: boolean;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  last_status: string | null;
+  created_at: string;
+}
+
+export interface ScheduledTaskInput {
+  name: string;
+  prompt: string;
+  cron_expression: string;
+  timezone: string;
+  enabled?: boolean;
+  wake_agent?: boolean;
+}
+
+export async function getScheduledTasks(token: string, workspaceId: string): Promise<{ tasks: ScheduledTask[]; total: number }> {
+  return api(`/api/v1/workspaces/${workspaceId}/scheduled-tasks`, { token });
+}
+
+export async function createScheduledTask(token: string, workspaceId: string, data: ScheduledTaskInput): Promise<ScheduledTask> {
+  return api(`/api/v1/workspaces/${workspaceId}/scheduled-tasks`, { method: 'POST', token, body: data });
+}
+
+export async function updateScheduledTask(token: string, workspaceId: string, taskId: string, data: Partial<ScheduledTaskInput>): Promise<ScheduledTask> {
+  return api(`/api/v1/workspaces/${workspaceId}/scheduled-tasks/${taskId}`, { method: 'PATCH', token, body: data });
+}
+
+export async function deleteScheduledTask(token: string, workspaceId: string, taskId: string): Promise<void> {
+  return api(`/api/v1/workspaces/${workspaceId}/scheduled-tasks/${taskId}`, { method: 'DELETE', token });
+}
+
+export async function runScheduledTaskNow(token: string, workspaceId: string, taskId: string): Promise<ScheduledTask> {
+  return api(`/api/v1/workspaces/${workspaceId}/scheduled-tasks/${taskId}/run`, { method: 'POST', token });
+}
+
+export async function previewSchedule(token: string, cronExpression: string, timezone: string): Promise<{ next_runs: string[] }> {
+  return api('/api/v1/schedule-preview', { method: 'POST', token, body: { cron_expression: cronExpression, timezone } });
+}
+
 export async function startAgent(token: string, workspaceId: string): Promise<{ status: string; container?: string; container_id?: string; message?: string }> {
   return api(`/api/v1/workspaces/${workspaceId}/agent/start`, { method: 'POST', token });
 }
