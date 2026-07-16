@@ -59,8 +59,24 @@ def test_build_turn_cmd_claude_code(driver):
     assert cmd[cmd.index("--resume") + 1] == "sess-9"
 
 
-def test_build_turn_cmd_unknown_runtime(driver, monkeypatch):
+def test_build_turn_cmd_codex(driver, monkeypatch):
     monkeypatch.setattr(driver, "AGENT_RUNTIME", "codex")
+    assert driver.build_turn_cmd("hello", None) == ["codex", "exec", "hello"]
+    assert driver.build_turn_cmd("more", "last") == ["codex", "exec", "resume", "--last", "more"]
+
+
+def test_parse_turn_output_codex_stdout_verbatim(driver, monkeypatch):
+    monkeypatch.setattr(driver, "AGENT_RUNTIME", "codex")
+    result, session_id = driver.parse_turn_output("Here is my final answer.\n")
+    assert result == "Here is my final answer."
+    assert session_id == "last"
+
+    result, session_id = driver.parse_turn_output("   \n")
+    assert result is None
+
+
+def test_build_turn_cmd_unknown_runtime(driver, monkeypatch):
+    monkeypatch.setattr(driver, "AGENT_RUNTIME", "gemini-cli")
     with pytest.raises(RuntimeError):
         driver.build_turn_cmd("hello", None)
 

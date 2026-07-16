@@ -169,11 +169,28 @@ def build_turn_cmd(prompt: str, session_id: str | None) -> list[str]:
         if session_id:
             cmd += ["--resume", session_id]
         return cmd
+    if AGENT_RUNTIME == "codex":
+        # Model, sandbox, approvals, and MCP servers come from ~/.codex/config.toml
+        # (written by the codex entrypoint). codex exec prints only the final
+        # agent message to stdout; session state lives in ~/.codex/sessions,
+        # resumed via the --last sentinel.
+        if session_id:
+            return ["codex", "exec", "resume", "--last", prompt]
+        return ["codex", "exec", prompt]
     raise RuntimeError(f"Runtime '{AGENT_RUNTIME}' has no driver adapter yet")
 
 
 def parse_turn_output(stdout: str) -> tuple[str | None, str | None]:
-    """Extract (result_text, session_id) from the CLI's JSON output."""
+    """Extract (result_text, session_id) from the CLI's turn output.
+
+    claude-code: single JSON object on stdout ({"result": ..., "session_id": ...}).
+    codex: the final agent message is stdout verbatim; "last" is the session
+    sentinel (resumed with `codex exec resume --last`).
+    """
+    if AGENT_RUNTIME == "codex":
+        text = stdout.strip()
+        return (text if text else None), "last"
+
     for line in reversed(stdout.strip().splitlines()):
         try:
             obj = json.loads(line)

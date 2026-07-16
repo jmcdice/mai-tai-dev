@@ -143,10 +143,14 @@ See `.env.example` for all options. Key settings:
 ### Building the Agent Image
 
 ```bash
+# Claude Code runtime (required for agent workspaces)
 docker build -t mai-tai-agent:latest -f agents/claude-code/Dockerfile agents/
+
+# OpenAI Codex runtime (optional — for workspaces using the codex runtime)
+docker build -t mai-tai-agent-codex:latest -f agents/codex/Dockerfile agents/
 ```
 
-This image is required for agent workspaces. Rebuild after changes to `agents/`.
+Rebuild after changes to `agents/`.
 
 Agent containers run a **driver loop**: each user message triggers one CLI
 turn (`claude -p --resume`), so there is no long-lived agent process to babysit.

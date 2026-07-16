@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -470,8 +471,16 @@ async def start_agent_endpoint(
             detail="Only agent workspaces can have agents started",
         )
 
-    # Parse agent config through the schema (tolerates legacy free-form dicts)
-    config = AgentConfig.model_validate(workspace.agent_config or {})
+    # Parse agent config through the schema. Stored configs can predate the
+    # registry (or reference retired runtimes/templates) — surface that as a
+    # 400 the UI can act on, not a 500.
+    try:
+        config = AgentConfig.model_validate(workspace.agent_config or {})
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Stored agent config is not available on this server: {e.errors()[0].get('msg', 'invalid')}",
+        )
 
     runtime = get_runtime(config.runtime)
     if runtime is None or not runtime.enabled:
