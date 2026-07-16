@@ -11,6 +11,7 @@ python-multipart==0.0.30
 httpx==0.28.1
 bcrypt==4.3.0
 PyJWT[crypto]==2.13.0
+cryptography>=42.0
 google-auth==2.40.1
 requests==2.32.3
 slowapi==0.1.9

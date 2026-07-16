@@ -11,7 +11,7 @@ from pathlib import Path
 from uuid import UUID
 
 import docker
-from docker.errors import NotFound, APIError
+from docker.errors import DockerException, NotFound, APIError
 
 from app.services.agents.runtimes import RuntimeSpec, get_runtime
 
@@ -93,7 +93,11 @@ def start_agent(
     if not auth_env:
         return {"status": "error", "message": f"{spec.credential_label} is required to start a {spec.label} agent"}
 
-    client = _get_docker_client()
+    try:
+        client = _get_docker_client()
+    except DockerException as e:
+        logger.error(f"Docker daemon unavailable: {e}")
+        return {"status": "error", "message": f"Docker daemon unavailable: {e}"}
     name = _container_name(workspace_id)
 
     # Check if already running
