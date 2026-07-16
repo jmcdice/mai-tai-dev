@@ -180,7 +180,9 @@ def stop_agent(workspace_id: UUID) -> dict:
 
     try:
         container = client.containers.get(name)
-        container.stop(timeout=10)
+        # 30s grace: the driver runs a short memory-flush turn on SIGTERM so
+        # the agent can save in-flight context before the container dies.
+        container.stop(timeout=30)
         container.remove()
         logger.info(f"Stopped and removed agent container {name}")
         return {"status": "stopped"}

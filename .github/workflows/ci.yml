@@ -87,6 +87,15 @@ jobs:
           DATABASE_URL: postgresql://maitai:maitai@localhost:5432/maitai_test
           SECRET_KEY: test-secret-key-for-ci-only
 
+      - name: Install MCP package
+        run: pip install -e "mcp-server[dev]"
+
+      - name: MCP package tests
+        run: pytest mcp-server/tests -v
+
+      - name: Agent driver tests
+        run: pytest agents/tests -v
+
   security:
     name: Security Scan (Trivy)
     runs-on: ubuntu-latest

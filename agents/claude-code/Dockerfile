@@ -1,16 +1,21 @@
-# Mai-Tai Agent Container
-# Runs a Claude Code instance connected to a Mai-Tai workspace via MCP.
+# Mai-Tai Agent Container — claude-code runtime
+# Runs Claude Code turns under the mai-tai driver loop, connected to a
+# workspace via the Mai-Tai MCP server + REST API.
+#
+# Build (from the repo root; the build context is agents/):
+#   docker build -t mai-tai-agent:latest -f agents/claude-code/Dockerfile agents/
 #
 # Required env vars at runtime:
-#   ANTHROPIC_API_KEY    - Anthropic API key for Claude
+#   ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN
 #   MAI_TAI_API_URL      - Mai-Tai backend URL (e.g. http://backend:8000)
 #   MAI_TAI_API_KEY      - Mai-Tai API key (mt_...)
 #   MAI_TAI_WORKSPACE_ID - Workspace UUID
 #
 # Optional env vars:
-#   AGENT_NAME           - Agent display name (default: "Agent")
-#   AGENT_PURPOSE        - What this agent should do
-#   AGENT_TEMPLATE       - Template type: research, monitor, assistant, custom
+#   AGENT_NAME     - Agent display name (default: "Agent")
+#   AGENT_PURPOSE  - What this agent should do
+#   AGENT_TEMPLATE - research | monitor | assistant | coder | custom
+#   AGENT_MODEL    - Claude model alias (default: sonnet)
 
 FROM node:20-slim
 
@@ -36,19 +41,20 @@ RUN npm install -g @anthropic-ai/claude-code
 # Create non-root user (claude --dangerously-skip-permissions refuses to run as root)
 RUN useradd -m -s /bin/bash agent \
     && mkdir -p /home/agent/workspace \
-    && mkdir -p /home/agent/memory/tasks \
+    && mkdir -p /home/agent/memory/tasks /home/agent/memory/journal /home/agent/memory/state \
     && chown -R agent:agent /home/agent
 USER agent
 
-# Install uv for the agent user
+# Install uv for the agent user (runs the mai-tai MCP server via uvx)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/home/agent/.local/bin:$PATH"
 
-# Create agent workspace
 WORKDIR /home/agent/workspace
 
-# Copy entrypoint
-COPY --chown=agent:agent entrypoint.sh /home/agent/entrypoint.sh
-RUN chmod +x /home/agent/entrypoint.sh
+# Shared driver + bootstrap, runtime entrypoint
+COPY --chown=agent:agent common/driver.py /home/agent/driver.py
+COPY --chown=agent:agent common/bootstrap.sh /home/agent/bootstrap.sh
+COPY --chown=agent:agent claude-code/entrypoint.sh /home/agent/entrypoint.sh
+RUN chmod +x /home/agent/entrypoint.sh /home/agent/bootstrap.sh
 
 ENTRYPOINT ["/home/agent/entrypoint.sh"]
