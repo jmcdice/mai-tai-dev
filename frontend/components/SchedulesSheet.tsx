@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeftIcon,
   BoltIcon,
@@ -248,11 +249,13 @@ export default function SchedulesSheet({ workspaceId, open, onClose }: Props) {
   const inputCls =
     'w-full rounded-lg border border-border-strong bg-surface2 px-3 py-2.5 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none';
 
-  return (
-    // z-[60], not z-50: MobileMenu is a fixed bottom bar at z-50 rendered after
-    // {children} in the layout, so at equal z it wins the tie and covers the
-    // bottom of this sheet — exactly where the primary action sits. The settings
-    // modal escapes this by portalling to <body>; this sheet renders in place.
+  // Portalled to <body>, like the settings modal. Rendered in place, this sheet
+  // sits inside the chat page's `fixed ... bottom-20 overflow-x-hidden` shell and
+  // under MobileMenu — a fixed bottom bar at the same z-50, rendered after
+  // {children}, so it won the tie and swallowed the sheet's buttons. iOS Safari
+  // is also historically unreliable about position:fixed inside a scroll
+  // container. The portal sidesteps both; z-[60] then clears the nav outright.
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
@@ -426,6 +429,7 @@ export default function SchedulesSheet({ workspaceId, open, onClose }: Props) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
