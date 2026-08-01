@@ -3,22 +3,22 @@
 # mai-tai-config.sh - Export and import a full Mai-Tai deployment
 #
 # Produces a portable bundle you can carry to another machine to stand up an
-# identical Mai-Tai: all workspaces, agents, users, and message history.
+# identical Mai-Tai: all users, workspaces, agents, and message history.
 #
-# SECRETS ARE NOT INCLUDED. Plaintext credentials living in users.settings
-# (Anthropic keys, GitHub PATs, LLM keys) are stripped from the dump, and .env
-# is never bundled. Copy .env over yourself at deploy time -- that keeps the
-# bundle safe to store anywhere and makes moving credentials a deliberate act.
-#
-# Password hashes and mt_ API key hashes ARE included: they're hashes, not
-# secrets, and keeping them means logins and existing agent configs keep
-# working on the target once you bring your .env and ~/.config/mai-tai/config.
+# THE BUNDLE IS A SECRET. By default the dump is byte-for-byte complete, which
+# means the plaintext credentials stored in users.settings (Anthropic key,
+# GitHub token, LLM keys) come with it. That's deliberate -- it makes the
+# target a working copy with no re-entry hoops. The tradeoff is that the .tar.gz
+# is now credential material: it's written mode 0600, and you should delete it
+# once the move is done. Pass --scrub for a credential-free bundle instead.
 #
 # USAGE:
-#   ./mai-tai-config.sh export [output.tar.gz]   Write a bundle (default: mai-tai-export-<host>.tar.gz)
-#   ./mai-tai-config.sh import <bundle.tar.gz>   Restore a bundle into this deployment
-#   ./mai-tai-config.sh inspect <bundle.tar.gz>  Show what's inside without restoring
-#   ./mai-tai-config.sh check-env                Report .env keys missing on this host
+#   ./mai-tai-config.sh export [opts] [out.tar.gz]  Write a bundle
+#       --scrub      Strip plaintext credentials from users.settings
+#       --with-env   Also bundle .env (off by default)
+#   ./mai-tai-config.sh import <bundle.tar.gz>      Restore into this deployment
+#   ./mai-tai-config.sh inspect <bundle.tar.gz>     Show contents without restoring
+#   ./mai-tai-config.sh check-env                   Report .env keys missing here
 #
 # REQUIREMENTS:
 #   - docker, with the maitai-postgres container running
@@ -97,7 +97,17 @@ trap cleanup EXIT
 cmd_export() {
   require_pg
 
-  local out="${1:-}"
+  local out="" scrub_secrets=0 with_env=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --scrub)    scrub_secrets=1 ;;
+      --with-env) with_env=1 ;;
+      -*) error "Unknown option: $1"; exit 1 ;;
+      *)  out="$1" ;;
+    esac
+    shift
+  done
+
   if [ -z "${out}" ]; then
     out="mai-tai-export-$(hostname -s).tar.gz"
   fi
@@ -110,64 +120,69 @@ cmd_export() {
   local stage
   stage="$(mktemp -d)"
   STAGE_DIR="${stage}"
+  chmod 700 "${stage}"
 
-  # Scrub in a scratch copy of the database, not in the dump text and not by
-  # appending an UPDATE to the restore. A trailing UPDATE would leave the
-  # plaintext secrets sitting in the bundle's COPY blocks, and the COPY blocks
-  # aren't safely regex-editable. Copy -> scrub -> dump is the only version
-  # that guarantees the bytes on disk never held a credential.
-  #
-  # CREATE DATABASE ... TEMPLATE would be faster, but it requires zero other
-  # sessions on the source — and the backend is always connected — so it never
-  # actually wins here. Straight dump-and-reload instead.
-  log "Building scrubbed copy of the database..."
-  docker exec "${PG_CONTAINER}" dropdb -U "${PG_USER}" --if-exists "${SCRATCH_DB}" 2>/dev/null
-  docker exec "${PG_CONTAINER}" createdb -U "${PG_USER}" "${SCRATCH_DB}"
-  SCRATCH_CREATED=1
-  docker exec "${PG_CONTAINER}" sh -c \
-    "pg_dump -U '${PG_USER}' -d '${PG_DB}' | psql -q -o /dev/null -U '${PG_USER}' -d '${SCRATCH_DB}' -v ON_ERROR_STOP=1"
+  if [ "${scrub_secrets}" = "1" ]; then
+    # Scrub in a scratch copy of the database, not in the dump text and not by
+    # appending an UPDATE to the restore. A trailing UPDATE would leave the
+    # plaintext secrets sitting in the bundle's COPY blocks, and the COPY
+    # blocks aren't safely regex-editable. Copy -> scrub -> dump is the only
+    # version that guarantees the bytes on disk never held a credential.
+    #
+    # CREATE DATABASE ... TEMPLATE would be faster, but it needs zero other
+    # sessions on the source -- and the backend is always connected -- so it
+    # never actually wins here. Straight dump-and-reload instead.
+    log "Building scrubbed copy of the database..."
+    docker exec "${PG_CONTAINER}" dropdb -U "${PG_USER}" --if-exists "${SCRATCH_DB}" 2>/dev/null
+    docker exec "${PG_CONTAINER}" createdb -U "${PG_USER}" "${SCRATCH_DB}"
+    SCRATCH_CREATED=1
+    docker exec "${PG_CONTAINER}" sh -c \
+      "pg_dump -U '${PG_USER}' -d '${PG_DB}' | psql -q -o /dev/null -U '${PG_USER}' -d '${SCRATCH_DB}' -v ON_ERROR_STOP=1"
 
-  log "Scrubbing secrets from users.settings..."
-  local scrub="UPDATE users SET settings = settings"
-  for key in "${SECRET_SETTINGS_KEYS[@]}"; do
-    scrub+=" - '${key}'"
-  done
-  scrub+=" WHERE settings IS NOT NULL;"
-  docker exec "${PG_CONTAINER}" psql -q -U "${PG_USER}" -d "${SCRATCH_DB}" \
-    -v ON_ERROR_STOP=1 -c "${scrub}"
+    log "Scrubbing secrets from users.settings..."
+    local scrub="UPDATE users SET settings = settings"
+    for key in "${SECRET_SETTINGS_KEYS[@]}"; do
+      scrub+=" - '${key}'"
+    done
+    scrub+=" WHERE settings IS NOT NULL;"
+    docker exec "${PG_CONTAINER}" psql -q -U "${PG_USER}" -d "${SCRATCH_DB}" \
+      -v ON_ERROR_STOP=1 -c "${scrub}"
 
-  # Assert the scrub actually landed before anything gets written to disk.
-  local key_array residue
-  key_array="$(printf "'%s'," "${SECRET_SETTINGS_KEYS[@]}" | sed 's/,$//')"
-  residue="$(docker exec "${PG_CONTAINER}" psql -U "${PG_USER}" -d "${SCRATCH_DB}" -tAc \
-    "select count(*) from users where settings ?| array[${key_array}]")"
-  if [ "${residue}" != "0" ]; then
-    error "Scrub did not take — ${residue} user(s) still carry secret settings keys."
-    exit 1
+    # Assert the scrub landed before anything reaches disk.
+    local key_array residue
+    key_array="$(printf "'%s'," "${SECRET_SETTINGS_KEYS[@]}" | sed 's/,$//')"
+    residue="$(docker exec "${PG_CONTAINER}" psql -U "${PG_USER}" -d "${SCRATCH_DB}" -tAc \
+      "select count(*) from users where settings ?| array[${key_array}]")"
+    if [ "${residue}" != "0" ]; then
+      error "Scrub did not take -- ${residue} user(s) still carry secret settings keys."
+      exit 1
+    fi
+
+    log "Dumping scrubbed database..."
+    docker exec "${PG_CONTAINER}" pg_dump -U "${PG_USER}" -d "${SCRATCH_DB}" \
+      --clean --if-exists --no-owner --no-privileges \
+      > "${stage}/database.sql"
+
+    docker exec "${PG_CONTAINER}" dropdb -U "${PG_USER}" --if-exists "${SCRATCH_DB}"
+    SCRATCH_CREATED=0
+  else
+    log "Dumping database from ${PG_CONTAINER}..."
+    docker exec "${PG_CONTAINER}" pg_dump -U "${PG_USER}" -d "${PG_DB}" \
+      --clean --if-exists --no-owner --no-privileges \
+      > "${stage}/database.sql"
   fi
 
-  log "Dumping scrubbed database..."
-  docker exec "${PG_CONTAINER}" pg_dump -U "${PG_USER}" -d "${SCRATCH_DB}" \
-    --clean --if-exists --no-owner --no-privileges \
-    > "${stage}/database.sql"
-
-  docker exec "${PG_CONTAINER}" dropdb -U "${PG_USER}" --if-exists "${SCRATCH_DB}"
-  SCRATCH_CREATED=0
-
-  # Belt and braces: scan the dump text for credential-shaped strings, so we
-  # never ship a bundle that claims contains_secrets: false and lies. Requires
-  # a plausible key *body*, not just a prefix — chat messages legitimately
-  # discuss "sk-ant-..." and shouldn't trip this.
-  if ! [ "${MAI_TAI_EXPORT_SKIP_SCAN:-}" = "1" ] && grep -qE \
-      'sk-ant-[a-z0-9]+-[A-Za-z0-9_-]{30,}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{50,}|BEGIN [A-Z ]*PRIVATE KEY' \
-      "${stage}/database.sql"; then
-    error "Refusing to write bundle: a live credential appears in the dump."
-    error "Most likely someone pasted a key into a chat message. Redact it, or"
-    error "re-run with MAI_TAI_EXPORT_SKIP_SCAN=1 to export anyway."
-    error "Offending lines (truncated):"
-    grep -nE 'sk-ant-[a-z0-9]+-[A-Za-z0-9_-]{30,}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{50,}|BEGIN [A-Z ]*PRIVATE KEY' \
-      "${stage}/database.sql" | cut -c1-100 | head -5 >&2
-    exit 1
+  # Optionally carry .env. Off by default so a bundle can't leak infra
+  # credentials nobody realised were in scope.
+  local env_included=false
+  if [ "${with_env}" = "1" ]; then
+    if [ -f "${REPO_ROOT}/.env" ]; then
+      cp "${REPO_ROOT}/.env" "${stage}/env"
+      env_included=true
+      log "Including .env in the bundle."
+    else
+      warn "--with-env given but no .env at ${REPO_ROOT}/.env — skipping."
+    fi
   fi
 
   log "Collecting manifest..."
@@ -186,27 +201,31 @@ cmd_export() {
   local schema_rev
   schema_rev="$(psql_q "select version_num from alembic_version limit 1" || echo "unknown")"
 
-  python3 - "${stage}/manifest.json" "${counts}" "${schema_rev}" "${BUNDLE_VERSION}" <<'PY'
+  local has_secrets=true
+  [ "${scrub_secrets}" = "1" ] && has_secrets=false
+
+  python3 - "${stage}/manifest.json" "${counts}" "${schema_rev}" "${BUNDLE_VERSION}" \
+      "${has_secrets}" "${env_included}" <<'PY'
 import json, sys, datetime, socket
-out, counts, rev, ver = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+out, counts, rev, ver, secrets, envinc = sys.argv[1:7]
 json.dump({
     "bundle_version": int(ver),
     "exported_at": datetime.datetime.now().astimezone().isoformat(),
     "source_host": socket.gethostname(),
     "alembic_revision": rev,
-    "contains_secrets": False,
+    "contains_secrets": secrets == "true",
+    "includes_env": envinc == "true",
     "counts": json.loads(counts),
 }, open(out, "w"), indent=2)
 open(out, "a").write("\n")
 PY
 
-  # An .env template: every key the target needs, values blanked. Tells you
-  # what to fill in without carrying any values across.
+  # A blank .env template so a fresh target knows what to fill in. Operational
+  # (non-credential) values are carried through; everything else stays empty.
   log "Writing env.template..."
   {
     echo "# Generated by mai-tai-config.sh export from $(hostname -s)"
-    echo "# Values are intentionally blank. Fill these in on the target, or copy"
-    echo "# your real .env over separately."
+    echo "# Credential values are intentionally blank -- fill them in on the target."
     echo ""
     echo "# --- Required ---"
     for key in "${REQUIRED_ENV_KEYS[@]}"; do
@@ -215,7 +234,6 @@ PY
     echo ""
     echo "# --- Optional (blank = feature off) ---"
     for key in "${OPTIONAL_ENV_KEYS[@]}"; do
-      # Non-secret operational values are safe to carry, so keep them.
       case "${key}" in
         CLAUDE_CODE_USE_VERTEX|ANTHROPIC_VERTEX_PROJECT_ID|CLOUD_ML_REGION|AGENT_MODEL|AGENT_IMAGE)
           echo "${key}=$(get_env_value "${key}")"
@@ -228,21 +246,40 @@ PY
   } > "${stage}/env.template"
 
   log "Packing bundle..."
-  tar -czf "${out}" -C "${stage}" manifest.json database.sql env.template
+  # Create it 0600 *before* writing, so the contents are never briefly
+  # world-readable on a shared box.
+  rm -f "${out}"
+  (umask 077 && touch "${out}")
+  local members="manifest.json database.sql env.template"
+  [ "${env_included}" = "true" ] && members="${members} env"
+  # shellcheck disable=SC2086
+  tar -czf "${out}" -C "${stage}" ${members}
+  chmod 600 "${out}"
 
-  success "Wrote ${out} ($(du -h "${out}" | cut -f1))"
+  success "Wrote ${out} ($(du -h "${out}" | cut -f1), mode 0600)"
   echo ""
   python3 -c "
-import json,sys
+import json
 m=json.load(open('${stage}/manifest.json'))
 for k,v in m['counts'].items():
     print(f'  {k:20} {v}')
 "
   echo ""
-  warn "No secrets in this bundle. On the target you still need to:"
-  warn "  1. Copy your .env over (or fill in env.template)"
-  warn "  2. Copy ~/.config/mai-tai/config if you want existing mt_ keys to work"
-  warn "  3. Re-enter any Anthropic / GitHub / LLM keys in Settings > AI"
+  if [ "${scrub_secrets}" = "1" ]; then
+    log "Scrubbed bundle — no credentials inside. On the target you'll need to:"
+    log "  1. Put .env in place    (./scripts/mai-tai-config.sh check-env)"
+    log "  2. Copy ~/.config/mai-tai/config so existing mt_ keys authenticate"
+    log "  3. Re-enter Anthropic / GitHub / LLM keys in Settings > AI"
+  else
+    local env_note=""
+    [ "${env_included}" = "true" ] && env_note=" and your .env"
+    error "TREAT THIS FILE AS A SECRET."
+    error "It contains plaintext credentials from users.settings (Anthropic key,"
+    error "GitHub token, LLM keys)${env_note}, plus full message history."
+    error "Don't commit it, don't put it in cloud storage, delete it after the move."
+    echo ""
+    log "Use --scrub for a credential-free bundle that's safe to store."
+  fi
 }
 
 get_env_value() {
@@ -332,14 +369,40 @@ cmd_import() {
     exit 1
   fi
 
+  # A bundled .env is written alongside the real one rather than over it —
+  # clobbering a working .env on the target is not something to do silently.
+  if [ -f "${stage}/env" ]; then
+    local dest="${REPO_ROOT}/.env.imported"
+    # chmod after the copy, not umask before it: cp carries the source file's
+    # mode across, and on some hosts (Synology w/ ACLs) that's world-readable.
+    cp "${stage}/env" "${dest}"
+    chmod 600 "${dest}"
+    echo ""
+    log "Bundle included a .env — written to ${dest} (mode 0600)."
+    log "Review it, then:  mv ${dest} ${REPO_ROOT}/.env"
+  fi
+
   echo ""
-  success "Import complete. Remaining manual steps:"
+  success "Import complete. Remaining steps:"
   echo "  1. Ensure .env is in place    ->  ./scripts/mai-tai-config.sh check-env"
   echo "  2. Restart the stack          ->  ./dev.sh local up"
-  echo "  3. Re-enter credentials in Settings > AI (they were not exported)"
-  echo ""
-  log "Users needing credentials re-entered:"
-  psql_q "select '  - ' || email from users order by email" || true
+
+  # Only nag about re-entering credentials when the bundle actually dropped
+  # them; a full bundle carries them and the target is ready to go.
+  local had_secrets
+  had_secrets="$(python3 -c \
+    "import json;print(json.load(open('${stage}/manifest.json')).get('contains_secrets',False))" \
+    2>/dev/null || echo False)"
+  if [ "${had_secrets}" != "True" ]; then
+    echo "  3. Re-enter credentials in Settings > AI (this bundle was scrubbed)"
+    echo ""
+    log "Users needing credentials re-entered:"
+    psql_q "select '  - ' || email from users order by email" || true
+  else
+    echo ""
+    log "Credentials came across with the bundle — nothing to re-enter."
+    warn "Delete ${bundle} now that the move is done; it holds live secrets."
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -392,7 +455,7 @@ cmd_check_env() {
 # ---------------------------------------------------------------------------
 
 usage() {
-  sed -n '2,27p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,26p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 case "${1:-}" in

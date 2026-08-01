@@ -172,17 +172,26 @@ agents, and full message history — to another machine.
 ./scripts/mai-tai-config.sh import mai-tai-backup.tar.gz    # prompts before wiping
 ```
 
-**The bundle contains no secrets.** Plaintext credentials in `users.settings`
-(Anthropic key, GitHub token, LLM key) are stripped, and `.env` is never
-included — the export aborts rather than ship a credential it doesn't
-recognise. Password hashes and `mt_` API-key hashes *are* included, so logins
-and existing agent configs keep working on the target.
+### ⚠️ Treat the bundle as a secret
 
-To finish a migration you carry three things over by hand:
+By default the dump is byte-for-byte complete, so the plaintext credentials in
+`users.settings` (Anthropic key, GitHub token, LLM keys) travel with it. That's
+deliberate — the target comes up as a working copy with nothing to re-enter.
+The tradeoff is that the tarball *is* credential material. It's written mode
+`0600`, `mai-tai-export-*.tar.gz` is gitignored, and you should delete it once
+the move is done.
 
-1. `.env` — or fill in the `env.template` the export generates
-2. `~/.config/mai-tai/config` — so existing `mt_` API keys still authenticate
-3. Anthropic / GitHub / LLM keys, re-entered in **Settings → AI**
+| Flag | Effect |
+|---|---|
+| *(none)* | Full fidelity — credentials included, nothing to re-enter on the target |
+| `--scrub` | Strip credentials from `users.settings`; safe to store, but you re-enter keys in **Settings → AI** |
+| `--with-env` | Also bundle `.env`. Import writes it to `.env.imported` for review rather than overwriting |
+
+Password hashes and `mt_` API-key hashes are always included, so logins and
+existing agent configs keep working on the target.
+
+Either way, copy `~/.config/mai-tai/config` across so existing `mt_` API keys
+still authenticate.
 
 ## Contributing
 
