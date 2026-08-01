@@ -36,14 +36,22 @@ PG_DB="${POSTGRES_DB:-maitai}"
 # Throwaway database used to scrub secrets without touching the live one.
 SCRATCH_DB="${PG_DB}_export_scrub"
 
-BUNDLE_VERSION=1
+BUNDLE_VERSION=2
 
-# Keys in users.settings that hold plaintext credentials. Stripped on export.
-SECRET_SETTINGS_KEYS=(anthropic_api_key github_token stash_llm_api_key)
+# Keys in users.settings that hold credentials (Fernet-encrypted at rest since
+# backend/app/core/crypto.py landed). Stripped by --scrub. Keep in sync with
+# SENSITIVE_USER_SETTINGS there.
+SECRET_SETTINGS_KEYS=(anthropic_api_key openai_api_key github_token stash_llm_api_key)
 
 # .env keys a target deployment needs to actually run.
+#
+# ENCRYPTION_KEY is optional in the sense that crypto.py derives a key from
+# SECRET_KEY when it's unset — but if the source host set it, the target must
+# use the same value or every stored credential in the dump decrypts to
+# nothing. Same for SECRET_KEY under the fallback. check-env flags both.
 REQUIRED_ENV_KEYS=(POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB SECRET_KEY NEXTAUTH_SECRET)
 OPTIONAL_ENV_KEYS=(
+  ENCRYPTION_KEY
   CLAUDE_CODE_USE_VERTEX ANTHROPIC_VERTEX_PROJECT_ID CLOUD_ML_REGION AGENT_MODEL
   AGENT_IMAGE GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
 )
@@ -192,7 +200,6 @@ cmd_export() {
       'users', (select count(*) from users),
       'workspaces', (select count(*) from workspaces),
       'agent_workspaces', (select count(*) from workspaces where workspace_type='agent'),
-      'agents', (select count(*) from agents),
       'messages', (select count(*) from messages),
       'api_keys', (select count(*) from api_keys),
       'stash_links', (select count(*) from stash_links)
@@ -205,9 +212,9 @@ cmd_export() {
   [ "${scrub_secrets}" = "1" ] && has_secrets=false
 
   python3 - "${stage}/manifest.json" "${counts}" "${schema_rev}" "${BUNDLE_VERSION}" \
-      "${has_secrets}" "${env_included}" <<'PY'
+      "${has_secrets}" "${env_included}" "$(crypto_fingerprint)" <<'PY'
 import json, sys, datetime, socket
-out, counts, rev, ver, secrets, envinc = sys.argv[1:7]
+out, counts, rev, ver, secrets, envinc, fp = sys.argv[1:8]
 json.dump({
     "bundle_version": int(ver),
     "exported_at": datetime.datetime.now().astimezone().isoformat(),
@@ -215,6 +222,7 @@ json.dump({
     "alembic_revision": rev,
     "contains_secrets": secrets == "true",
     "includes_env": envinc == "true",
+    "crypto_fingerprint": fp,
     "counts": json.loads(counts),
 }, open(out, "w"), indent=2)
 open(out, "a").write("\n")
@@ -274,9 +282,12 @@ for k,v in m['counts'].items():
     local env_note=""
     [ "${env_included}" = "true" ] && env_note=" and your .env"
     error "TREAT THIS FILE AS A SECRET."
-    error "It contains plaintext credentials from users.settings (Anthropic key,"
+    error "It carries the credentials from users.settings (Anthropic/OpenAI keys,"
     error "GitHub token, LLM keys)${env_note}, plus full message history."
-    error "Don't commit it, don't put it in cloud storage, delete it after the move."
+    error "Those settings are Fernet-encrypted at rest, but the key derives from"
+    error "SECRET_KEY unless ENCRYPTION_KEY is set -- a bundle plus a leaked .env"
+    error "is plaintext. Don't commit it, don't put it in cloud storage, and"
+    error "delete it once the move is done."
     echo ""
     log "Use --scrub for a credential-free bundle that's safe to store."
   fi
@@ -286,6 +297,24 @@ get_env_value() {
   local key="$1"
   if [ -f "${REPO_ROOT}/.env" ]; then
     grep -E "^${key}=" "${REPO_ROOT}/.env" 2>/dev/null | tail -1 | cut -d= -f2- || true
+  fi
+}
+
+# Identifies the key that Fernet-encrypts users.settings, without revealing it.
+# crypto.py uses ENCRYPTION_KEY when set and otherwise derives one from
+# SECRET_KEY, so only the effective key is fingerprinted. Import compares this
+# against the target's own -- a mismatch means every credential in the dump
+# decrypts to nothing, which is otherwise silent until an agent fails to start.
+crypto_fingerprint() {
+  local enc sec
+  enc="$(get_env_value ENCRYPTION_KEY)"
+  sec="$(get_env_value SECRET_KEY)"
+  if [ -n "${enc}" ]; then
+    printf 'enc:%s' "${enc}" | sha256sum | cut -c1-16
+  elif [ -n "${sec}" ]; then
+    printf 'sec:%s' "${sec}" | sha256sum | cut -c1-16
+  else
+    echo "unknown"
   fi
 }
 
@@ -343,6 +372,27 @@ cmd_import() {
   echo ""
   cat "${stage}/manifest.json"
   echo ""
+
+  # users.settings credentials are Fernet-encrypted with a key derived from the
+  # source's .env. If the target's key differs they restore as undecryptable
+  # noise -- and nothing surfaces that until an agent refuses to start. Say so
+  # while the operator can still fix the .env.
+  local src_fp
+  src_fp="$(python3 -c \
+    "import json;print(json.load(open('${stage}/manifest.json')).get('crypto_fingerprint',''))" \
+    2>/dev/null || echo "")"
+  if [ -n "${src_fp}" ] && [ "${src_fp}" != "unknown" ]; then
+    local dst_fp
+    dst_fp="$(crypto_fingerprint)"
+    if [ "${dst_fp}" != "${src_fp}" ]; then
+      warn "Encryption key mismatch (source ${src_fp}, here ${dst_fp})."
+      warn "Stored credentials will not decrypt on this host. Copy ENCRYPTION_KEY"
+      warn "and SECRET_KEY from the source .env before importing, or plan to"
+      warn "re-enter every key in Settings > AI afterwards."
+      echo ""
+    fi
+  fi
+
   error "This REPLACES the database in '${PG_CONTAINER}' (${PG_DB})."
   error "It currently holds ${existing} workspace(s). They will be dropped."
   echo ""

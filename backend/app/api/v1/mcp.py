@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import ApiKeyAuth, get_api_key_auth, get_db
@@ -92,6 +92,58 @@ async def send_message(
         "message_metadata": message.message_metadata,
         "created_at": message.created_at,
         "message_type": message.message_type,
+    }
+
+
+@router.get("/messages/search")
+async def search_messages(
+    q: str = Query(..., min_length=2, max_length=200, description="Search query"),
+    limit: int = Query(10, le=50, ge=1),
+    auth: ApiKeyAuth = Depends(get_api_key_auth),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Full-text search over this workspace's message history.
+
+    Backs the agent's search_history MCP tool. Uses Postgres FTS
+    (ix_messages_content_fts) — ranked results with highlighted snippets.
+    """
+    sql = text("""
+        SELECT m.id, m.content, m.agent_name, m.user_id, m.created_at,
+               ts_rank(to_tsvector('english', m.content), query) AS rank,
+               ts_headline('english', m.content, query,
+                           'MaxWords=40, MinWords=15, MaxFragments=2') AS snippet
+        FROM messages m, plainto_tsquery('english', :q) query
+        WHERE m.workspace_id = :workspace_id
+          AND to_tsvector('english', m.content) @@ query
+        ORDER BY rank DESC, m.created_at DESC
+        LIMIT :limit
+    """)
+    result = await db.execute(
+        sql, {"q": q, "workspace_id": str(auth.workspace_id), "limit": limit}
+    )
+    rows = result.mappings().all()
+
+    # Resolve sender names for user messages
+    user_ids = list({row["user_id"] for row in rows if row["user_id"]})
+    names: dict = {}
+    if user_ids:
+        users_result = await db.execute(select(User).where(User.id.in_(user_ids)))
+        for user in users_result.scalars().all():
+            names[user.id] = user.name
+
+    return {
+        "query": q,
+        "results": [
+            {
+                "id": str(row["id"]),
+                "snippet": row["snippet"],
+                "content": row["content"][:2000],
+                "sender_name": names.get(row["user_id"]) or row["agent_name"] or "unknown",
+                "created_at": row["created_at"].isoformat(),
+            }
+            for row in rows
+        ],
+        "total": len(rows),
     }
 
 

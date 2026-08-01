@@ -1,8 +1,9 @@
-# Mai-Tai Agent Container
-# Runs a Claude Code instance connected to a Mai-Tai workspace via MCP.
+# Mai-Tai Agent Container — claude-code runtime
+# Runs Claude Code turns under the mai-tai driver loop, connected to a
+# workspace via the Mai-Tai MCP server + REST API.
 #
-# BUILD FROM THE REPO ROOT — the build context must include mcp-server/:
-#   docker build -f agent/Dockerfile -t mai-tai-agent:latest .
+# BUILD FROM THE REPO ROOT — the context must include mcp-server/:
+#   docker build -t mai-tai-agent:latest -f agents/claude-code/Dockerfile .
 #
 # Claude auth (need exactly one):
 #   ANTHROPIC_API_KEY       - Anthropic API key (sk-ant-api...)
@@ -15,10 +16,10 @@
 #   MAI_TAI_WORKSPACE_ID - Workspace UUID
 #
 # Optional env vars:
-#   AGENT_NAME           - Agent display name (default: "Agent")
-#   AGENT_PURPOSE        - What this agent should do
-#   AGENT_TEMPLATE       - Template type: research, monitor, assistant, custom
-#   AGENT_MODEL          - Model to run (default: sonnet)
+#   AGENT_NAME     - Agent display name (default: "Agent")
+#   AGENT_PURPOSE  - What this agent should do
+#   AGENT_TEMPLATE - research | monitor | assistant | coder | custom
+#   AGENT_MODEL    - Claude model alias (default: sonnet)
 
 FROM node:20-slim
 
@@ -44,7 +45,7 @@ RUN npm install -g @anthropic-ai/claude-code
 # Create non-root user (claude --dangerously-skip-permissions refuses to run as root)
 RUN useradd -m -s /bin/bash agent \
     && mkdir -p /home/agent/workspace \
-    && mkdir -p /home/agent/memory/tasks \
+    && mkdir -p /home/agent/memory/tasks /home/agent/memory/journal /home/agent/memory/state \
     && chown -R agent:agent /home/agent
 USER agent
 
@@ -58,13 +59,14 @@ ENV PATH="/home/agent/.local/bin:$PATH"
 # from the source in this repo. Baking it in pins both.
 COPY --chown=agent:agent mcp-server /home/agent/mcp-server
 RUN uv tool install /home/agent/mcp-server \
-    && /home/agent/.local/bin/mai-tai-mcp --help > /dev/null 2>&1 || true
+    && test -x /home/agent/.local/bin/mai-tai-mcp
 
-# Create agent workspace
 WORKDIR /home/agent/workspace
 
-# Copy entrypoint
-COPY --chown=agent:agent agent/entrypoint.sh /home/agent/entrypoint.sh
-RUN chmod +x /home/agent/entrypoint.sh
+# Shared driver + bootstrap, runtime entrypoint
+COPY --chown=agent:agent agents/common/driver.py /home/agent/driver.py
+COPY --chown=agent:agent agents/common/bootstrap.sh /home/agent/bootstrap.sh
+COPY --chown=agent:agent agents/claude-code/entrypoint.sh /home/agent/entrypoint.sh
+RUN chmod +x /home/agent/entrypoint.sh /home/agent/bootstrap.sh
 
 ENTRYPOINT ["/home/agent/entrypoint.sh"]

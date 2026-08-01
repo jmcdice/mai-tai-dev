@@ -209,6 +209,31 @@ class MaiTaiBackend:
             self._handle_error(e, "Failed to get messages")
             return {}  # Unreachable
 
+    def search_messages(self, query: str, limit: int = 10) -> dict[str, Any]:
+        """Full-text search over the workspace's message history.
+
+        Args:
+            query: Search terms (2-200 chars)
+            limit: Maximum results to return
+
+        Raises:
+            RecoverableError: For transient errors
+            FatalRuntimeError: For permanent errors
+        """
+        try:
+            client = self._get_client()
+            response = client.get(
+                "/api/v1/mcp/messages/search",
+                params={"q": query, "limit": limit},
+            )
+            response.raise_for_status()
+            return response.json()
+        except (RecoverableError, FatalRuntimeError):
+            raise
+        except Exception as e:
+            self._handle_error(e, "Failed to search messages")
+            return {}  # Unreachable
+
     def acknowledge_messages(self, message_ids: list[str]) -> dict[str, Any]:
         """Mark messages as seen by the agent.
 

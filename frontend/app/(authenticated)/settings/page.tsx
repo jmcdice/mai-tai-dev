@@ -74,6 +74,8 @@ export default function SettingsPage() {
   // AI settings state
   const [anthropicApiKey, setAnthropicApiKey] = useState('');
   const [showAnthropicApiKey, setShowAnthropicApiKey] = useState(false);
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
+  const [showOpenaiApiKey, setShowOpenaiApiKey] = useState(false);
   const [githubToken, setGithubToken] = useState('');
   const [showGithubToken, setShowGithubToken] = useState(false);
   const [aiProvider, setAiProvider] = useState('');
@@ -96,6 +98,7 @@ export default function SettingsPage() {
         setShortcuts(user.settings?.shortcuts || []);
         // AI settings
         setAnthropicApiKey(user.settings?.anthropic_api_key || '');
+        setOpenaiApiKey(user.settings?.openai_api_key || '');
         setGithubToken(user.settings?.github_token || '');
         setAiProvider(user.settings?.stash_llm_provider || '');
         setAiModel(user.settings?.stash_llm_model || '');
@@ -136,6 +139,7 @@ export default function SettingsPage() {
           time_format: timeFormat,
           shortcuts: shortcuts.length > 0 ? shortcuts : null,
           anthropic_api_key: anthropicApiKey || null,
+          openai_api_key: openaiApiKey || null,
           github_token: githubToken || null,
           stash_llm_provider: aiProvider || null,
           stash_llm_model: aiModel || null,
@@ -894,9 +898,9 @@ export default function SettingsPage() {
         {/* Anthropic API Key for Agent Workspaces */}
         <div className="mb-6 rounded-xl border border-border bg-card/50 p-6">
           <div className="mb-4">
-            <h2 className="text-xl font-semibold text-foreground">Agent API Key</h2>
+            <h2 className="text-xl font-semibold text-foreground">Agent API Keys</h2>
             <p className="mt-1 text-muted-foreground">
-              Required for agent workspaces. Your Anthropic API key powers Claude Code agents.
+              Required for agent workspaces. Add a key for each runtime you want to use.
             </p>
           </div>
           <div className="max-w-lg">
@@ -918,6 +922,26 @@ export default function SettingsPage() {
               </button>
             </div>
             <p className="mt-1 text-xs text-faint">Used to run Claude Code in agent containers. Get one at console.anthropic.com.</p>
+          </div>
+          <div className="mt-4 max-w-lg">
+            <label className="block text-sm font-medium text-muted-foreground">OpenAI API Key</label>
+            <div className="relative mt-1">
+              <input
+                type={showOpenaiApiKey ? 'text' : 'password'}
+                value={openaiApiKey}
+                onChange={(e) => setOpenaiApiKey(e.target.value)}
+                placeholder="sk-..."
+                className="w-full rounded-lg border border-border-strong bg-surface2 px-4 py-2 pr-10 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setShowOpenaiApiKey(!showOpenaiApiKey)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showOpenaiApiKey ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-faint">Used to run OpenAI Codex in agent containers. Get one at platform.openai.com.</p>
           </div>
         </div>
 

@@ -152,10 +152,21 @@ application-default login` on the host first.
 ### Building the Agent Image
 
 ```bash
-docker build -f agent/Dockerfile -t mai-tai-agent:latest .
+# Claude Code runtime (required for agent workspaces)
+docker build -t mai-tai-agent:latest -f agents/claude-code/Dockerfile agents/
+
+# OpenAI Codex runtime (optional — for workspaces using the codex runtime)
+docker build -t mai-tai-agent-codex:latest -f agents/codex/Dockerfile agents/
 ```
 
-This image is required for agent workspaces. Rebuild after changes to `agent/`.
+Rebuild after changes to `agents/`.
+
+Agent containers run a **driver loop**: each user message triggers one CLI
+turn (`claude -p --resume`), so there is no long-lived agent process to babysit.
+Persistent memory lives on the per-workspace volume: `MEMORY.md` (curated,
+size-capped, loaded every session), `journal/` (daily notes), and
+`tasks/lessons.md` — plus a `search_history` tool backed by Postgres full-text
+search over the workspace's entire message history.
 
 ## Migrating to Another Host
 
@@ -174,12 +185,17 @@ agents, and full message history — to another machine.
 
 ### ⚠️ Treat the bundle as a secret
 
-By default the dump is byte-for-byte complete, so the plaintext credentials in
-`users.settings` (Anthropic key, GitHub token, LLM keys) travel with it. That's
-deliberate — the target comes up as a working copy with nothing to re-enter.
-The tradeoff is that the tarball *is* credential material. It's written mode
-`0600`, `mai-tai-export-*.tar.gz` is gitignored, and you should delete it once
-the move is done.
+By default the dump is byte-for-byte complete, so the credentials in
+`users.settings` (Anthropic/OpenAI keys, GitHub token, LLM keys) travel with
+it. That's deliberate — the target comes up as a working copy with nothing to
+re-enter. The tradeoff is that the tarball *is* credential material. It's
+written mode `0600`, `mai-tai-export-*.tar.gz` is gitignored, and you should
+delete it once the move is done.
+
+Those settings are Fernet-encrypted at rest, but the key comes from
+`ENCRYPTION_KEY` — or, when that's unset, from `SECRET_KEY` — so **the target
+needs the same values or the restored credentials decrypt to nothing**. Import
+fingerprints both ends and warns on a mismatch before it touches the database.
 
 | Flag | Effect |
 |---|---|

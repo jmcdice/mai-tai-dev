@@ -29,7 +29,6 @@ class Workspace(Base):
 
     # Relationships
     owner: Mapped["User"] = relationship(back_populates="workspaces")
-    agents: Mapped[list["Agent"]] = relationship(back_populates="workspace", cascade="all, delete-orphan")
     messages: Mapped[list["Message"]] = relationship(back_populates="workspace", cascade="all, delete-orphan")
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="workspace", cascade="all, delete-orphan")
 

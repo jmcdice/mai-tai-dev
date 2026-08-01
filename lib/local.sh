@@ -151,6 +151,7 @@ local_cmd() {
 
                 log_info "Step 3: Removing Docker networks..."
                 docker network rm mai-tai-dev_default 2>/dev/null || true
+                docker network rm mai-tai-dev_agents 2>/dev/null || true
 
                 log_info "Step 4: Killing mai-tai-mcp processes..."
                 pkill -9 -f "mai-tai-mcp" 2>/dev/null || true

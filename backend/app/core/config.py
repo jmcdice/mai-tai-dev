@@ -20,9 +20,6 @@ class Settings(BaseSettings):
     # Database (sync URL for alembic, async for app)
     database_url: str = "postgresql://maitai:maitai@postgres:5432/maitai"
 
-    # Redis
-    redis_url: str = "redis://redis:6379/0"
-
     # CORS - defaults to localhost, use CORS_ORIGINS env var for additional origins
     # Accepts JSON array string: CORS_ORIGINS='["http://example.com"]'
     # or comma-separated: CORS_ORIGINS=http://a.com,http://b.com
@@ -49,6 +46,14 @@ class Settings(BaseSettings):
 
     # Set REGISTRATION_ENABLED=false to prevent new user sign-ups
     registration_enabled: bool = True
+
+    # Workspace task scheduler (SCHEDULER_ENABLED=false to disable, e.g. in tests)
+    scheduler_enabled: bool = True
+
+    # Fernet key for encrypting secrets at rest (users' API keys/tokens).
+    # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # Falls back to a key derived from SECRET_KEY when unset.
+    encryption_key: str | None = None
 
     # JWT (for local development)
     secret_key: str = DEFAULT_SECRET_KEY

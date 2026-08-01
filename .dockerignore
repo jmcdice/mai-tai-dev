@@ -1,0 +1,13 @@
+# Build context for the agent images (built from the repo root so that
+# mcp-server/ is available to vendor into the image).
+.git
+**/node_modules
+**/__pycache__
+**/.venv
+**/.next
+**/.pytest_cache
+**/.ruff_cache
+frontend
+docs
+backups
+*.tar.gz

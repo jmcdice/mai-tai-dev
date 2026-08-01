@@ -1,3 +1,6 @@
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -7,6 +10,7 @@ from slowapi.util import get_remote_address
 
 from app.api.v1.router import router as v1_router
 from app.core.config import get_settings
+from app.services.scheduler import run_scheduler
 
 settings = get_settings()
 
@@ -14,10 +18,25 @@ settings = get_settings()
 # For multi-instance deployments, configure Redis: storage_uri="redis://host:port"
 limiter = Limiter(key_func=get_remote_address)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Run the workspace task scheduler for the app's lifetime."""
+    if not settings.scheduler_enabled:
+        yield
+        return
+    stop_event = asyncio.Event()
+    scheduler_task = asyncio.create_task(run_scheduler(stop_event))
+    yield
+    stop_event.set()
+    await scheduler_task
+
+
 app = FastAPI(
     title="mai-tai API",
     description="Backend API for mai-tai agent collaboration platform",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # Attach limiter to app state so it can be accessed in route modules

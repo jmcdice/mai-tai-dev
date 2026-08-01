@@ -3,14 +3,16 @@
 import hashlib
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core.crypto import get_user_secret
 from app.core.websocket import manager as ws_manager
 from app.models.api_key import ApiKey
 from app.models.workspace import Workspace
@@ -18,9 +20,18 @@ from app.models.workspace_agent_activity import WorkspaceAgentActivity
 from app.models.message import Message
 from app.models.user import User
 from app.schemas.api_key import ApiKeyCreate, ApiKeyListItem, ApiKeyListResponse, ApiKeyResponse
-from app.schemas.workspace import WorkspaceCreate, WorkspaceListResponse, WorkspaceResponse, WorkspaceUpdate
+from app.schemas.workspace import AgentConfig, WorkspaceCreate, WorkspaceListResponse, WorkspaceResponse, WorkspaceUpdate
 from app.schemas.message import MessageCreate, MessageListResponse, MessageResponse
-from app.services.agent_spawner import AGENT_TEMPLATES, get_host_vertex_config, start_agent, stop_agent, get_agent_status as get_container_status, get_agent_logs
+from app.services.agents import (
+    AGENT_TEMPLATES,
+    RUNTIMES,
+    get_host_vertex_config,
+    get_runtime,
+    start_agent,
+    stop_agent,
+    get_agent_status as get_container_status,
+    get_agent_logs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +58,7 @@ async def create_workspace(
         settings=data.settings,
         workspace_type=data.workspace_type,
         agent_purpose=data.agent_purpose,
-        agent_config=data.agent_config,
+        agent_config=data.agent_config.model_dump() if data.agent_config else None,
     )
     db.add(workspace)
     await db.commit()
@@ -74,6 +85,48 @@ async def list_workspaces(
     result = await db.execute(query)
     workspaces = result.scalars().all()
     return {"workspaces": workspaces, "total": len(workspaces)}
+
+
+@router.get("/agent-templates")
+async def get_agent_templates(
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return available agent workspace templates.
+
+    NOTE: must be registered before /{workspace_id} routes — FastAPI matches
+    in registration order, and a later static path would be shadowed by the
+    UUID path parameter.
+    """
+    templates = {}
+    for key, tmpl in AGENT_TEMPLATES.items():
+        templates[key] = {
+            "id": key,
+            "label": tmpl["label"],
+            "description": tmpl["description"],
+        }
+    return {"templates": templates}
+
+
+@router.get("/agent-runtimes")
+async def get_agent_runtimes(
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return available agent runtimes and their model choices.
+
+    Registered before /{workspace_id} routes (see get_agent_templates).
+    """
+    runtimes = {}
+    for key, spec in RUNTIMES.items():
+        runtimes[key] = {
+            "id": spec.id,
+            "label": spec.label,
+            "description": spec.description,
+            "default_model": spec.default_model,
+            "models": spec.models,
+            "credential_label": spec.credential_label,
+            "enabled": spec.enabled,
+        }
+    return {"runtimes": runtimes}
 
 
 async def check_workspace_access(
@@ -120,7 +173,7 @@ async def update_workspace(
     if data.agent_purpose is not None:
         workspace.agent_purpose = data.agent_purpose
     if data.agent_config is not None:
-        workspace.agent_config = data.agent_config
+        workspace.agent_config = data.agent_config.model_dump()
     workspace.updated_at = datetime.utcnow()
 
     await db.commit()
@@ -154,7 +207,9 @@ async def create_api_key(
     raw_key, key_hash = generate_api_key()
     expires_at = None
     if data.expires_in_days:
-        expires_at = datetime.now(timezone.utc) + timedelta(days=data.expires_in_days)
+        # Naive UTC to match the TIMESTAMP WITHOUT TIME ZONE column and the
+        # naive datetime.utcnow() comparisons in deps.py / websocket.py.
+        expires_at = datetime.utcnow() + timedelta(days=data.expires_in_days)
 
     api_key = ApiKey(
         workspace_id=workspace_id,
@@ -398,21 +453,6 @@ async def get_agent_status(
 
 # Agent workspace endpoints
 
-@router.get("/agent-templates")
-async def get_agent_templates(
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    """Return available agent workspace templates."""
-    templates = {}
-    for key, tmpl in AGENT_TEMPLATES.items():
-        templates[key] = {
-            "id": key,
-            "label": tmpl["label"],
-            "description": tmpl["description"],
-        }
-    return {"templates": templates}
-
-
 @router.post("/{workspace_id}/agent/start", status_code=status.HTTP_200_OK)
 async def start_agent_endpoint(
     workspace_id: UUID,
@@ -433,45 +473,74 @@ async def start_agent_endpoint(
             detail="Only agent workspaces can have agents started",
         )
 
-    # Get Anthropic auth from user settings (supports both API key and OAuth token).
-    # If none is set, fall back to the host's Vertex AI config — same pattern as
-    # the Mai-Tai API key, so a Vertex-authed host needs no per-user setup.
-    user_settings = current_user.settings or {}
-    anthropic_api_key = user_settings.get("anthropic_api_key")
-    vertex_config = get_host_vertex_config() if not anthropic_api_key else None
-
-    if not anthropic_api_key and not vertex_config:
+    # Parse agent config through the schema. Stored configs can predate the
+    # registry (or reference retired runtimes/templates) — surface that as a
+    # 400 the UI can act on, not a 500.
+    try:
+        config = AgentConfig.model_validate(workspace.agent_config or {})
+    except ValidationError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "No Claude credential available. Add an Anthropic API key or OAuth "
-                "token in Settings > AI, or configure Vertex AI on the host."
-            ),
+            detail=f"Stored agent config is not available on this server: {e.errors()[0].get('msg', 'invalid')}",
         )
 
-    # Detect key type: OAuth tokens start with sk-ant-oat, API keys with sk-ant-api
-    is_oauth_token = bool(anthropic_api_key) and anthropic_api_key.startswith("sk-ant-oat")
+    runtime = get_runtime(config.runtime)
+    if runtime is None or not runtime.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Agent runtime '{config.runtime}' is not available on this server.",
+        )
 
-    # Get agent config
-    agent_config = workspace.agent_config or {}
-    template = agent_config.get("template", "custom")
+    # Resolve (and decrypt) the credential this runtime needs from user settings
+    user_settings = current_user.settings or {}
+    credential = get_user_secret(user_settings, runtime.credential_setting)
+
+    # Build runtime auth env. Claude Code distinguishes OAuth tokens
+    # (sk-ant-oat*, Pro/Max subscription) from standard API keys, and can fall
+    # back to the host's Vertex AI config when the user has no key of their own
+    # — same pattern as the Mai-Tai API key, so a Vertex host needs no per-user
+    # setup.
+    auth_env: dict[str, str] | None = None
+    if runtime.id == "claude-code":
+        if credential:
+            if credential.startswith("sk-ant-oat"):
+                auth_env = {"CLAUDE_CODE_OAUTH_TOKEN": credential}
+            else:
+                auth_env = {"ANTHROPIC_API_KEY": credential}
+        else:
+            auth_env = get_host_vertex_config()
+        if not auth_env:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"{runtime.credential_label} not configured. Add it in Settings > AI, "
+                    "or configure Vertex AI on the host."
+                ),
+            )
+    else:
+        if not credential:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{runtime.credential_label} not configured. Add it in Settings > AI.",
+            )
+        auth_env = {"OPENAI_API_KEY": credential}
 
     # Get GitHub token for coder agents
-    github_token = user_settings.get("github_token") if template == "coder" else None
-    repo_url = agent_config.get("repo_url") if template == "coder" else None
+    github_token = get_user_secret(user_settings, "github_token") if config.template == "coder" else None
+    repo_url = config.repo_url if config.template == "coder" else None
 
     # Start the Docker container
     # Mai-Tai API key is read from host's ~/.config/mai-tai/config (mounted into backend)
     result = start_agent(
         workspace_id=workspace.id,
         workspace_name=workspace.name,
-        anthropic_api_key=None if is_oauth_token else anthropic_api_key,
-        claude_oauth_token=anthropic_api_key if is_oauth_token else None,
+        runtime=runtime.id,
+        model=config.model,
+        auth_env=auth_env,
         purpose=workspace.agent_purpose,
-        template=template,
+        template=config.template,
         github_token=github_token,
         repo_url=repo_url,
-        vertex_config=vertex_config,
     )
 
     if result["status"] == "error":
