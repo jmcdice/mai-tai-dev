@@ -249,7 +249,11 @@ export default function SchedulesSheet({ workspaceId, open, onClose }: Props) {
     'w-full rounded-lg border border-border-strong bg-surface2 px-3 py-2.5 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
+    // z-[60], not z-50: MobileMenu is a fixed bottom bar at z-50 rendered after
+    // {children} in the layout, so at equal z it wins the tie and covers the
+    // bottom of this sheet — exactly where the primary action sits. The settings
+    // modal escapes this by portalling to <body>; this sheet renders in place.
+    <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
