@@ -137,8 +137,17 @@ See `.env.example` for all options. Key settings:
 | `CORS_ORIGINS` | JSON array of allowed origins |
 | `REGISTRATION_ENABLED` | Set `false` to disable new signups (also toggleable in admin UI) |
 | `AGENT_IMAGE` | Docker image for agent containers (default: `mai-tai-agent:latest`) |
+| `AGENT_MODEL` | Model agents run (default: `sonnet`) |
+| `CLAUDE_CODE_USE_VERTEX` | Set `1` to auth agents via Google Vertex AI instead of an Anthropic key |
+| `ANTHROPIC_VERTEX_PROJECT_ID` | GCP project for Vertex (required when Vertex is on) |
+| `CLOUD_ML_REGION` | Vertex region (default: `global`) |
 | `GITHUB_CLIENT_ID/SECRET` | GitHub OAuth (optional) |
 | `GOOGLE_CLIENT_ID/SECRET` | Google OAuth (optional) |
+
+With Vertex enabled, the backend reads the host's Application Default
+Credentials (`~/.config/gcloud`, mounted read-only) and passes them to each
+agent container — no per-user Anthropic key needed. Run `gcloud auth
+application-default login` on the host first.
 
 ### Building the Agent Image
 
@@ -147,6 +156,33 @@ docker build -f agent/Dockerfile -t mai-tai-agent:latest .
 ```
 
 This image is required for agent workspaces. Rebuild after changes to `agent/`.
+
+## Migrating to Another Host
+
+`scripts/mai-tai-config.sh` moves a whole deployment — users, workspaces,
+agents, and full message history — to another machine.
+
+```bash
+# On the source host
+./scripts/mai-tai-config.sh export mai-tai-backup.tar.gz
+./scripts/mai-tai-config.sh inspect mai-tai-backup.tar.gz   # peek without restoring
+
+# On the target host
+./scripts/mai-tai-config.sh check-env                       # what's missing from .env
+./scripts/mai-tai-config.sh import mai-tai-backup.tar.gz    # prompts before wiping
+```
+
+**The bundle contains no secrets.** Plaintext credentials in `users.settings`
+(Anthropic key, GitHub token, LLM key) are stripped, and `.env` is never
+included — the export aborts rather than ship a credential it doesn't
+recognise. Password hashes and `mt_` API-key hashes *are* included, so logins
+and existing agent configs keep working on the target.
+
+To finish a migration you carry three things over by hand:
+
+1. `.env` — or fill in the `env.template` the export generates
+2. `~/.config/mai-tai/config` — so existing `mt_` API keys still authenticate
+3. Anthropic / GitHub / LLM keys, re-entered in **Settings → AI**
 
 ## Contributing
 
