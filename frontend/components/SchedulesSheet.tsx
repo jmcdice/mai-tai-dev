@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeftIcon,
   BoltIcon,
@@ -248,8 +249,14 @@ export default function SchedulesSheet({ workspaceId, open, onClose }: Props) {
   const inputCls =
     'w-full rounded-lg border border-border-strong bg-surface2 px-3 py-2.5 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none';
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
+  // Portalled to <body>, like the settings modal. Rendered in place, this sheet
+  // sits inside the chat page's `fixed ... bottom-20 overflow-x-hidden` shell and
+  // under MobileMenu — a fixed bottom bar at the same z-50, rendered after
+  // {children}, so it won the tie and swallowed the sheet's buttons. iOS Safari
+  // is also historically unreliable about position:fixed inside a scroll
+  // container. The portal sidesteps both; z-[60] then clears the nav outright.
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
@@ -280,8 +287,9 @@ export default function SchedulesSheet({ workspaceId, open, onClose }: Props) {
             <>
               {/* List */}
               {tasks.length === 0 ? (
-                <p className="py-10 text-center text-sm text-faint">
-                  No schedules yet. Recurring prompts fire into this chat and your agent picks them up automatically.
+                <p className="px-2 py-8 text-center text-sm text-faint">
+                  No schedules in this workspace yet. A schedule fires a prompt into this
+                  chat on a repeating clock, and your agent picks it up automatically.
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -311,9 +319,13 @@ export default function SchedulesSheet({ workspaceId, open, onClose }: Props) {
                 </div>
               )}
 
+              {/* Filled, not a dashed ghost: in dark themes --border-strong sits
+                  within a few percent of the card background, so a dashed
+                  outline reads as "nothing here" — which is exactly the wrong
+                  message on an empty list where this is the only way forward. */}
               <button
                 onClick={() => openEditor('new')}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border-strong py-3 text-sm text-muted-foreground hover:border-primary hover:text-foreground"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-medium text-primary-foreground hover:opacity-90"
               >
                 <PlusIcon className="h-4 w-4" /> New schedule
               </button>
@@ -417,6 +429,7 @@ export default function SchedulesSheet({ workspaceId, open, onClose }: Props) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
