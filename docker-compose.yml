@@ -27,8 +27,14 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${HOME}/.config/mai-tai:/host-mai-tai-config:ro
+      - ${HOME}/.config/gcloud:/host-gcloud:ro
     environment:
       - PORT=8000
+      # Vertex AI fallback for agent containers. The backend reads the host's
+      # ADC from the /host-gcloud mount and passes it to agents as JSON.
+      - CLAUDE_CODE_USE_VERTEX=${CLAUDE_CODE_USE_VERTEX:-}
+      - ANTHROPIC_VERTEX_PROJECT_ID=${ANTHROPIC_VERTEX_PROJECT_ID:-}
+      - CLOUD_ML_REGION=${CLOUD_ML_REGION:-global}
       - APP_ENV=${APP_ENV:-production}
       - DEBUG=${DEBUG:-false}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-maitai}:${POSTGRES_PASSWORD:-maitai_dev_password}@postgres:5432/${POSTGRES_DB:-maitai}
@@ -38,6 +44,7 @@ services:
       - EXTRA_CORS_ORIGIN=${EXTRA_CORS_ORIGIN:-}
       - REGISTRATION_ENABLED=${REGISTRATION_ENABLED:-true}
       - AGENT_IMAGE=${AGENT_IMAGE:-mai-tai-agent:latest}
+      - AGENT_MODEL=${AGENT_MODEL:-}
       # Agents get their own network: they can reach the backend (and the
       # internet) but NOT postgres or other infra containers.
       - AGENT_NETWORK=mai-tai-dev_agents

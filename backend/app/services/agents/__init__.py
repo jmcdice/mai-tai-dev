@@ -10,6 +10,7 @@ from app.services.agents.runtimes import RUNTIMES, RuntimeSpec, get_runtime
 from app.services.agents.spawner import (
     get_agent_logs,
     get_agent_status,
+    get_host_vertex_config,
     list_agents,
     restart_agent,
     start_agent,
@@ -24,6 +25,7 @@ __all__ = [
     "get_runtime",
     "get_agent_logs",
     "get_agent_status",
+    "get_host_vertex_config",
     "list_agents",
     "restart_agent",
     "start_agent",

@@ -33,14 +33,30 @@ After completing ANY task, you MUST call `chat_with_human` to report and wait fo
 instruction. Never finish work and stop. Think of it like a phone call — you don't hang up
 when you're done talking, you say "done, what's next?" and wait.
 
+### The rule: never go quiet
+
+While you're working, send an `update_status` **at least every ~10 minutes** — and always
+*before* you block on something slow (test suites, builds, browser automation, long timeouts).
+
+The human can't see your terminal. Silent hard work and a crashed process look identical to
+them, so a long quiet stretch reads as "the bot is stuck." `update_status` is non-blocking and
+costs nothing. When in doubt, ping.
+
+```
+update_status("Running the Playwright suite — ~4 min, back shortly...")
+<long command>
+update_status("Suite green. Now chasing the one flaky campaign test.")
+```
+
 ### Correct flow
 
 ```
 1. Human gives a task
 2. update_status("Got it, working on X...")   ← optional, non-blocking
 3. Do the work
-4. chat_with_human("Done! Here's what I did. What's next?")  ← REQUIRED
-5. Wait for response → repeat
+4. update_status("Still going — run 3 of 6...")  ← every ~10 min, REQUIRED for long work
+5. chat_with_human("Done! Here's what I did. What's next?")  ← REQUIRED
+6. Wait for response → repeat
 ```
 
 ---

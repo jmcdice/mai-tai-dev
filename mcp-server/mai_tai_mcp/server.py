@@ -438,6 +438,13 @@ def update_status(
     - Progress updates: "Finished the backend, moving to frontend..."
     - Milestones: "Tests passing, about to commit..."
     - Quick status: "Still working on this, found an interesting edge case..."
+    - BEFORE blocking on anything slow: "Running the full suite, ~4 min, back shortly..."
+    - Every ~10 minutes during long work: "Run 3 of 6 on the flaky test, still digging."
+
+    HEARTBEAT RULE: never go more than ~10 minutes without sending one of these while you
+    are working. The human cannot see your terminal - to them, silent hard work and a dead
+    process look identical, and they will assume you are stuck. This tool is non-blocking
+    and costs you nothing, so when in doubt, ping.
 
     DO NOT USE THIS TOOL WHEN:
     - You need a response before continuing (use chat_with_human)

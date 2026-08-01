@@ -4,9 +4,29 @@
 
 set -euo pipefail
 
-# Auth: support both OAuth token (Pro/Max subscription) and standard API key
-if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
-  echo "[mai-tai-agent] ERROR: Set either ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN"
+# Auth: OAuth token (Pro/Max subscription), standard API key, or Vertex AI.
+if [ "${CLAUDE_CODE_USE_VERTEX:-}" = "1" ]; then
+  # The backend passes the host's Application Default Credentials as JSON —
+  # bind-mounting them doesn't work, since the host file is owned by the host
+  # user and unreadable to this container's unprivileged `agent` user.
+  if [ -n "${GOOGLE_ADC_JSON:-}" ]; then
+    mkdir -p ~/.config/gcloud
+    printf '%s' "${GOOGLE_ADC_JSON}" > ~/.config/gcloud/application_default_credentials.json
+    chmod 600 ~/.config/gcloud/application_default_credentials.json
+    export GOOGLE_APPLICATION_CREDENTIALS=~/.config/gcloud/application_default_credentials.json
+    unset GOOGLE_ADC_JSON
+  fi
+  if [ ! -r "${GOOGLE_APPLICATION_CREDENTIALS:-/nonexistent}" ]; then
+    echo "[mai-tai-agent] ERROR: CLAUDE_CODE_USE_VERTEX=1 but no usable ADC (set GOOGLE_ADC_JSON or GOOGLE_APPLICATION_CREDENTIALS)"
+    exit 1
+  fi
+  echo "[mai-tai-agent] Auth: Vertex AI (project ${ANTHROPIC_VERTEX_PROJECT_ID:-unset}, region ${CLOUD_ML_REGION:-unset})"
+elif [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+  echo "[mai-tai-agent] Auth: Claude OAuth token"
+elif [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  echo "[mai-tai-agent] Auth: Anthropic API key"
+else
+  echo "[mai-tai-agent] ERROR: Set ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, or Vertex AI env"
   exit 1
 fi
 
@@ -67,8 +87,19 @@ else
 SETTINGS_EOF
 fi
 
-# Skip onboarding prompt (required for headless mode)
-echo '{"hasCompletedOnboarding": true}' > ~/.claude.json
+# Skip onboarding prompt (required for headless mode) and pre-trust the
+# workspace, otherwise Claude discards the permissions.allow entries above
+# ("this workspace has not been trusted") since nobody can accept the dialog.
+cat > ~/.claude.json << CLAUDE_JSON_EOF
+{
+  "hasCompletedOnboarding": true,
+  "projects": {
+    "${WORKDIR}": {
+      "hasTrustDialogAccepted": true
+    }
+  }
+}
+CLAUDE_JSON_EOF
 
 echo "[mai-tai-agent] Starting driver loop..."
 exec python3 /home/agent/driver.py

@@ -2,8 +2,8 @@
 # Runs OpenAI Codex turns under the mai-tai driver loop, connected to a
 # workspace via the Mai-Tai MCP server + REST API.
 #
-# Build (from the repo root; the build context is agents/):
-#   docker build -t mai-tai-agent-codex:latest -f agents/codex/Dockerfile agents/
+# BUILD FROM THE REPO ROOT — the context must include mcp-server/:
+#   docker build -t mai-tai-agent-codex:latest -f agents/codex/Dockerfile .
 #
 # Required env vars at runtime:
 #   OPENAI_API_KEY       - OpenAI API key
@@ -45,16 +45,22 @@ RUN useradd -m -s /bin/bash agent \
     && chown -R agent:agent /home/agent
 USER agent
 
-# Install uv for the agent user (runs the mai-tai MCP server via uvx)
+# Install uv for the agent user
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/home/agent/.local/bin:$PATH"
+
+# Vendored Mai-Tai MCP server — see agents/claude-code/Dockerfile for why this
+# is baked in rather than pulled from PyPI at runtime.
+COPY --chown=agent:agent mcp-server /home/agent/mcp-server
+RUN uv tool install /home/agent/mcp-server \
+    && test -x /home/agent/.local/bin/mai-tai-mcp
 
 WORKDIR /home/agent/workspace
 
 # Shared driver + bootstrap, runtime entrypoint
-COPY --chown=agent:agent common/driver.py /home/agent/driver.py
-COPY --chown=agent:agent common/bootstrap.sh /home/agent/bootstrap.sh
-COPY --chown=agent:agent codex/entrypoint.sh /home/agent/entrypoint.sh
+COPY --chown=agent:agent agents/common/driver.py /home/agent/driver.py
+COPY --chown=agent:agent agents/common/bootstrap.sh /home/agent/bootstrap.sh
+COPY --chown=agent:agent agents/codex/entrypoint.sh /home/agent/entrypoint.sh
 RUN chmod +x /home/agent/entrypoint.sh /home/agent/bootstrap.sh
 
 ENTRYPOINT ["/home/agent/entrypoint.sh"]

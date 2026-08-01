@@ -46,7 +46,10 @@ jobs:
         run: cd backend && pip install -r requirements.txt
         
       - name: Install ruff
-        run: pip install ruff
+        # Pinned. ruff.toml relies on ruff's default rule selection, so an
+        # unpinned install turns every upstream release into a potential CI
+        # break unrelated to the change under test — 0.16 did exactly that.
+        run: pip install "ruff==0.14.0"
         
       - name: Lint with ruff
         run: cd backend && ruff check .

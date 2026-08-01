@@ -14,7 +14,12 @@ Thumbs.db
 .env
 .env.local
 .env.mai-tai
+.env.imported
 .envrc
+
+# Deployment bundles from scripts/mai-tai-config.sh — these carry plaintext
+# credentials and full message history by default.
+mai-tai-export-*.tar.gz
 frontend/.env.local
 
 # TLS certificates

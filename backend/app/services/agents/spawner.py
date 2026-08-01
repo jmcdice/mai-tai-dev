@@ -24,6 +24,16 @@ AGENT_NETWORK = os.environ.get("AGENT_NETWORK", "mai-tai-dev_agents")
 # Host mai-tai config (mounted read-only into backend container)
 HOST_CONFIG_PATH = Path(os.environ.get("HOST_MAI_TAI_CONFIG", "/host-mai-tai-config/config"))
 
+# Host gcloud config, mounted read-only into the backend so we can read ADC.
+GCLOUD_MOUNT_PATH = Path(os.environ.get("HOST_GCLOUD_MOUNT", "/host-gcloud"))
+HOST_ADC_PATH = GCLOUD_MOUNT_PATH / "application_default_credentials.json"
+
+# Deployment-wide model override. A runtime's default_model is an alias
+# ("sonnet") that resolves to whatever version the backing deployment serves —
+# on Vertex that may be a version the project isn't entitled to. This lets an
+# operator pin a concrete model without touching every workspace.
+AGENT_MODEL_OVERRIDE = os.environ.get("AGENT_MODEL", "").strip()
+
 # Container name prefix
 CONTAINER_PREFIX = "maitai-agent-"
 
@@ -42,6 +52,38 @@ def _get_host_mai_tai_key() -> str | None:
     except (IOError, OSError):
         pass
     return None
+
+
+def get_host_vertex_config() -> dict[str, str] | None:
+    """Build Vertex auth env from the host's gcloud ADC, if Vertex is enabled.
+
+    Lets a deployment run Claude Code agents off the operator's GCP project
+    instead of requiring every user to paste an Anthropic key. Returns None
+    (rather than raising) whenever Vertex isn't fully configured, so callers
+    can fall back to per-user credentials.
+    """
+    if os.environ.get("CLAUDE_CODE_USE_VERTEX", "").strip().lower() not in ("1", "true"):
+        return None
+
+    project_id = os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID", "").strip()
+    if not project_id:
+        logger.warning("CLAUDE_CODE_USE_VERTEX is set but ANTHROPIC_VERTEX_PROJECT_ID is empty")
+        return None
+
+    try:
+        adc_json = HOST_ADC_PATH.read_text().strip()
+    except OSError as e:
+        logger.warning("Vertex enabled but ADC unreadable at %s: %s", HOST_ADC_PATH, e)
+        return None
+    if not adc_json:
+        return None
+
+    return {
+        "CLAUDE_CODE_USE_VERTEX": "1",
+        "ANTHROPIC_VERTEX_PROJECT_ID": project_id,
+        "CLOUD_ML_REGION": os.environ.get("CLOUD_ML_REGION", "global").strip() or "global",
+        "GOOGLE_ADC_JSON": adc_json,
+    }
 
 
 def _get_docker_client() -> docker.DockerClient:
@@ -131,7 +173,7 @@ def start_agent(
         "AGENT_PURPOSE": purpose or "General-purpose agent.",
         "AGENT_TEMPLATE": template,
         "AGENT_RUNTIME": spec.id,
-        "AGENT_MODEL": model or spec.default_model,
+        "AGENT_MODEL": AGENT_MODEL_OVERRIDE or model or spec.default_model,
         **auth_env,
     }
 

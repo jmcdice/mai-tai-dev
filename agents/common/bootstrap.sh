@@ -176,8 +176,8 @@ cat > /tmp/mcp-config.json << MCP_EOF
 {
   "mcpServers": {
     "mai-tai": {
-      "command": "uvx",
-      "args": ["--refresh", "mai-tai-mcp"],
+      "command": "/home/agent/.local/bin/mai-tai-mcp",
+      "args": [],
       "env": {
         "MAI_TAI_DRIVER_MODE": "1",
         "MAI_TAI_MEMORY_DIR": "${MEMORY_DIR}"

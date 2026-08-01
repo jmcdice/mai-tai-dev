@@ -137,8 +137,17 @@ See `.env.example` for all options. Key settings:
 | `CORS_ORIGINS` | JSON array of allowed origins |
 | `REGISTRATION_ENABLED` | Set `false` to disable new signups (also toggleable in admin UI) |
 | `AGENT_IMAGE` | Docker image for agent containers (default: `mai-tai-agent:latest`) |
+| `AGENT_MODEL` | Model agents run (default: `sonnet`) |
+| `CLAUDE_CODE_USE_VERTEX` | Set `1` to auth agents via Google Vertex AI instead of an Anthropic key |
+| `ANTHROPIC_VERTEX_PROJECT_ID` | GCP project for Vertex (required when Vertex is on) |
+| `CLOUD_ML_REGION` | Vertex region (default: `global`) |
 | `GITHUB_CLIENT_ID/SECRET` | GitHub OAuth (optional) |
 | `GOOGLE_CLIENT_ID/SECRET` | Google OAuth (optional) |
+
+With Vertex enabled, the backend reads the host's Application Default
+Credentials (`~/.config/gcloud`, mounted read-only) and passes them to each
+agent container — no per-user Anthropic key needed. Run `gcloud auth
+application-default login` on the host first.
 
 ### Building the Agent Image
 
@@ -158,6 +167,47 @@ Persistent memory lives on the per-workspace volume: `MEMORY.md` (curated,
 size-capped, loaded every session), `journal/` (daily notes), and
 `tasks/lessons.md` — plus a `search_history` tool backed by Postgres full-text
 search over the workspace's entire message history.
+
+## Migrating to Another Host
+
+`scripts/mai-tai-config.sh` moves a whole deployment — users, workspaces,
+agents, and full message history — to another machine.
+
+```bash
+# On the source host
+./scripts/mai-tai-config.sh export mai-tai-backup.tar.gz
+./scripts/mai-tai-config.sh inspect mai-tai-backup.tar.gz   # peek without restoring
+
+# On the target host
+./scripts/mai-tai-config.sh check-env                       # what's missing from .env
+./scripts/mai-tai-config.sh import mai-tai-backup.tar.gz    # prompts before wiping
+```
+
+### ⚠️ Treat the bundle as a secret
+
+By default the dump is byte-for-byte complete, so the credentials in
+`users.settings` (Anthropic/OpenAI keys, GitHub token, LLM keys) travel with
+it. That's deliberate — the target comes up as a working copy with nothing to
+re-enter. The tradeoff is that the tarball *is* credential material. It's
+written mode `0600`, `mai-tai-export-*.tar.gz` is gitignored, and you should
+delete it once the move is done.
+
+Those settings are Fernet-encrypted at rest, but the key comes from
+`ENCRYPTION_KEY` — or, when that's unset, from `SECRET_KEY` — so **the target
+needs the same values or the restored credentials decrypt to nothing**. Import
+fingerprints both ends and warns on a mismatch before it touches the database.
+
+| Flag | Effect |
+|---|---|
+| *(none)* | Full fidelity — credentials included, nothing to re-enter on the target |
+| `--scrub` | Strip credentials from `users.settings`; safe to store, but you re-enter keys in **Settings → AI** |
+| `--with-env` | Also bundle `.env`. Import writes it to `.env.imported` for review rather than overwriting |
+
+Password hashes and `mt_` API-key hashes are always included, so logins and
+existing agent configs keep working on the target.
+
+Either way, copy `~/.config/mai-tai/config` across so existing `mt_` API keys
+still authenticate.
 
 ## Contributing
 
