@@ -351,6 +351,8 @@ export default function WorkspacePage() {
             <Button
               buttonType="ghost"
               buttonSize="sm"
+              aria-label="Schedules"
+              title="Schedules"
               onClick={() => setShowSchedules(true)}
             >
               <ClockIcon className="h-5 w-5" />
@@ -359,6 +361,8 @@ export default function WorkspacePage() {
             <Button
               buttonType="ghost"
               buttonSize="sm"
+              aria-label="Workspace settings"
+              title="Workspace settings"
               onClick={() => setShowSettings(true)}
             >
               <Cog6ToothIcon className="h-5 w-5" />
