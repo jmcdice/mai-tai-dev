@@ -143,7 +143,7 @@ See `.env.example` for all options. Key settings:
 ### Building the Agent Image
 
 ```bash
-docker build -t mai-tai-agent:latest ./agent
+docker build -f agent/Dockerfile -t mai-tai-agent:latest .
 ```
 
 This image is required for agent workspaces. Rebuild after changes to `agent/`.

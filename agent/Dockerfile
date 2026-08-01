@@ -1,8 +1,15 @@
 # Mai-Tai Agent Container
 # Runs a Claude Code instance connected to a Mai-Tai workspace via MCP.
 #
+# BUILD FROM THE REPO ROOT — the build context must include mcp-server/:
+#   docker build -f agent/Dockerfile -t mai-tai-agent:latest .
+#
+# Claude auth (need exactly one):
+#   ANTHROPIC_API_KEY       - Anthropic API key (sk-ant-api...)
+#   CLAUDE_CODE_OAUTH_TOKEN - Pro/Max subscription token (sk-ant-oat...)
+#   CLAUDE_CODE_USE_VERTEX=1 + ANTHROPIC_VERTEX_PROJECT_ID + GOOGLE_ADC_JSON
+#
 # Required env vars at runtime:
-#   ANTHROPIC_API_KEY    - Anthropic API key for Claude
 #   MAI_TAI_API_URL      - Mai-Tai backend URL (e.g. http://backend:8000)
 #   MAI_TAI_API_KEY      - Mai-Tai API key (mt_...)
 #   MAI_TAI_WORKSPACE_ID - Workspace UUID
@@ -11,6 +18,7 @@
 #   AGENT_NAME           - Agent display name (default: "Agent")
 #   AGENT_PURPOSE        - What this agent should do
 #   AGENT_TEMPLATE       - Template type: research, monitor, assistant, custom
+#   AGENT_MODEL          - Model to run (default: sonnet)
 
 FROM node:20-slim
 
@@ -44,11 +52,19 @@ USER agent
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/home/agent/.local/bin:$PATH"
 
+# Install the Mai-Tai MCP server from vendored source rather than PyPI. Pulling
+# it at runtime with `uvx --refresh` re-resolves dependencies on every start,
+# so a bad upstream release breaks every agent at once — and it silently skews
+# from the source in this repo. Baking it in pins both.
+COPY --chown=agent:agent mcp-server /home/agent/mcp-server
+RUN uv tool install /home/agent/mcp-server \
+    && /home/agent/.local/bin/mai-tai-mcp --help > /dev/null 2>&1 || true
+
 # Create agent workspace
 WORKDIR /home/agent/workspace
 
 # Copy entrypoint
-COPY --chown=agent:agent entrypoint.sh /home/agent/entrypoint.sh
+COPY --chown=agent:agent agent/entrypoint.sh /home/agent/entrypoint.sh
 RUN chmod +x /home/agent/entrypoint.sh
 
 ENTRYPOINT ["/home/agent/entrypoint.sh"]

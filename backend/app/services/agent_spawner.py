@@ -20,8 +20,16 @@ AGENT_IMAGE = os.environ.get("AGENT_IMAGE", "mai-tai-agent:latest")
 # Docker network (same network as the backend)
 AGENT_NETWORK = os.environ.get("AGENT_NETWORK", "mai-tai-dev_default")
 
+# Model agents run. Must be a model the backing deployment actually serves —
+# on Vertex the alias "sonnet" resolves to a version that may not be enabled.
+AGENT_MODEL = os.environ.get("AGENT_MODEL", "").strip()
+
 # Host mai-tai config (mounted read-only into backend container)
 HOST_CONFIG_PATH = Path(os.environ.get("HOST_MAI_TAI_CONFIG", "/host-mai-tai-config/config"))
+
+# Host gcloud config, mounted read-only into the backend so we can read ADC.
+GCLOUD_MOUNT_PATH = Path(os.environ.get("HOST_GCLOUD_MOUNT", "/host-gcloud"))
+HOST_ADC_PATH = GCLOUD_MOUNT_PATH / "application_default_credentials.json"
 
 
 def _get_host_mai_tai_key() -> str | None:
@@ -35,9 +43,43 @@ def _get_host_mai_tai_key() -> str | None:
                 continue
             if line.startswith("MAI_TAI_API_KEY="):
                 return line.split("=", 1)[1].strip()
-    except (IOError, OSError):
+    except OSError:
         pass
     return None
+
+
+def get_host_vertex_config() -> dict | None:
+    """Detect host Vertex AI auth for Claude Code.
+
+    Returns a dict of env vars for the agent container, or None if Vertex
+    isn't usable. Requires both the env config (project id) and Application
+    Default Credentials to actually be present on the host.
+    """
+    if os.environ.get("CLAUDE_CODE_USE_VERTEX", "").strip() not in ("1", "true", "True"):
+        return None
+
+    project_id = os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID", "").strip()
+    if not project_id:
+        return None
+
+    # Read the ADC and hand it to the agent as JSON rather than bind-mounting
+    # it. The host file is typically mode 0600 owned by the host user, so a
+    # read-only mount is unreadable to the container's unprivileged `agent`
+    # user; the entrypoint writes this out with the right ownership instead.
+    try:
+        adc_json = HOST_ADC_PATH.read_text().strip()
+    except OSError as e:
+        logger.warning("Vertex enabled but ADC unreadable at %s: %s", HOST_ADC_PATH, e)
+        return None
+    if not adc_json:
+        return None
+
+    return {
+        "CLAUDE_CODE_USE_VERTEX": "1",
+        "ANTHROPIC_VERTEX_PROJECT_ID": project_id,
+        "CLOUD_ML_REGION": os.environ.get("CLOUD_ML_REGION", "global").strip() or "global",
+        "GOOGLE_ADC_JSON": adc_json,
+    }
 
 # Container name prefix
 CONTAINER_PREFIX = "maitai-agent-"
@@ -88,6 +130,7 @@ def start_agent(
     template: str = "custom",
     github_token: str | None = None,
     repo_url: str | None = None,
+    vertex_config: dict | None = None,
 ) -> dict:
     """Start a Claude Code agent in a Docker container.
 
@@ -97,6 +140,8 @@ def start_agent(
         api_key: Mai-Tai API key (mt_...) for MCP authentication.
         anthropic_api_key: Standard Anthropic API key (sk-ant-api03-*).
         claude_oauth_token: OAuth token for Pro/Max subscription (sk-ant-oat01-*).
+        vertex_config: Vertex AI env vars from get_host_vertex_config(). Used
+            when no explicit Anthropic credential is supplied.
         api_url: Mai-Tai backend URL. Defaults to http://backend:8000 (Docker internal).
         purpose: What this agent should do.
         template: Agent template type (research, monitor, assistant, custom).
@@ -104,8 +149,14 @@ def start_agent(
     Returns:
         Dict with status and container info.
     """
-    if not anthropic_api_key and not claude_oauth_token:
-        return {"status": "error", "message": "Either anthropic_api_key or claude_oauth_token is required"}
+    if not anthropic_api_key and not claude_oauth_token and not vertex_config:
+        return {
+            "status": "error",
+            "message": (
+                "No Claude credential available. Provide an Anthropic API key or OAuth "
+                "token in Settings > AI, or configure Vertex AI on the host."
+            ),
+        }
 
     client = _get_docker_client()
     name = _container_name(workspace_id)
@@ -142,20 +193,28 @@ def start_agent(
         "AGENT_TEMPLATE": template,
     }
 
+    if AGENT_MODEL:
+        environment["AGENT_MODEL"] = AGENT_MODEL
+
     # Set GitHub token and repo URL for coder template
     if github_token:
         environment["GITHUB_TOKEN"] = github_token
     if repo_url:
         environment["REPO_URL"] = repo_url
 
-    # Set auth: prefer OAuth token (Pro/Max subscription), fall back to API key
+    # Persistent memory volume — survives container restarts
+    memory_volume = f"maitai-agent-memory-{str(workspace_id)}"
+    volumes = {
+        memory_volume: {"bind": "/home/agent/memory", "mode": "rw"},
+    }
+
+    # Set auth: explicit credentials win, otherwise fall back to host Vertex.
     if claude_oauth_token:
         environment["CLAUDE_CODE_OAUTH_TOKEN"] = claude_oauth_token
     elif anthropic_api_key:
         environment["ANTHROPIC_API_KEY"] = anthropic_api_key
-
-    # Persistent memory volume — survives container restarts
-    memory_volume = f"maitai-agent-memory-{str(workspace_id)}"
+    elif vertex_config:
+        environment.update(vertex_config)
 
     try:
         container = client.containers.run(
@@ -166,9 +225,7 @@ def start_agent(
             detach=True,
             restart_policy={"Name": "unless-stopped"},
             mem_limit="512m",
-            volumes={
-                memory_volume: {"bind": "/home/agent/memory", "mode": "rw"},
-            },
+            volumes=volumes,
             labels={
                 "mai-tai.agent": "true",
                 "mai-tai.workspace-id": str(workspace_id),

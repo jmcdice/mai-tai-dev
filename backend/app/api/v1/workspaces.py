@@ -20,7 +20,7 @@ from app.models.user import User
 from app.schemas.api_key import ApiKeyCreate, ApiKeyListItem, ApiKeyListResponse, ApiKeyResponse
 from app.schemas.workspace import WorkspaceCreate, WorkspaceListResponse, WorkspaceResponse, WorkspaceUpdate
 from app.schemas.message import MessageCreate, MessageListResponse, MessageResponse
-from app.services.agent_spawner import AGENT_TEMPLATES, start_agent, stop_agent, get_agent_status as get_container_status, get_agent_logs
+from app.services.agent_spawner import AGENT_TEMPLATES, get_host_vertex_config, start_agent, stop_agent, get_agent_status as get_container_status, get_agent_logs
 
 logger = logging.getLogger(__name__)
 
@@ -433,17 +433,24 @@ async def start_agent_endpoint(
             detail="Only agent workspaces can have agents started",
         )
 
-    # Get Anthropic auth from user settings (supports both API key and OAuth token)
+    # Get Anthropic auth from user settings (supports both API key and OAuth token).
+    # If none is set, fall back to the host's Vertex AI config — same pattern as
+    # the Mai-Tai API key, so a Vertex-authed host needs no per-user setup.
     user_settings = current_user.settings or {}
     anthropic_api_key = user_settings.get("anthropic_api_key")
-    if not anthropic_api_key:
+    vertex_config = get_host_vertex_config() if not anthropic_api_key else None
+
+    if not anthropic_api_key and not vertex_config:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Anthropic API key not configured. Add it in Settings > AI.",
+            detail=(
+                "No Claude credential available. Add an Anthropic API key or OAuth "
+                "token in Settings > AI, or configure Vertex AI on the host."
+            ),
         )
 
     # Detect key type: OAuth tokens start with sk-ant-oat, API keys with sk-ant-api
-    is_oauth_token = anthropic_api_key.startswith("sk-ant-oat")
+    is_oauth_token = bool(anthropic_api_key) and anthropic_api_key.startswith("sk-ant-oat")
 
     # Get agent config
     agent_config = workspace.agent_config or {}
@@ -464,6 +471,7 @@ async def start_agent_endpoint(
         template=template,
         github_token=github_token,
         repo_url=repo_url,
+        vertex_config=vertex_config,
     )
 
     if result["status"] == "error":

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mai-tai-mcp"
-version = "0.4.7"
+version = "0.4.9"
 description = "MCP server for mai-tai AI agent collaboration platform"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -25,7 +25,10 @@ classifiers = [
 ]
 
 dependencies = [
-    "mcp>=0.9.0",
+    # Pinned below 2.0: mcp 2.x dropped `mcp.server.fastmcp`, which server.py
+    # imports. An unpinned range resolves to 2.x on fresh installs and breaks
+    # the server at import time.
+    "mcp>=1.0,<2",
     "httpx>=0.25.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
