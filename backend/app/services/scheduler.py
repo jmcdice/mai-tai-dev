@@ -110,7 +110,7 @@ def _maybe_wake_agent(workspace: Workspace, owner: User | None) -> str:
 
     from app.core.crypto import get_user_secret
     from app.schemas.workspace import AgentConfig
-    from app.services.agents import get_agent_status, get_runtime, start_agent
+    from app.services.agents import get_agent_status, get_runtime, resolve_auth_env, start_agent
 
     try:
         if get_agent_status(workspace.id).get("running"):
@@ -129,18 +129,12 @@ def _maybe_wake_agent(workspace: Workspace, owner: User | None) -> str:
         return "delivered (runtime unavailable — not woken)"
 
     settings = (owner.settings if owner else None) or {}
-    credential = get_user_secret(settings, runtime.credential_setting)
-    if not credential:
+    # Same resolution the start-agent endpoint uses, host Vertex fallback and
+    # all — a Vertex deployment stores no per-user credential, and resolving it
+    # here separately is exactly how this path came to silently never wake.
+    auth_env = resolve_auth_env(runtime, settings)
+    if not auth_env:
         return "delivered (no credential — not woken)"
-
-    if runtime.id == "claude-code":
-        auth_env = (
-            {"CLAUDE_CODE_OAUTH_TOKEN": credential}
-            if credential.startswith("sk-ant-oat")
-            else {"ANTHROPIC_API_KEY": credential}
-        )
-    else:
-        auth_env = {"OPENAI_API_KEY": credential}
 
     result = start_agent(
         workspace_id=workspace.id,
