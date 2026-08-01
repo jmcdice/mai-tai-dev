@@ -13,6 +13,7 @@ from uuid import UUID
 import docker
 from docker.errors import DockerException, NotFound, APIError
 
+from app.core.crypto import get_user_secret
 from app.services.agents.runtimes import RuntimeSpec, get_runtime
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,34 @@ def get_host_vertex_config() -> dict[str, str] | None:
         "CLOUD_ML_REGION": os.environ.get("CLOUD_ML_REGION", "global").strip() or "global",
         "GOOGLE_ADC_JSON": adc_json,
     }
+
+
+# Claude Pro/Max subscription tokens carry this prefix and go in their own
+# environment variable; anything else is a standard API key.
+OAUTH_TOKEN_PREFIX = "sk-ant-oat"
+
+
+def resolve_auth_env(runtime: RuntimeSpec, user_settings: dict | None) -> dict[str, str] | None:
+    """Auth env for a runtime, from the user's credential or the host's Vertex config.
+
+    The single source of truth for "how does this agent authenticate" — every
+    caller that starts a container must go through here. Claude Code
+    distinguishes OAuth tokens (Pro/Max subscription) from standard API keys,
+    and falls back to host Vertex when the user has no key of their own, so a
+    Vertex deployment needs no per-user setup.
+
+    Returns None when nothing resolves; the caller decides how to report that.
+    """
+    credential = get_user_secret(user_settings or {}, runtime.credential_setting)
+
+    if runtime.id != "claude-code":
+        return {"OPENAI_API_KEY": credential} if credential else None
+
+    if not credential:
+        return get_host_vertex_config()
+    if credential.startswith(OAUTH_TOKEN_PREFIX):
+        return {"CLAUDE_CODE_OAUTH_TOKEN": credential}
+    return {"ANTHROPIC_API_KEY": credential}
 
 
 def _get_docker_client() -> docker.DockerClient:

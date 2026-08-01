@@ -25,8 +25,8 @@ from app.schemas.message import MessageCreate, MessageListResponse, MessageRespo
 from app.services.agents import (
     AGENT_TEMPLATES,
     RUNTIMES,
-    get_host_vertex_config,
     get_runtime,
+    resolve_auth_env,
     start_agent,
     stop_agent,
     get_agent_status as get_container_status,
@@ -491,39 +491,18 @@ async def start_agent_endpoint(
             detail=f"Agent runtime '{config.runtime}' is not available on this server.",
         )
 
-    # Resolve (and decrypt) the credential this runtime needs from user settings
+    # Resolve (and decrypt) the credential this runtime needs, falling back to
+    # host Vertex for Claude Code. Shared with the scheduler's wake path.
     user_settings = current_user.settings or {}
-    credential = get_user_secret(user_settings, runtime.credential_setting)
-
-    # Build runtime auth env. Claude Code distinguishes OAuth tokens
-    # (sk-ant-oat*, Pro/Max subscription) from standard API keys, and can fall
-    # back to the host's Vertex AI config when the user has no key of their own
-    # — same pattern as the Mai-Tai API key, so a Vertex host needs no per-user
-    # setup.
-    auth_env: dict[str, str] | None = None
-    if runtime.id == "claude-code":
-        if credential:
-            if credential.startswith("sk-ant-oat"):
-                auth_env = {"CLAUDE_CODE_OAUTH_TOKEN": credential}
-            else:
-                auth_env = {"ANTHROPIC_API_KEY": credential}
-        else:
-            auth_env = get_host_vertex_config()
-        if not auth_env:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"{runtime.credential_label} not configured. Add it in Settings > AI, "
-                    "or configure Vertex AI on the host."
-                ),
-            )
-    else:
-        if not credential:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"{runtime.credential_label} not configured. Add it in Settings > AI.",
-            )
-        auth_env = {"OPENAI_API_KEY": credential}
+    auth_env = resolve_auth_env(runtime, user_settings)
+    if not auth_env:
+        hint = (
+            " or configure Vertex AI on the host" if runtime.id == "claude-code" else ""
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{runtime.credential_label} not configured. Add it in Settings > AI{hint}.",
+        )
 
     # Get GitHub token for coder agents
     github_token = get_user_secret(user_settings, "github_token") if config.template == "coder" else None
