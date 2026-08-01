@@ -78,6 +78,58 @@ Use this when you need a response, or when you're done with a task. It waits for
 **WRONG:** Announcing what you're going to do via `chat_with_human` and waiting before actually doing it.
 **RIGHT:** Acknowledge with `update_status`, do the work, then report with `chat_with_human`.
 
+## CRITICAL: The Heartbeat Rule - Never Go Quiet For More Than ~10 Minutes
+
+**The human cannot see your terminal.** They only see the messages you send. To them, a long
+silent stretch of hard work and a crashed process look EXACTLY THE SAME. If you go quiet for
+30 minutes while grinding on something, they will assume you are stuck, and they will be right
+to - they have no way to tell the difference.
+
+So: **while you are working, send an `update_status` at least every ~10 minutes.** It is
+non-blocking and costs you nothing. A silent agent is a worrying agent.
+
+### Send a heartbeat BEFORE you block
+
+Any time you're about to run something that could take more than a couple of minutes, say so
+first - then run it:
+
+```
+update_status("Running the full Playwright suite - this takes ~4 min, back shortly...")
+<run the long command>
+update_status("Suite passed, 2 flakes. Digging into the flaky campaign test now...")
+```
+
+**Things that deserve a heads-up before you start:**
+- Test suites, browser automation, screenshots
+- Builds, installs, Docker image pulls
+- Anything you're wrapping in a multi-minute timeout
+- Big refactors across many files
+
+### Send a heartbeat DURING long loops
+
+Debugging loops are the worst offender - you re-run the same thing eight times chasing a flake
+and forty minutes vanish. Ping between iterations:
+
+```
+update_status("Run 3 of 6 on the flaky test - failed again, suspect a race in the respawn timer.")
+```
+
+### What a good heartbeat looks like
+
+One line. What you're doing, and roughly where you are. No essays - save the detail for the
+`chat_with_human` report at the end.
+
+- ✅ `"Still on the merge conflict - 3 of 11 files resolved."`
+- ✅ `"Build's running, ~2 min. Then I'll re-run the campaign test."`
+- ✅ `"Hit a snag with pointer-lock, trying a different approach - not stuck, just slow."`
+- ❌ Forty minutes of nothing, then a giant wall of text.
+
+### The test
+
+Before you start any chunk of work, ask: *"Could this take more than ten minutes?"* If yes,
+or if you're not sure, fire an `update_status` first. When in doubt, ping. The human would
+much rather get one extra line than sit there wondering if you died.
+
 ## When You Finish a Task
 
 **ALWAYS call `chat_with_human`!** This is non-negotiable. Examples:
@@ -116,8 +168,9 @@ The human announces they're stepping away without a specific task:
 ### While They're Away
 
 - **Keep working autonomously** on the task they gave you.
-- **Use `update_status` for progress** - Send updates at major milestones. Since they're AFK, they'll
-  see them when they check back.
+- **Use `update_status` for progress** - Send updates at major milestones AND at least every ~10
+  minutes of continuous work. Since they're AFK, they'll see them when they check back - and a
+  trail of heartbeats is how they know you kept going instead of dying quietly.
 - **Use `chat_with_human` when done** - Even if they're away, call this when you finish. They'll see
   your completion message and can respond when they're back.
 - **Batch non-urgent questions** - group smaller questions together when possible.
@@ -147,13 +200,16 @@ You can set a specific timeout if needed:
 Keep the human informed with `update_status`, but don't spam them:
 
 - **Major milestones** - `update_status("Auth refactor done, starting on tests now...")`
+- **Every ~10 minutes during long work** - see the Heartbeat Rule above. This is the floor, not a suggestion.
 - **When you hit a snag** - `chat_with_human("Running into an issue with the DB connection. Any ideas?")` (use chat because you need an answer)
 - **When you finish** - `chat_with_human("All done! Here's what I did...")` (ALWAYS use chat when done)
 
-**Too quiet:** Human wonders if you're stuck or still working.
+**Too quiet:** Human assumes you're stuck or dead, and starts debugging a bot that was fine.
 **Too chatty:** Human gets notification fatigue and ignores updates.
 
-Find the balance - think "helpful coworker", not "status report bot".
+Find the balance - think "helpful coworker", not "status report bot". But note the failure modes
+are not symmetric: being too quiet makes the human worry and go investigate, which wastes their
+time and yours. Being slightly too chatty costs them two seconds. **When unsure, err toward chatty.**
 
 ## Other Tools
 
@@ -198,6 +254,8 @@ When in doubt, tell the human what happened: "I got an error trying to X - here'
 |-----------|-------------|
 | Starting a task | `update_status` |
 | Progress update | `update_status` |
+| About to run something slow (tests, builds, browser automation) | `update_status` ⚠️ BEFORE you block |
+| Still grinding after ~10 min of silence | `update_status` ⚠️ REQUIRED |
 | Need an answer | `chat_with_human` |
 | Finished a task | `chat_with_human` ⚠️ REQUIRED |
 | Have a question | `chat_with_human` |

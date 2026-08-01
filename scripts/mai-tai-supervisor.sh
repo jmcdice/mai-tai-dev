@@ -49,7 +49,7 @@ cd "$REPO_DIR" || { echo "FATAL: cannot cd to $REPO_DIR"; exit 1; }
 export CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT=0
 
 # Expanded form of the `yolo` alias plus the mai-tai activation prompt.
-CLAUDE_CMD=(claude --model claude-opus-4-8 --dangerously-skip-permissions "/mai-tai start")
+CLAUDE_CMD=(claude --model claude-opus-5 --dangerously-skip-permissions "/mai-tai start")
 
 MIN_BACKOFF=3
 MAX_BACKOFF=60
