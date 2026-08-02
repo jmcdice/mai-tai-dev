@@ -171,6 +171,15 @@ size-capped, loaded every session), `journal/` (daily notes), and
 `tasks/lessons.md` — plus a `search_history` tool backed by Postgres full-text
 search over the workspace's entire message history.
 
+Tools the agent installs for itself land there too. `uv tool install` is
+redirected to `memory/tools/`, so a CLI an agent needed once is still there
+after a restart — which matters most for scheduled tasks, since a job that
+depended on a vanished install fails silently at 5am. The container is
+otherwise immutable: the agent is not root, there is no sudo, and `apt-get`
+will not work. `memory/tools/bin` is appended to `PATH` rather than prepended,
+so a self-installed binary can't shadow `python3` or `git` and survive a
+restart doing it.
+
 ## Migrating to Another Host
 
 `scripts/mai-tai-config.sh` moves a whole deployment — users, workspaces,

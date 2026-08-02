@@ -61,6 +61,31 @@ COPY --chown=agent:agent mcp-server /home/agent/mcp-server
 RUN uv tool install /home/agent/mcp-server \
     && test -x /home/agent/.local/bin/mai-tai-mcp
 
+# Send anything the agent installs for itself to the memory volume — the only
+# path that survives a container cycle. Without this, `uv tool install` appears
+# to work and then silently vanishes on the next restart, and the way you find
+# out is a scheduled task that quietly stopped doing its job.
+#
+# This must come AFTER the vendored install above. Set any earlier and the MCP
+# server itself lands under /home/agent/memory, where the runtime volume mount
+# hides it and every agent boots with no mai-tai tools at all.
+#
+# memory/bin joins it so scripts the agent writes for itself are runnable by
+# name, which is how they get reused instead of rewritten every session.
+#
+# PATH is APPENDED, not prepended, on purpose. A self-installed binary that
+# shadowed python3 or git would now persist too, and restarting the container
+# would no longer clear it — the one recovery move that always worked. Agent
+# installs therefore lose ties against system tools; invoke by absolute path to
+# override one deliberately.
+#
+# UV_LINK_MODE=copy because the cache stays on the container layer while the
+# tool dir is on the volume; hardlinking across the two can't work.
+ENV UV_TOOL_DIR=/home/agent/memory/tools/uv \
+    UV_TOOL_BIN_DIR=/home/agent/memory/tools/bin \
+    UV_LINK_MODE=copy \
+    PATH="$PATH:/home/agent/memory/tools/bin:/home/agent/memory/bin"
+
 WORKDIR /home/agent/workspace
 
 # Shared driver + bootstrap, runtime entrypoint
