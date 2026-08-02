@@ -18,7 +18,18 @@ from app.schemas.message import (
     MessageListResponse,
     MessageResponse,
 )
+from app.schemas.scheduled_task import (
+    AgentScheduledTaskCreate,
+    SchedulePreviewRequest,
+    SchedulePreviewResponse,
+    ScheduledTaskListResponse,
+    ScheduledTaskResponse,
+    ScheduledTaskUpdate,
+    ScheduledTaskWithPreview,
+)
 from app.schemas.workspace import WorkspaceResponse
+from app.services import scheduled_tasks as schedules
+from app.services.scheduler import preview_runs
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
@@ -181,6 +192,87 @@ async def acknowledge_messages(
         "acknowledged": result.rowcount,
         "message_ids": data.message_ids,
     }
+
+
+# ============================================================================
+# Scheduled tasks — the agent-facing half of app/api/v1/scheduled_tasks.py.
+#
+# Same store, same service layer; the only difference is that the workspace
+# comes from the API key instead of a path parameter, so an agent physically
+# cannot address a workspace it isn't bound to.
+# ============================================================================
+
+
+def _with_preview(task) -> dict:
+    """Attach upcoming fire times so the agent can read the schedule back.
+
+    Empty for a disabled task: it has no upcoming fires, and listing the times
+    it *would* have run is how an agent ends up telling the human a paused job
+    is on for tomorrow morning.
+    """
+    data = ScheduledTaskResponse.model_validate(task).model_dump()
+    data["next_runs"] = (
+        preview_runs(task.cron_expression, task.timezone) if task.enabled else []
+    )
+    return data
+
+
+@router.post("/schedule-preview", response_model=SchedulePreviewResponse)
+async def mcp_schedule_preview(
+    data: SchedulePreviewRequest,
+    auth: ApiKeyAuth = Depends(get_api_key_auth),
+) -> dict:
+    """Next fire times for a cron expression, without creating anything."""
+    return {"next_runs": preview_runs(data.cron_expression, data.timezone)}
+
+
+@router.get("/scheduled-tasks", response_model=ScheduledTaskListResponse)
+async def mcp_list_scheduled_tasks(
+    auth: ApiKeyAuth = Depends(get_api_key_auth),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List this workspace's scheduled tasks."""
+    tasks = await schedules.list_tasks(auth.workspace_id, db)
+    return {"tasks": tasks, "total": len(tasks)}
+
+
+@router.post(
+    "/scheduled-tasks",
+    response_model=ScheduledTaskWithPreview,
+    status_code=status.HTTP_201_CREATED,
+)
+async def mcp_create_scheduled_task(
+    data: AgentScheduledTaskCreate,
+    auth: ApiKeyAuth = Depends(get_api_key_auth),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Create a scheduled task in this workspace."""
+    task = await schedules.create_task(auth.workspace_id, data, db)
+    return _with_preview(task)
+
+
+@router.patch("/scheduled-tasks/{task_id}", response_model=ScheduledTaskWithPreview)
+async def mcp_update_scheduled_task(
+    task_id: UUID,
+    data: ScheduledTaskUpdate,
+    auth: ApiKeyAuth = Depends(get_api_key_auth),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update a scheduled task — enable/disable, retime, or rewrite the prompt."""
+    task = await schedules.get_task(auth.workspace_id, task_id, db)
+    task = await schedules.update_task(task, data, db)
+    return _with_preview(task)
+
+
+@router.delete("/scheduled-tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def mcp_delete_scheduled_task(
+    task_id: UUID,
+    auth: ApiKeyAuth = Depends(get_api_key_auth),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Delete a scheduled task. Addressed by id only — never by name."""
+    task = await schedules.get_task(auth.workspace_id, task_id, db)
+    await schedules.delete_task(task, db)
 
 
 # Formatting instruction - always prepended to ensure clear, structured responses

@@ -218,7 +218,40 @@ Beyond `chat_with_human` and `update_status`, you have a few utility tools:
 | Tool | When to Use |
 |------|-------------|
 | `get_messages` | Catch up on message history. Useful at the start of a long task, after a timeout, or to see what the human said while you were working. |
+| `schedule` | Set up recurring prompts. See below. |
 | `get_project_info` | See workspace metadata. Rarely needed, but available. |
+
+## Recurring Work: the `schedule` Tool
+
+When the human describes something repeating — "check the build every
+morning", "remind me Fridays", "do this daily" — set it up yourself with
+`schedule`. Don't send them off to find a form.
+
+A scheduled task delivers its prompt into this chat on a cron and you pick it
+up as a normal message. So you're writing a note to a future you who has
+**none** of this conversation in context. "Do the thing we discussed" fires
+faithfully every morning and means nothing. Say what to do, where to look, and
+what finished looks like.
+
+Two things worth getting right:
+
+1. **`preview` before `create`, and confirm in plain language.** Read the
+   times back the way a person would say them — "5:00 AM Mountain, next one
+   tomorrow" — not as a cron string. Nobody can proofread `0 5 * * *`.
+2. **Never guess the timezone.** It's required for a reason. Ask if you don't
+   know. A job set in UTC for someone in Denver runs seven hours off, and
+   nothing looks wrong until the morning it doesn't happen.
+
+```
+schedule(action="preview", cron="0 5 * * *", timezone="America/Denver")
+schedule(action="create", name="Morning build check",
+         prompt="Check last night's CI on main. If anything failed, ...",
+         cron="0 5 * * *", timezone="America/Denver")
+```
+
+`list` gives you ids; `update` retimes or pauses (`enabled=False`); `delete`
+removes. Deleting is real — say which one you're about to remove and why
+before you do it.
 
 ## Workspaces
 
@@ -256,6 +289,7 @@ When in doubt, tell the human what happened: "I got an error trying to X - here'
 | Progress update | `update_status` |
 | About to run something slow (tests, builds, browser automation) | `update_status` ⚠️ BEFORE you block |
 | Still grinding after ~10 min of silence | `update_status` ⚠️ REQUIRED |
+| Human describes recurring work | `schedule` (preview → confirm → create) |
 | Need an answer | `chat_with_human` |
 | Finished a task | `chat_with_human` ⚠️ REQUIRED |
 | Have a question | `chat_with_human` |
