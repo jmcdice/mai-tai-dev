@@ -19,17 +19,17 @@ from app.schemas.message import (
     MessageResponse,
 )
 from app.schemas.scheduled_task import (
+    AgentSchedulePreviewResponse,
     AgentScheduledTaskCreate,
+    AgentScheduledTaskListResponse,
     SchedulePreviewRequest,
-    SchedulePreviewResponse,
-    ScheduledTaskListResponse,
     ScheduledTaskResponse,
     ScheduledTaskUpdate,
     ScheduledTaskWithPreview,
 )
 from app.schemas.workspace import WorkspaceResponse
 from app.services import scheduled_tasks as schedules
-from app.services.scheduler import preview_runs
+from app.services.scheduler import preview_runs_local
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
@@ -212,28 +212,28 @@ def _with_preview(task) -> dict:
     """
     data = ScheduledTaskResponse.model_validate(task).model_dump()
     data["next_runs"] = (
-        preview_runs(task.cron_expression, task.timezone) if task.enabled else []
+        preview_runs_local(task.cron_expression, task.timezone) if task.enabled else []
     )
     return data
 
 
-@router.post("/schedule-preview", response_model=SchedulePreviewResponse)
+@router.post("/schedule-preview", response_model=AgentSchedulePreviewResponse)
 async def mcp_schedule_preview(
     data: SchedulePreviewRequest,
     auth: ApiKeyAuth = Depends(get_api_key_auth),
 ) -> dict:
     """Next fire times for a cron expression, without creating anything."""
-    return {"next_runs": preview_runs(data.cron_expression, data.timezone)}
+    return {"next_runs": preview_runs_local(data.cron_expression, data.timezone)}
 
 
-@router.get("/scheduled-tasks", response_model=ScheduledTaskListResponse)
+@router.get("/scheduled-tasks", response_model=AgentScheduledTaskListResponse)
 async def mcp_list_scheduled_tasks(
     auth: ApiKeyAuth = Depends(get_api_key_auth),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """List this workspace's scheduled tasks."""
     tasks = await schedules.list_tasks(auth.workspace_id, db)
-    return {"tasks": tasks, "total": len(tasks)}
+    return {"tasks": [_with_preview(t) for t in tasks], "total": len(tasks)}
 
 
 @router.post(

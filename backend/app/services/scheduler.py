@@ -55,6 +55,22 @@ def preview_runs(cron_expression: str, tz_name: str, count: int = 3) -> list[dat
     return runs
 
 
+def preview_runs_local(cron_expression: str, tz_name: str, count: int = 3) -> list[datetime]:
+    """Next N fire times as aware datetimes in the task's own timezone.
+
+    Naive UTC is right for the web form: the browser localises it before a
+    human ever sees a number. An agent has no such step. Handed 11:00 for a
+    Denver job it will tell the human "11am" — the confident wrong answer this
+    field exists to prevent. Carrying the zone makes that unreadable as
+    anything but 5:00 AM Mountain.
+    """
+    tz = ZoneInfo(tz_name)
+    return [
+        run.replace(tzinfo=dt_timezone.utc).astimezone(tz)
+        for run in preview_runs(cron_expression, tz_name, count)
+    ]
+
+
 async def fire_task(db, task: ScheduledTask, manual: bool = False) -> str:
     """Deliver one firing of a task. Returns a status string for last_status.
 

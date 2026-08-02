@@ -95,9 +95,24 @@ class ScheduledTaskWithPreview(ScheduledTaskResponse):
     The agent has to confirm a schedule in plain language ("that's 5:00 AM
     Mountain, next three: ..."); making it derive those from a cron string
     itself is how you get a confident, wrong answer.
+
+    These carry the task's timezone offset, unlike the naive-UTC times the web
+    form gets. There's no browser in front of an agent to localise them, and an
+    unlabelled 11:00 on a Denver task reads as 11am.
     """
 
     next_runs: list[datetime]
+
+
+class AgentScheduledTaskListResponse(BaseModel):
+    """List for the agent surface — same shape as create and patch return.
+
+    "What do I have scheduled?" is the question most likely to be answered out
+    loud to the human, so it's the last place that should omit the fire times.
+    """
+
+    tasks: list[ScheduledTaskWithPreview]
+    total: int
 
 
 class SchedulePreviewRequest(BaseModel):
@@ -110,3 +125,12 @@ class SchedulePreviewRequest(BaseModel):
 
 class SchedulePreviewResponse(BaseModel):
     next_runs: list[datetime]  # naive UTC
+
+
+class AgentSchedulePreviewResponse(BaseModel):
+    """Preview for the agent surface: aware datetimes in the requested zone.
+
+    Same field, deliberately different contract — see ScheduledTaskWithPreview.
+    """
+
+    next_runs: list[datetime]
