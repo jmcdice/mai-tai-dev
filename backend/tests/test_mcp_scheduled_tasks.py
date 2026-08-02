@@ -35,7 +35,40 @@ def test_agent_creates_and_lists(client, user_a):
 
     resp = client.get("/api/v1/mcp/scheduled-tasks", headers=mcp_headers(user_a))
     assert resp.status_code == 200
-    assert [t["id"] for t in resp.json()["tasks"]] == [task["id"]]
+    listed = resp.json()["tasks"]
+    assert [t["id"] for t in listed] == [task["id"]]
+    # "What do I have scheduled?" is the question most likely to be answered
+    # out loud, so list must carry the times too — not just create and patch.
+    assert len(listed[0]["next_runs"]) == 3
+
+
+def test_fire_times_carry_the_task_timezone(client, user_a):
+    """Naive UTC is fine for the web form — the browser localises it. An agent
+    has no such step, so an unlabelled 11:00 on a Denver task becomes "11am"
+    when it reports back. Every agent-facing time has to carry its offset."""
+    from datetime import datetime
+
+    created = create(client, user_a).json()
+    listed = client.get(
+        "/api/v1/mcp/scheduled-tasks", headers=mcp_headers(user_a)
+    ).json()["tasks"][0]
+    previewed = client.post(
+        "/api/v1/mcp/schedule-preview",
+        json={"cron_expression": "0 5 * * *", "timezone": DENVER},
+        headers=mcp_headers(user_a),
+    ).json()
+
+    for source, runs in (
+        ("create", created["next_runs"]),
+        ("list", listed["next_runs"]),
+        ("preview", previewed["next_runs"]),
+    ):
+        for raw in runs:
+            when = datetime.fromisoformat(raw)
+            assert when.utcoffset() is not None, f"{source} returned a naive time"
+            # The cron says 5am and the zone is Denver; local wall-clock must
+            # read 5, not the 11 or 12 it would be in UTC.
+            assert when.hour == 5, f"{source} gave {raw}, expected 05:00 local"
 
 
 def test_timezone_is_required(client, user_a):

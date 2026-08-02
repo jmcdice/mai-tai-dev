@@ -640,7 +640,9 @@ def schedule(
     Two habits worth keeping:
       * `preview` before `create`, and read the times back to the human in
         their own words ("5:00 AM Mountain — next one tomorrow"). A cron
-        expression is not a confirmation anyone can check.
+        expression is not a confirmation anyone can check. `next_runs` comes
+        back already in the task's own timezone, offset included, so quote it
+        as-is rather than converting anything yourself.
       * `timezone` is required and never guessed. An IANA name like
         "America/Denver" — a job set in UTC for someone in Denver runs seven
         hours off, and nothing about it looks wrong until it doesn't happen.

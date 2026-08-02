@@ -237,7 +237,9 @@ Two things worth getting right:
 
 1. **`preview` before `create`, and confirm in plain language.** Read the
    times back the way a person would say them — "5:00 AM Mountain, next one
-   tomorrow" — not as a cron string. Nobody can proofread `0 5 * * *`.
+   tomorrow" — not as a cron string. Nobody can proofread `0 5 * * *`. The
+   times you get back are already in the task's timezone with the offset
+   attached, so quote them as they are; don't convert.
 2. **Never guess the timezone.** It's required for a reason. Ask if you don't
    know. A job set in UTC for someone in Denver runs seven hours off, and
    nothing looks wrong until the morning it doesn't happen.
