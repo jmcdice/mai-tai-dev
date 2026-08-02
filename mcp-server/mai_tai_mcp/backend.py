@@ -20,6 +20,32 @@ from .errors import (
 )
 
 
+def _detail(response: httpx.Response) -> str:
+    """Human-readable reason from a FastAPI error body.
+
+    FastAPI reports validation failures as a list of per-field errors; flatten
+    them to "field: message" so the agent is told *which* argument was wrong
+    instead of being handed a nested structure to interpret.
+    """
+    try:
+        body = response.json()
+    except ValueError:
+        return response.text[:300] or f"HTTP {response.status_code}"
+
+    detail = body.get("detail", body) if isinstance(body, dict) else body
+    if isinstance(detail, str):
+        return detail
+    if isinstance(detail, list):
+        parts = []
+        for item in detail:
+            if isinstance(item, dict):
+                field = ".".join(str(p) for p in item.get("loc", []) if p != "body")
+                parts.append(f"{field}: {item.get('msg', '')}".strip(": "))
+        if parts:
+            return "; ".join(parts)
+    return str(detail)[:300]
+
+
 class MaiTaiBackendError(MaiTaiError):
     """Legacy error class for backward compatibility.
 
@@ -257,6 +283,63 @@ class MaiTaiBackend:
         except Exception as e:
             self._handle_error(e, "Failed to acknowledge messages")
             return {}  # Unreachable
+
+    # ------------------------------------------------------------------
+    # Scheduled tasks
+    # ------------------------------------------------------------------
+    #
+    # These deliberately don't route 4xx through _handle_error. That path
+    # classifies every unknown 4xx as FatalRuntimeError, which the driver
+    # answers by terminating the container — correct for "your API key was
+    # revoked", catastrophic for "your cron expression has a typo". A bad
+    # argument is a tool result the agent should read and retry, not a reason
+    # to take the agent down. 5xx and transport failures still classify
+    # normally, so real outages keep their backoff.
+
+    # Statuses that mean "you asked for something impossible", not "the system
+    # is broken": bad payload, unknown task, workspace at its task limit.
+    _ARGUMENT_ERRORS = frozenset({400, 404, 409, 422})
+
+    def _schedule_request(self, method: str, path: str, **kwargs) -> dict[str, Any]:
+        try:
+            response = self._get_client().request(method, path, **kwargs)
+            if response.status_code in self._ARGUMENT_ERRORS:
+                return {"status": "error", "detail": _detail(response)}
+            response.raise_for_status()
+            if response.status_code == 204:
+                return {"status": "ok"}
+            return response.json()
+        except (RecoverableError, FatalRuntimeError):
+            raise
+        except Exception as e:
+            self._handle_error(e, f"Scheduled task request failed ({method} {path})")
+            return {}  # Unreachable
+
+    def list_schedules(self) -> dict[str, Any]:
+        """List this workspace's scheduled tasks."""
+        return self._schedule_request("GET", "/api/v1/mcp/scheduled-tasks")
+
+    def preview_schedule(self, cron_expression: str, timezone: str) -> dict[str, Any]:
+        """Next fire times for a cron expression, without creating anything."""
+        return self._schedule_request(
+            "POST",
+            "/api/v1/mcp/schedule-preview",
+            json={"cron_expression": cron_expression, "timezone": timezone},
+        )
+
+    def create_schedule(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Create a scheduled task in this workspace."""
+        return self._schedule_request("POST", "/api/v1/mcp/scheduled-tasks", json=payload)
+
+    def update_schedule(self, task_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Patch a scheduled task. Only the supplied fields change."""
+        return self._schedule_request(
+            "PATCH", f"/api/v1/mcp/scheduled-tasks/{task_id}", json=payload
+        )
+
+    def delete_schedule(self, task_id: str) -> dict[str, Any]:
+        """Delete a scheduled task by id."""
+        return self._schedule_request("DELETE", f"/api/v1/mcp/scheduled-tasks/{task_id}")
 
     def close(self) -> None:
         """Close the client."""

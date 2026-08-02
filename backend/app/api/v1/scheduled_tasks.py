@@ -1,9 +1,13 @@
-"""Scheduled task endpoints — per-workspace recurring prompts."""
+"""Scheduled task endpoints — per-workspace recurring prompts (human/JWT side).
 
+The agent-facing equivalents live in app/api/v1/mcp.py; both delegate to
+app.services.scheduled_tasks so the two surfaces can't drift.
+"""
+
+from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
@@ -18,7 +22,8 @@ from app.schemas.scheduled_task import (
     ScheduledTaskResponse,
     ScheduledTaskUpdate,
 )
-from app.services.scheduler import compute_next_run, fire_task, preview_runs
+from app.services import scheduled_tasks as svc
+from app.services.scheduler import fire_task, preview_runs
 
 router = APIRouter(tags=["scheduled-tasks"])
 
@@ -39,12 +44,7 @@ async def list_scheduled_tasks(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     await check_workspace_access(workspace_id, db, current_user)
-    result = await db.execute(
-        select(ScheduledTask)
-        .where(ScheduledTask.workspace_id == workspace_id)
-        .order_by(ScheduledTask.created_at)
-    )
-    tasks = result.scalars().all()
+    tasks = await svc.list_tasks(workspace_id, db)
     return {"tasks": tasks, "total": len(tasks)}
 
 
@@ -60,33 +60,7 @@ async def create_scheduled_task(
     current_user: User = Depends(get_current_user),
 ) -> ScheduledTask:
     await check_workspace_access(workspace_id, db, current_user)
-
-    task = ScheduledTask(
-        workspace_id=workspace_id,
-        name=data.name,
-        prompt=data.prompt,
-        cron_expression=data.cron_expression,
-        timezone=data.timezone,
-        enabled=data.enabled,
-        wake_agent=data.wake_agent,
-        next_run_at=compute_next_run(data.cron_expression, data.timezone) if data.enabled else None,
-    )
-    db.add(task)
-    await db.commit()
-    await db.refresh(task)
-    return task
-
-
-async def _get_task(workspace_id: UUID, task_id: UUID, db: AsyncSession) -> ScheduledTask:
-    result = await db.execute(
-        select(ScheduledTask).where(
-            ScheduledTask.id == task_id, ScheduledTask.workspace_id == workspace_id
-        )
-    )
-    task = result.scalar_one_or_none()
-    if not task:
-        raise HTTPException(status_code=404, detail="Scheduled task not found")
-    return task
+    return await svc.create_task(workspace_id, data, db)
 
 
 @router.patch(
@@ -101,29 +75,8 @@ async def update_scheduled_task(
     current_user: User = Depends(get_current_user),
 ) -> ScheduledTask:
     await check_workspace_access(workspace_id, db, current_user)
-    task = await _get_task(workspace_id, task_id, db)
-
-    if data.name is not None:
-        task.name = data.name
-    if data.prompt is not None:
-        task.prompt = data.prompt
-    if data.cron_expression is not None:
-        task.cron_expression = data.cron_expression
-    if data.timezone is not None:
-        task.timezone = data.timezone
-    if data.wake_agent is not None:
-        task.wake_agent = data.wake_agent
-    if data.enabled is not None:
-        task.enabled = data.enabled
-
-    # Any change to schedule or enablement recomputes the next fire
-    task.next_run_at = (
-        compute_next_run(task.cron_expression, task.timezone) if task.enabled else None
-    )
-
-    await db.commit()
-    await db.refresh(task)
-    return task
+    task = await svc.get_task(workspace_id, task_id, db)
+    return await svc.update_task(task, data, db)
 
 
 @router.delete(
@@ -137,9 +90,8 @@ async def delete_scheduled_task(
     current_user: User = Depends(get_current_user),
 ) -> None:
     await check_workspace_access(workspace_id, db, current_user)
-    task = await _get_task(workspace_id, task_id, db)
-    await db.delete(task)
-    await db.commit()
+    task = await svc.get_task(workspace_id, task_id, db)
+    await svc.delete_task(task, db)
 
 
 @router.post(
@@ -153,10 +105,8 @@ async def run_scheduled_task_now(
     current_user: User = Depends(get_current_user),
 ) -> ScheduledTask:
     """Fire a task immediately (does not affect its regular schedule)."""
-    from datetime import datetime
-
     await check_workspace_access(workspace_id, db, current_user)
-    task = await _get_task(workspace_id, task_id, db)
+    task = await svc.get_task(workspace_id, task_id, db)
 
     task.last_status = await fire_task(db, task, manual=True)
     task.last_run_at = datetime.utcnow()

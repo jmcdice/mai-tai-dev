@@ -603,6 +603,134 @@ def journal(entry: str) -> dict[str, Any]:
 
 
 # ============================================================================
+# Scheduling Tools
+# ============================================================================
+
+
+@mcp.tool()
+def schedule(
+    action: str,
+    task_id: str = "",
+    name: str = "",
+    prompt: str = "",
+    cron: str = "",
+    timezone: str = "",
+    enabled: bool | None = None,
+    wake_agent: bool | None = None,
+) -> dict[str, Any]:
+    """Manage this workspace's recurring prompts.
+
+    A scheduled task drops `prompt` into this chat on a cron, and you pick it
+    up like any other message — so scheduling something is scheduling a note
+    to yourself. Use this when the human describes recurring work ("check the
+    build every morning", "remind me Fridays"), rather than telling them to go
+    tap it into the UI.
+
+    Actions:
+        list    — every task here, with ids and upcoming fire times
+        preview — next 3 fire times for `cron` + `timezone`, creating nothing
+        create  — needs name, prompt, cron, timezone
+        update  — needs task_id, plus whichever fields change
+        delete  — needs task_id
+
+    Write the prompt for a future you with none of this conversation in
+    context. "Do the thing we discussed" will fire faithfully every morning
+    and mean nothing. Say what to do, where to look, and what done looks like.
+
+    Two habits worth keeping:
+      * `preview` before `create`, and read the times back to the human in
+        their own words ("5:00 AM Mountain — next one tomorrow"). A cron
+        expression is not a confirmation anyone can check.
+      * `timezone` is required and never guessed. An IANA name like
+        "America/Denver" — a job set in UTC for someone in Denver runs seven
+        hours off, and nothing about it looks wrong until it doesn't happen.
+
+    Args:
+        action:     list | preview | create | update | delete
+        task_id:    UUID from `list` (update/delete)
+        name:       Short label the human will recognise in the UI
+        prompt:     The message to deliver — self-contained, max 10000 chars
+        cron:       5-field cron, e.g. "0 5 * * *" (daily 05:00)
+        timezone:   IANA name, e.g. "America/Denver"
+        enabled:    False to pause without deleting
+        wake_agent: Start the agent container if it's down (default True)
+
+    Returns:
+        The affected task(s), or {"status": "error", "detail": ...} if an
+        argument was rejected — read `detail`, fix it, and call again.
+    """
+    backend = get_backend()
+    if not backend.workspace_id:
+        return {"status": "error", "error": "No workspace bound to this API key."}
+
+    action = action.strip().lower()
+
+    if action == "list":
+        return backend.list_schedules()
+
+    if action == "preview":
+        if not cron or not timezone:
+            return _schedule_arg_error("preview needs both `cron` and `timezone`.")
+        return backend.preview_schedule(cron, timezone)
+
+    if action == "create":
+        missing = [
+            field
+            for field, value in (
+                ("name", name), ("prompt", prompt), ("cron", cron), ("timezone", timezone)
+            )
+            if not value
+        ]
+        if missing:
+            return _schedule_arg_error(f"create needs: {', '.join(missing)}.")
+        payload: dict[str, Any] = {
+            "name": name,
+            "prompt": prompt,
+            "cron_expression": cron,
+            "timezone": timezone,
+        }
+        if enabled is not None:
+            payload["enabled"] = enabled
+        if wake_agent is not None:
+            payload["wake_agent"] = wake_agent
+        return backend.create_schedule(payload)
+
+    if action == "update":
+        if not task_id:
+            return _schedule_arg_error("update needs `task_id` — get it from `list`.")
+        changes: dict[str, Any] = {}
+        if name:
+            changes["name"] = name
+        if prompt:
+            changes["prompt"] = prompt
+        if cron:
+            changes["cron_expression"] = cron
+        if timezone:
+            changes["timezone"] = timezone
+        if enabled is not None:
+            changes["enabled"] = enabled
+        if wake_agent is not None:
+            changes["wake_agent"] = wake_agent
+        if not changes:
+            return _schedule_arg_error("update needs at least one field to change.")
+        return backend.update_schedule(task_id, changes)
+
+    if action == "delete":
+        if not task_id:
+            return _schedule_arg_error("delete needs `task_id` — get it from `list`.")
+        return backend.delete_schedule(task_id)
+
+    return _schedule_arg_error(
+        f"Unknown action '{action}'. Use list/preview/create/update/delete."
+    )
+
+
+def _schedule_arg_error(detail: str) -> dict[str, Any]:
+    """Shape local argument complaints like the backend's, so both read alike."""
+    return {"status": "error", "detail": detail}
+
+
+# ============================================================================
 # Utility Tools
 # ============================================================================
 

@@ -75,6 +75,31 @@ class ScheduledTaskListResponse(BaseModel):
     total: int
 
 
+class AgentScheduledTaskCreate(ScheduledTaskCreate):
+    """Create payload for the agent-facing (API-key) surface.
+
+    Identical to the human one except that `timezone` is required. A human
+    picks it from a dropdown that shows their own zone; an agent handed "every
+    morning at 5" has nothing to infer from, and the UTC default would put
+    Joey's 5am job at 10pm the night before without anything looking wrong.
+    """
+
+    timezone: str = Field(..., min_length=1, max_length=64)
+
+    _tz_required = field_validator("timezone")(_validate_timezone)
+
+
+class ScheduledTaskWithPreview(ScheduledTaskResponse):
+    """A task plus its upcoming fire times, so an agent can read them back.
+
+    The agent has to confirm a schedule in plain language ("that's 5:00 AM
+    Mountain, next three: ..."); making it derive those from a cron string
+    itself is how you get a confident, wrong answer.
+    """
+
+    next_runs: list[datetime]
+
+
 class SchedulePreviewRequest(BaseModel):
     cron_expression: str = Field(..., max_length=100)
     timezone: str = Field(default="UTC", max_length=64)
