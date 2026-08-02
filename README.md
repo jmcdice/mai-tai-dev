@@ -151,12 +151,15 @@ application-default login` on the host first.
 
 ### Building the Agent Image
 
+Build from the **repo root**, not `agents/` — the images copy `mcp-server/`
+into the container, so it has to be inside the build context.
+
 ```bash
 # Claude Code runtime (required for agent workspaces)
-docker build -t mai-tai-agent:latest -f agents/claude-code/Dockerfile agents/
+docker build -t mai-tai-agent:latest -f agents/claude-code/Dockerfile .
 
 # OpenAI Codex runtime (optional — for workspaces using the codex runtime)
-docker build -t mai-tai-agent-codex:latest -f agents/codex/Dockerfile agents/
+docker build -t mai-tai-agent-codex:latest -f agents/codex/Dockerfile .
 ```
 
 Rebuild after changes to `agents/`.
@@ -207,7 +210,24 @@ Password hashes and `mt_` API-key hashes are always included, so logins and
 existing agent configs keep working on the target.
 
 Either way, copy `~/.config/mai-tai/config` across so existing `mt_` API keys
-still authenticate.
+still authenticate — and fix its `MAI_TAI_API_URL` to point at the target.
+
+### What the bundle doesn't carry
+
+The bundle is the database plus (optionally) `.env`. Everything below is
+source-host specific and has to be handled on the target by hand:
+
+- **The host's address, baked into `.env`.** `NEXT_PUBLIC_API_URL`,
+  `NEXT_PUBLIC_WS_URL`, and `NEXTAUTH_URL` are compiled into the frontend
+  bundle. Left alone, the target's UI loads fine and then quietly talks to the
+  *source* host. Rewrite them before `./dev.sh local up`.
+- **The agent image.** `mai-tai-agent:latest` is built locally, so a fresh
+  clone has none — agent workspaces fail to start until you build it (see
+  [Building the Agent Image](#building-the-agent-image)).
+- **TLS and LAN DNS.** `caddy/certs/` is untracked and `infra/dnsmasq.conf`
+  hardcodes the source host's IP, so both services crash-loop on a new host.
+  Unless you're serving the same domain from the target, leave them stopped:
+  `docker compose stop caddy dnsmasq`.
 
 ## Contributing
 
