@@ -35,8 +35,11 @@ MAI_TAI_API_URL=${MAI_TAI_API_URL}
 MAI_TAI_API_KEY=${MAI_TAI_API_KEY}
 EOF
 
-# 2. Persistent memory layout (volume-backed, survives restarts)
-mkdir -p "${MEMORY_DIR}/tasks" "${MEMORY_DIR}/journal" "${MEMORY_DIR}/state"
+# 2. Persistent memory layout (volume-backed, survives restarts).
+# tools/bin is on PATH from the Dockerfile, so create it here rather than
+# leaving a dangling PATH entry until the first `uv tool install`.
+mkdir -p "${MEMORY_DIR}/tasks" "${MEMORY_DIR}/journal" "${MEMORY_DIR}/state" \
+         "${MEMORY_DIR}/bin" "${MEMORY_DIR}/tools/bin"
 
 # 3. Project-level .env.mai-tai (workspace ID)
 mkdir -p "${WORKDIR}"
@@ -109,6 +112,23 @@ context is injected into the first prompt.
 - \`${MEMORY_DIR}/tasks/lessons.md\`: after ANY correction from the human,
   append the lesson — format: \`- [date] LESSON: <what went wrong> → <the rule>\`.
   The goal: never make the same mistake twice.
+
+## Installing Tools
+You are not root and there is no sudo — \`apt-get install\` will never work.
+Everything outside \`${MEMORY_DIR}\` is wiped when this container restarts.
+- CLI tools: \`uv tool install <package>\`. This is redirected to
+  \`${MEMORY_DIR}/tools\`, so it survives restarts. Prefer it.
+- Python libraries: \`uv run --with <package> script.py\`, or build a venv under
+  \`${MEMORY_DIR}/tools/venv\`. Bare \`pip install\` is blocked by the OS.
+- Scripts you write yourself: put them in \`${MEMORY_DIR}/bin\` and chmod +x —
+  it's on PATH, so you can then run them by name from any session.
+\`${MEMORY_DIR}/tools/bin\` sits at the END of PATH, so something you install
+will not shadow a system tool of the same name. Call it by absolute path if
+overriding one is what you actually want.
+
+If a scheduled task depends on a tool, install it the persistent way and say so
+in the task prompt — a job that assumed an install would still be there is the
+failure this layout exists to prevent.
 
 ## Working Principles
 

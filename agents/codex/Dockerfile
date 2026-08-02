@@ -55,6 +55,14 @@ COPY --chown=agent:agent mcp-server /home/agent/mcp-server
 RUN uv tool install /home/agent/mcp-server \
     && test -x /home/agent/.local/bin/mai-tai-mcp
 
+# Self-installed tools go on the memory volume so they survive a restart. Must
+# stay after the vendored install, and PATH is appended rather than prepended —
+# see agents/claude-code/Dockerfile for why both of those matter.
+ENV UV_TOOL_DIR=/home/agent/memory/tools/uv \
+    UV_TOOL_BIN_DIR=/home/agent/memory/tools/bin \
+    UV_LINK_MODE=copy \
+    PATH="$PATH:/home/agent/memory/tools/bin:/home/agent/memory/bin"
+
 WORKDIR /home/agent/workspace
 
 # Shared driver + bootstrap, runtime entrypoint
