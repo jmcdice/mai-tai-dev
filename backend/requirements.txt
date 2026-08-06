@@ -11,8 +11,12 @@ python-multipart==0.0.30
 httpx==0.28.1
 bcrypt==4.3.0
 PyJWT[crypto]==2.13.0
-# Hard pin: 49.0.0's arm64 wheel SIGILLs on Apple Silicon; 44.0.1 verified good
-cryptography==44.0.1
+# Hard pin. History: 49.0.0's arm64 wheel SIGILLs on Apple Silicon, so we sat on
+# 44.0.1 until CVE-2026-69247 forced the move (its only fix is 50.0.0). 50.0.0 is
+# a fresh wheel build and is verified good on linux/x86_64; if it SIGILLs on an
+# Apple Silicon dev box, drop back to 44.0.1 and .trivyignore the four CVEs --
+# none are reachable from our usage, which is Fernet only (app/core/crypto.py).
+cryptography==50.0.0
 google-auth==2.40.1
 requests==2.32.3
 slowapi==0.1.9
