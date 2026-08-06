@@ -258,6 +258,43 @@ def _wait_for_response_polling(
     return None  # Timeout
 
 
+def _poll_for_unseen(
+    backend: "MaiTaiBackend",
+    poll_interval: float = 3.0,
+) -> list[dict[str, Any]] | None:
+    """Wait for unseen user messages without having posted anything first.
+
+    `_wait_for_response_polling` needs a message ID to poll after, which means
+    the agent must speak before it can listen. Reconnecting after a restart has
+    nothing to say, so this polls the unseen queue instead — no baseline ID, no
+    chat bubble. Returns the messages, or None on shutdown/cancellation.
+    """
+    global shutting_down
+
+    while True:
+        if _cancel_event.is_set():
+            print("mai-tai-mcp: poll cancelled", file=sys.stderr)
+            return None
+
+        if shutting_down:
+            print("mai-tai-mcp: shutdown requested, stopping poll", file=sys.stderr)
+            return None
+
+        if _is_stdin_closed():
+            print("mai-tai-mcp: client disconnected (stdin closed), stopping poll", file=sys.stderr)
+            shutting_down = True
+            return None
+
+        try:
+            messages = backend.get_messages(unseen=True).get("messages", [])
+            if messages:
+                return messages
+        except Exception as e:
+            print(f"Polling error: {e}", file=sys.stderr)
+
+        _cancel_event.wait(timeout=poll_interval)
+
+
 # ============================================================================
 # Primary Tool - Chat with Human (HOME BASE)
 # ============================================================================
@@ -420,6 +457,80 @@ def _chat_with_human_impl(
 
 
 # ============================================================================
+# Quiet Home Base - Wait Without Speaking
+# ============================================================================
+
+
+@mcp.tool()
+async def wait_for_human() -> dict[str, Any]:
+    """Wait at HOME BASE for the human's next message WITHOUT posting anything.
+
+    Same blocking behaviour as chat_with_human, minus the chat bubble. Use this
+    ONLY when you are reconnecting after a session restart and have nothing new
+    to say — a restart is your business, not the human's, and they should not
+    see a "back online" message every night.
+
+    USE THIS TOOL WHEN:
+    - You just resumed a rotated/restarted session and are picking up where you
+      left off (`/mai-tai resume`)
+
+    DO NOT USE THIS TOOL WHEN:
+    - You finished a task (use chat_with_human — the human needs the results)
+    - You have a question (use chat_with_human — silence is not a question)
+
+    Returns:
+        Dictionary with the human's next message
+    """
+    global _chat_in_progress
+
+    if DRIVER_MODE:
+        # The driver already delivers messages as prompts; blocking would
+        # deadlock the turn and there is nothing to reconnect to.
+        return {
+            "status": "not_applicable",
+            "note": (
+                "Driver mode: messages arrive as prompts automatically. "
+                "Finish your turn instead of waiting."
+            ),
+        }
+
+    if _chat_in_progress:
+        return {
+            "status": "already_in_progress",
+            "error": "A chat_with_human call is already waiting for a response.",
+        }
+
+    backend = get_backend()
+    if not backend.workspace_id:
+        return {"status": "error", "error": "No workspace bound to this API key."}
+
+    _chat_in_progress = True
+    _cancel_event.clear()
+    try:
+        messages = await asyncio.to_thread(_poll_for_unseen, backend)
+    except (KeyboardInterrupt, asyncio.CancelledError, SystemExit):
+        _cancel_event.set()
+        return {"status": "cancelled", "note": "Wait was interrupted by user."}
+    finally:
+        _chat_in_progress = False
+        _cancel_event.clear()
+
+    if not messages:
+        return {
+            "status": "no_response",
+            "workspace": backend.workspace_name,
+            "note": "Stopped waiting (shutdown or cancellation).",
+        }
+
+    backend.acknowledge_messages([m["id"] for m in messages])
+    return {
+        "status": "response_received",
+        "response": "\n\n".join(m.get("content", "") for m in messages),
+        "workspace": backend.workspace_name,
+    }
+
+
+# ============================================================================
 # Status Update Tool (Non-blocking)
 # ============================================================================
 
@@ -554,6 +665,8 @@ def memory(action: str, content: str = "", old_content: str = "") -> dict[str, A
     Session-specific happenings belong in the journal tool instead.
 
     Actions:
+        context — MEMORY.md + the last two days of journal + lessons learned.
+                  Call this FIRST THING in a new session, before you act.
         read    — return current MEMORY.md with usage stats
         add     — append `content` as a new entry
         replace — swap the entry matching `old_content` (substring) with `content`
@@ -563,13 +676,19 @@ def memory(action: str, content: str = "", old_content: str = "") -> dict[str, A
     and retry with tighter wording.
 
     Args:
-        action: read | add | replace | remove
+        action: context | read | add | replace | remove
         content: New entry text (add/replace)
         old_content: Substring identifying the existing entry (replace/remove)
     """
     backend = get_backend()
     memory_dir = memory_store.resolve_memory_dir(backend.workspace_id)
 
+    if action == "context":
+        return {
+            "status": "ok",
+            "context": memory_store.build_session_context(memory_dir),
+            "memory_dir": str(memory_dir),
+        }
     if action == "read":
         text = memory_store.read_memory(memory_dir)
         return {"status": "ok", "memory": text or "(empty)", **memory_store._usage(text)}
@@ -579,7 +698,10 @@ def memory(action: str, content: str = "", old_content: str = "") -> dict[str, A
         return memory_store.memory_replace(memory_dir, old_content, content)
     if action == "remove":
         return memory_store.memory_remove(memory_dir, old_content)
-    return {"status": "error", "error": f"Unknown action '{action}'. Use read/add/replace/remove."}
+    return {
+        "status": "error",
+        "error": f"Unknown action '{action}'. Use context/read/add/replace/remove.",
+    }
 
 
 @mcp.tool()

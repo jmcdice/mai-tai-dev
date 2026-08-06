@@ -2,17 +2,22 @@ Activate or deactivate mai-tai async collaboration mode.
 
 ## Usage
 
-- `/mai-tai start` — Enter mai-tai mode
+- `/mai-tai start` — Enter mai-tai mode (fresh session)
+- `/mai-tai resume` — Re-enter mai-tai mode after a restart, without greeting
 - `/mai-tai stop` — Exit mai-tai mode
 
 ---
 
 ## When args contains "start" (or no args)
 
-Your VERY FIRST action must be a `chat_with_human` tool call — do NOT output any text first.
-The tool call IS your response. Call it like this:
+Do NOT output any text first — your tool calls ARE your response.
+
+1. Call `memory("context")` to load your persistent memory (MEMORY.md, the last
+   two days of journal, lessons learned). Read it before you act.
+2. Call `chat_with_human` to greet:
 
 ```
+memory(action="context")
 chat_with_human("Mai-tai mode activated! What would you like me to work on?")
 ```
 
@@ -26,6 +31,30 @@ From that point, ALL communication goes through mai-tai tools:
 - You finished a task ("Done! Here's what I did...")
 - You need a decision before continuing
 - You're ready for the next instruction
+
+---
+
+## When args contains "resume"
+
+Your session was rotated or restarted by the supervisor. The human did not ask
+for this and should not have to see it. Do NOT greet, do NOT announce that you
+are back, do NOT summarize what you were doing.
+
+```
+memory(action="context")
+wait_for_human()
+```
+
+`wait_for_human` blocks exactly like `chat_with_human` but posts nothing. If the
+human sent messages while you were down, they come back immediately; otherwise
+you wait silently until they say something. Then carry on as normal — from that
+point the flow is identical to `start`.
+
+If your conversation history came back with you (the supervisor resumes the
+previous session), you already know what you were doing. If it did not, the
+memory context is your recall — and `search_history` will find anything older.
+
+---
 
 ### The rule: never go idle
 
@@ -48,6 +77,24 @@ update_status("Running the Playwright suite — ~4 min, back shortly...")
 update_status("Suite green. Now chasing the one flaky campaign test.")
 ```
 
+### The rule: write it down before you forget it
+
+Your session gets rotated roughly once a day, and one day it will be rotated
+mid-task. Memory is what survives that; your context is not.
+
+- **`journal`** — task state, decisions, what's in flight. Journal when you
+  finish a chunk of work, when you make a decision worth remembering, and
+  before any long-running task. Today's and yesterday's entries load at the
+  next session start.
+- **`memory`** — durable facts, preferences, and decisions that still matter
+  next week. 2200-char cap, so consolidate rather than pile on. Loaded at
+  EVERY session start.
+- **`search_history`** — full-text search over everything ever said in this
+  workspace. Search before asking the human to repeat themselves.
+
+Rule of thumb: if the human would be annoyed to have to tell you again, it goes
+in `memory`. If your future self would be lost without it, it goes in `journal`.
+
 ### Correct flow
 
 ```
@@ -55,8 +102,9 @@ update_status("Suite green. Now chasing the one flaky campaign test.")
 2. update_status("Got it, working on X...")   ← optional, non-blocking
 3. Do the work
 4. update_status("Still going — run 3 of 6...")  ← every ~10 min, REQUIRED for long work
-5. chat_with_human("Done! Here's what I did. What's next?")  ← REQUIRED
-6. Wait for response → repeat
+5. journal("Finished X; Y still open because Z")  ← before you report
+6. chat_with_human("Done! Here's what I did. What's next?")  ← REQUIRED
+7. Wait for response → repeat
 ```
 
 ---

@@ -19,8 +19,17 @@
 # Killing Claude also cleans up its MCP child (its stdin closes and the mai-tai
 # MCP server self-exits), so rotation leaves no orphans.
 #
+# CONTINUITY: rotation is our business, not the human's. The first launch in a
+# window starts fresh (`/mai-tai start`, greets); every relaunch after that
+# resumes the previous conversation with `claude --continue` and the quiet
+# `/mai-tai resume` prompt, so the bot keeps its history and does not post a
+# "Mai-tai mode activated!" greeting every single night. A relaunch that dies
+# quickly falls back to a cold start, since a poisoned transcript would
+# otherwise wedge the loop resuming into the same crash forever.
+#
 # USAGE: mai-tai-supervisor.sh <repo-dir>
 # ENV:   MAI_TAI_ROTATE_AFTER  max session lifetime (default 24h; 0 disables)
+#        MAI_TAI_NO_RESUME     set to 1 to always cold-start (debugging)
 #
 set -uo pipefail
 
@@ -48,12 +57,19 @@ cd "$REPO_DIR" || { echo "FATAL: cannot cd to $REPO_DIR"; exit 1; }
 # it, safely above our 24h rotation.) Value is in milliseconds; 0 = never abort.
 export CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT=0
 
-# Expanded form of the `yolo` alias plus the mai-tai activation prompt.
-CLAUDE_CMD=(claude --model claude-opus-5 --dangerously-skip-permissions "/mai-tai start")
+# Expanded form of the `yolo` alias. The prompt and resume flags are appended
+# per launch by run_claude.
+CLAUDE_BASE=(claude --model claude-opus-5 --dangerously-skip-permissions)
 
 MIN_BACKOFF=3
 MAX_BACKOFF=60
 backoff=$MIN_BACKOFF
+
+# Cold-start the first launch; resume every one after that. Reset to 0 whenever
+# a resumed launch fails fast, so we retry from scratch instead of looping into
+# the same broken transcript.
+can_resume=0
+[ "${MAI_TAI_NO_RESUME:-0}" = "1" ] && can_resume=-1   # -1 = pinned off
 
 stamp() { date '+%Y-%m-%d %H:%M:%S'; }
 
@@ -66,17 +82,28 @@ stamp() { date '+%Y-%m-%d %H:%M:%S'; }
 # (blank pane, no MCP, never answers). `--foreground` lets claude own the pane
 # TTY while still being bounded by the timeout.
 run_claude() {
-  if [ -n "$ROTATE_AFTER" ] && [ "$ROTATE_AFTER" != "0" ] && command -v timeout >/dev/null 2>&1; then
-    timeout -k 30 --foreground "$ROTATE_AFTER" "${CLAUDE_CMD[@]}"
+  local cmd=("${CLAUDE_BASE[@]}")
+  if [ "$can_resume" = "1" ]; then
+    # --continue picks up the most recent session for this cwd, which is the
+    # one we just rotated out. It degrades to a fresh session on its own if
+    # there is nothing to continue.
+    cmd+=(--continue "/mai-tai resume")
   else
-    "${CLAUDE_CMD[@]}"
+    cmd+=("/mai-tai start")
+  fi
+
+  if [ -n "$ROTATE_AFTER" ] && [ "$ROTATE_AFTER" != "0" ] && command -v timeout >/dev/null 2>&1; then
+    timeout -k 30 --foreground "$ROTATE_AFTER" "${cmd[@]}"
+  else
+    "${cmd[@]}"
   fi
 }
 
 # Claude runs directly on the pane TTY (no pipe) so the window stays interactive.
 # The full transcript lives in the mai-tai workspace/DB; we only log lifecycle.
 while true; do
-  echo "=== [$(stamp)] starting claude for $REPO_NAME (rotate after ${ROTATE_AFTER:-off}) ===" >> "$LOG"
+  if [ "$can_resume" = "1" ]; then mode="resume"; else mode="fresh"; fi
+  echo "=== [$(stamp)] starting claude for $REPO_NAME ($mode, rotate after ${ROTATE_AFTER:-off}) ===" >> "$LOG"
   start=$SECONDS
   run_claude
   rc=$?
@@ -93,8 +120,15 @@ while true; do
   if [ "$ran" -lt 60 ]; then
     backoff=$(( backoff * 2 ))
     [ "$backoff" -gt "$MAX_BACKOFF" ] && backoff=$MAX_BACKOFF
+    # A resume that died this fast is suspect -- cold-start the next attempt
+    # rather than resuming into the same failure.
+    if [ "$can_resume" = "1" ]; then
+      echo "[$(stamp)] $REPO_NAME resume failed fast; next launch will cold-start" >> "$LOG"
+      can_resume=0
+    fi
   else
     backoff=$MIN_BACKOFF
+    [ "$can_resume" = "0" ] && can_resume=1
   fi
 
   echo "[$(stamp)] relaunching $REPO_NAME in ${backoff}s..." >> "$LOG"

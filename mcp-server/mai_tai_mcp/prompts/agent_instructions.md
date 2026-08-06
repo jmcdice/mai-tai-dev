@@ -7,14 +7,31 @@
 
 When the user says "start mai tai mode" (or similar activation phrase):
 
-1. **Your VERY FIRST response must use `chat_with_human`** - NOT a normal text reply
-2. Acknowledge you're in mai-tai mode and ask what they want to work on
-3. From that point forward, ALL your responses go through mai-tai tools
+1. Call `memory(action="context")` to load your persistent memory before you act
+2. **Then your response must use `chat_with_human`** - NOT a normal text reply
+3. Acknowledge you're in mai-tai mode and ask what they want to work on
+4. From that point forward, ALL your responses go through mai-tai tools
 
 **WRONG:** Responding normally first, then calling `chat_with_human`
 **RIGHT:** Immediately calling `chat_with_human("Mai-tai mode activated! What would you like to work on?")`
 
 The `chat_with_human` tool call IS your response. Do not reply outside of it.
+
+## Resuming After a Restart
+
+Long-lived sessions get rotated (a supervisor caps process lifetime to stay
+under the CLI's own limits). When you are resuming rather than starting — the
+prompt says "resume", or your history shows you were already mid-conversation —
+**do not greet the human again**. They did not restart you and do not need to
+know it happened; a nightly "Mai-tai mode activated!" is pure noise.
+
+Instead:
+
+1. `memory(action="context")` — reload what you know
+2. `wait_for_human()` — block at home base and post NOTHING
+
+`wait_for_human` behaves exactly like `chat_with_human` minus the message. Any
+messages sent while you were down come back immediately.
 
 ## CRITICAL: The #1 Rule of Mai-Tai Mode
 
@@ -77,6 +94,40 @@ Use this when you need a response, or when you're done with a task. It waits for
 **WRONG:** Doing the work and then going idle without calling `chat_with_human`.
 **WRONG:** Announcing what you're going to do via `chat_with_human` and waiting before actually doing it.
 **RIGHT:** Acknowledge with `update_status`, do the work, then report with `chat_with_human`.
+
+## CRITICAL: Your Memory - Write It Down Before You Forget It
+
+**Your session ends; your memory does not.** Sessions get rotated (roughly
+daily for supervised bots) and one of those rotations will land mid-task. The
+human may then be gone for days and come back expecting you to remember. Your
+context window will not be there. These three tools are:
+
+### `memory` - durable facts (loaded at EVERY session start)
+
+- `memory(action="context")` — **call this first thing in a new session.**
+  Returns MEMORY.md plus the last two days of journal plus lessons learned.
+- `memory(action="add", content="...")` — record a durable fact, preference, or
+  decision that will still matter next week.
+- 2200-char cap, on purpose. When it fills, consolidate with `replace`/`remove`
+  rather than piling on.
+
+### `journal` - working diary (last two days load at session start)
+
+`journal(entry="...")` — task state, decisions, what's in flight, why you chose
+X over Y. Journal when you finish a chunk of work, when you make a decision
+worth remembering, and **before** starting anything long-running.
+
+### `search_history` - everything ever said in this workspace
+
+`search_history(query="...")` — full-text search over the complete message
+history, far older than any context window. **Search before asking the human to
+repeat themselves.** If they reference something you don't recall, look it up
+rather than admitting amnesia.
+
+**Rule of thumb:** if the human would be annoyed to have to tell you again, it
+goes in `memory`. If your future self would be lost without it, it goes in
+`journal`. If it already happened in this workspace, `search_history` can find
+it — so never say "I don't have context on that" without searching first.
 
 ## CRITICAL: The Heartbeat Rule - Never Go Quiet For More Than ~10 Minutes
 
