@@ -5,8 +5,10 @@ image and model defaults come from the RuntimeSpec; auth env vars come from
 the caller (which knows which credential the runtime needs).
 """
 
+import json
 import logging
 import os
+import time
 from pathlib import Path
 from uuid import UUID
 
@@ -15,6 +17,7 @@ from docker.errors import DockerException, NotFound, APIError
 
 from app.core.crypto import get_user_secret
 from app.services.agents.runtimes import RuntimeSpec, get_runtime
+from app.services.agents.templates import template_mem_limit
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +40,10 @@ AGENT_MODEL_OVERRIDE = os.environ.get("AGENT_MODEL", "").strip()
 
 # Container name prefix
 CONTAINER_PREFIX = "maitai-agent-"
+
+# Written by agents/common/bootstrap.sh; records whether provisioning (so far
+# just the repo clone) actually succeeded. See _read_bootstrap_status.
+BOOTSTRAP_STATUS_PATH = "/home/agent/.bootstrap-status"
 
 
 def _get_host_mai_tai_key() -> str | None:
@@ -125,6 +132,11 @@ def _container_name(workspace_id: UUID) -> str:
     return f"{CONTAINER_PREFIX}{str(workspace_id)[:8]}"
 
 
+def _memory_volume_name(workspace_id: UUID) -> str:
+    """Name of the persistent agent-memory volume for a workspace."""
+    return f"maitai-agent-memory-{workspace_id}"
+
+
 def start_agent(
     workspace_id: UUID,
     workspace_name: str,
@@ -137,6 +149,7 @@ def start_agent(
     template: str = "custom",
     github_token: str | None = None,
     repo_url: str | None = None,
+    mem_limit: str | None = None,
 ) -> dict:
     """Start an agent container for a workspace.
 
@@ -153,6 +166,8 @@ def start_agent(
         template: Agent template type (research, monitor, assistant, coder, custom).
         github_token: GitHub token for coder agents.
         repo_url: Repository to clone for coder agents.
+        mem_limit: Container memory cap in Docker syntax ("2g"); falls back to
+            the template default.
 
     Returns:
         Dict with status and container info.
@@ -213,7 +228,11 @@ def start_agent(
         environment["REPO_URL"] = repo_url
 
     # Persistent memory volume — survives container restarts
-    memory_volume = f"maitai-agent-memory-{str(workspace_id)}"
+    memory_volume = _memory_volume_name(workspace_id)
+
+    # Per-template default, overridable per workspace. A single global cap
+    # starved coder agents: 512m cannot survive an ordinary dependency install.
+    effective_mem_limit = mem_limit or template_mem_limit(template)
 
     try:
         container = client.containers.run(
@@ -223,7 +242,10 @@ def start_agent(
             network=AGENT_NETWORK,
             detach=True,
             restart_policy={"Name": "unless-stopped"},
-            mem_limit="512m",
+            mem_limit=effective_mem_limit,
+            # Match swap to the limit: leaving it unset lets Docker grant 2x in
+            # swap, which turns an OOM into an unbounded thrash instead.
+            memswap_limit=effective_mem_limit,
             volumes={
                 memory_volume: {"bind": "/home/agent/memory", "mode": "rw"},
             },
@@ -235,23 +257,35 @@ def start_agent(
                 "mai-tai.runtime": spec.id,
             },
         )
-        logger.info(f"Started {spec.id} agent container {name} for workspace {workspace_id}")
+        logger.info(
+            f"Started {spec.id} agent container {name} for workspace {workspace_id} "
+            f"(mem_limit={effective_mem_limit})"
+        )
         return {
             "status": "started",
             "container": name,
             "container_id": container.short_id,
             "runtime": spec.id,
             "model": environment["AGENT_MODEL"],
+            "mem_limit": effective_mem_limit,
         }
     except APIError as e:
         logger.error(f"Failed to start agent container: {e}")
         return {"status": "error", "message": str(e)}
 
 
-def stop_agent(workspace_id: UUID) -> dict:
-    """Stop a running agent container."""
+def stop_agent(workspace_id: UUID, remove_memory: bool = False) -> dict:
+    """Stop a running agent container.
+
+    Args:
+        workspace_id: The workspace whose agent to stop.
+        remove_memory: Also delete the persistent memory volume. Only for
+            workspace deletion — a plain stop must preserve agent memory
+            across restarts, which is the whole point of the volume.
+    """
     client = _get_docker_client()
     name = _container_name(workspace_id)
+    result: dict = {"status": "not_running"}
 
     try:
         container = client.containers.get(name)
@@ -260,11 +294,34 @@ def stop_agent(workspace_id: UUID) -> dict:
         container.stop(timeout=30)
         container.remove()
         logger.info(f"Stopped and removed agent container {name}")
-        return {"status": "stopped"}
+        result = {"status": "stopped"}
     except NotFound:
-        return {"status": "not_running"}
+        pass
     except APIError as e:
-        return {"status": "error", "message": str(e)}
+        result = {"status": "error", "message": str(e)}
+
+    if remove_memory:
+        result["memory_volume_removed"] = _remove_memory_volume(client, workspace_id)
+
+    return result
+
+
+def _remove_memory_volume(client: docker.DockerClient, workspace_id: UUID) -> bool:
+    """Delete a workspace's agent-memory volume. Returns True if it went away.
+
+    Without this every workspace that ever ran an agent leaves a volume on the
+    host forever — nothing else in the lifecycle removes it.
+    """
+    volume_name = _memory_volume_name(workspace_id)
+    try:
+        client.volumes.get(volume_name).remove(force=True)
+        logger.info(f"Removed agent memory volume {volume_name}")
+        return True
+    except NotFound:
+        return False
+    except APIError as e:
+        logger.warning(f"Could not remove agent memory volume {volume_name}: {e}")
+        return False
 
 
 def restart_agent(workspace_id: UUID, **kwargs) -> dict:
@@ -273,29 +330,168 @@ def restart_agent(workspace_id: UUID, **kwargs) -> dict:
     return start_agent(workspace_id, **kwargs)
 
 
+# Bootstrap runs once per container, so its result is immutable for that
+# container's lifetime. Cached by container id to keep an exec off the status
+# path, which the UI polls every few seconds.
+_bootstrap_cache: dict[str, dict | None] = {}
+
+
+def _read_bootstrap_status(container) -> dict | None:
+    """Read the bootstrap marker written inside a running agent container.
+
+    The container coming up is not the same as the agent being provisioned:
+    a failed repo clone still yields a `running` container. Bootstrap records
+    what actually happened; this is how the API gets to see it.
+    """
+    if container.status != "running":
+        return None
+    if container.id in _bootstrap_cache:
+        return _bootstrap_cache[container.id]
+    status = _exec_bootstrap_status(container)
+    # Only cache a definitive read: a miss may just mean bootstrap hadn't
+    # finished writing the marker yet.
+    if status is not None:
+        _bootstrap_cache[container.id] = status
+    return status
+
+
+def _exec_bootstrap_status(container) -> dict | None:
+    try:
+        code, output = container.exec_run(["cat", BOOTSTRAP_STATUS_PATH])
+    except (APIError, DockerException) as e:
+        logger.debug(f"Could not read bootstrap status from {container.name}: {e}")
+        return None
+    if code != 0:
+        # Container predates the marker, or bootstrap died before writing it.
+        return None
+    try:
+        return json.loads(output.decode("utf-8", errors="replace"))
+    except ValueError:
+        return None
+
+
 def get_agent_status(workspace_id: UUID) -> dict:
-    """Get the status of an agent container."""
+    """Get the status of an agent container.
+
+    `running` alone is not health. A container whose repo clone failed, or one
+    that is being repeatedly OOM-killed, is reported as `degraded` with the
+    reason attached so the UI can stop showing a green dot over a broken agent.
+    """
     client = _get_docker_client()
     name = _container_name(workspace_id)
 
     try:
         container = client.containers.get(name)
-        return {
-            "workspace_id": str(workspace_id),
-            "container": name,
-            "container_id": container.short_id,
-            "status": container.status,
-            "running": container.status == "running",
-            "created": container.attrs.get("Created", ""),
-            "labels": container.labels,
-        }
     except NotFound:
         return {
             "workspace_id": str(workspace_id),
             "container": name,
             "status": "not_found",
             "running": False,
+            "degraded": False,
         }
+
+    state = container.attrs.get("State", {})
+    bootstrap = _read_bootstrap_status(container)
+
+    problems: list[str] = []
+    if bootstrap and bootstrap.get("clone") == "failed":
+        problems.append(
+            f"Repository clone failed ({bootstrap.get('repo_url', 'unknown repo')}): "
+            f"{bootstrap.get('error', 'no detail')}"
+        )
+    if state.get("OOMKilled"):
+        problems.append(
+            "Container was killed for exceeding its memory limit. Raise "
+            "mem_limit in the workspace's agent config."
+        )
+
+    return {
+        "workspace_id": str(workspace_id),
+        "container": name,
+        "container_id": container.short_id,
+        "status": container.status,
+        "running": container.status == "running",
+        "created": container.attrs.get("Created", ""),
+        "labels": container.labels,
+        "mem_limit": container.attrs.get("HostConfig", {}).get("Memory") or None,
+        "oom_killed": bool(state.get("OOMKilled")),
+        "restart_count": container.attrs.get("RestartCount", 0),
+        "bootstrap": bootstrap,
+        "degraded": bool(problems),
+        "problems": problems,
+    }
+
+
+# (expires_at, problems) per workspace. The agent-status endpoint is polled
+# every ~10s per open workspace; without this, every poll would inspect Docker.
+_health_cache: dict[UUID, tuple[float, list[str]]] = {}
+HEALTH_CACHE_TTL = 15.0
+
+
+def get_agent_problems(workspace_id: UUID) -> list[str]:
+    """Reasons this workspace's agent is degraded; empty if it looks healthy.
+
+    Cheap enough for the polled status endpoint (TTL-cached), and never
+    raises — a Docker hiccup must not turn a status poll into a 500.
+    """
+    cached = _health_cache.get(workspace_id)
+    now = time.monotonic()
+    if cached and cached[0] > now:
+        return cached[1]
+
+    try:
+        problems = get_agent_status(workspace_id).get("problems", [])
+    except (DockerException, APIError) as e:
+        logger.debug(f"Agent health check failed for {workspace_id}: {e}")
+        problems = []
+
+    _health_cache[workspace_id] = (now + HEALTH_CACHE_TTL, problems)
+    return problems
+
+
+def reap_orphaned_agents(live_workspace_ids: set[str]) -> list[str]:
+    """Remove agent containers whose workspace no longer exists.
+
+    Deleting a workspace used to leave its container running under
+    `restart: unless-stopped`, polling an API that 404s at ~1,260 req/hour
+    forever with nothing in the UI to reveal it. Ordering the delete correctly
+    fixes new deletions; this catches the ones already stranded and any where
+    the backend died mid-delete.
+
+    Args:
+        live_workspace_ids: Workspace UUIDs (as strings) that still exist.
+
+    Returns:
+        Names of the containers that were removed.
+    """
+    try:
+        client = _get_docker_client()
+        containers = client.containers.list(all=True, filters={"label": "mai-tai.agent=true"})
+    except (DockerException, APIError) as e:
+        logger.warning(f"Orphan reap skipped, Docker unavailable: {e}")
+        return []
+
+    reaped: list[str] = []
+    for container in containers:
+        workspace_id = container.labels.get("mai-tai.workspace-id", "")
+        if not workspace_id or workspace_id in live_workspace_ids:
+            continue
+        try:
+            container.remove(force=True)
+            reaped.append(container.name)
+            logger.info(
+                f"Reaped orphaned agent container {container.name} "
+                f"(workspace {workspace_id} no longer exists)"
+            )
+            try:
+                _remove_memory_volume(client, UUID(workspace_id))
+            except ValueError:
+                pass
+        except (NotFound, APIError) as e:
+            logger.warning(f"Could not reap orphaned container {container.name}: {e}")
+
+    return reaped
 
 
 def get_agent_logs(workspace_id: UUID, tail: int = 100) -> str:

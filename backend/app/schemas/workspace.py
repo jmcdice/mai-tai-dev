@@ -6,7 +6,11 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 from app.services.agents.runtimes import RUNTIMES
-from app.services.agents.templates import AGENT_TEMPLATES
+from app.services.agents.templates import (
+    AGENT_TEMPLATES,
+    MIN_MEM_LIMIT_BYTES,
+    parse_mem_limit,
+)
 
 
 class AgentConfig(BaseModel):
@@ -19,6 +23,8 @@ class AgentConfig(BaseModel):
     model: str | None = None  # falls back to the runtime default
     template: str = "custom"
     repo_url: str | None = None
+    # Container memory cap, Docker syntax ("2g"). None = the template default.
+    mem_limit: str | None = None
 
     model_config = {"extra": "allow"}
 
@@ -36,6 +42,21 @@ class AgentConfig(BaseModel):
         if v not in AGENT_TEMPLATES:
             valid = ", ".join(sorted(AGENT_TEMPLATES))
             raise ValueError(f"Unknown template '{v}'. Valid templates: {valid}")
+        return v
+
+    @field_validator("mem_limit")
+    @classmethod
+    def mem_limit_must_be_sane(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        if not v:
+            return None
+        if parse_mem_limit(v) < MIN_MEM_LIMIT_BYTES:
+            raise ValueError(
+                f"Memory limit '{v}' is too small; the agent runtime needs at "
+                f"least {MIN_MEM_LIMIT_BYTES // 1024 ** 2}m."
+            )
         return v
 
 

@@ -112,3 +112,86 @@ def test_memory_context_assembly(driver):
 
 def test_memory_context_empty(driver):
     assert driver.build_memory_context() == "(no persistent memory yet)"
+
+
+# ---------------------------------------------------------------------------
+# Poll backoff (issue #42): a driver whose workspace was deleted must not keep
+# polling at the normal interval — that flooded the backend with ~1,260 failed
+# requests an hour, per stranded container, indefinitely.
+# ---------------------------------------------------------------------------
+
+
+def test_poll_interval_stays_at_base_while_healthy(driver):
+    assert driver.next_poll_interval(driver.POLL_INTERVAL, False, False) == driver.POLL_INTERVAL
+    # Recovering from a backoff snaps straight back to responsive polling.
+    assert driver.next_poll_interval(120.0, False, False) == driver.POLL_INTERVAL
+
+
+def test_poll_interval_backs_off_exponentially_on_failure(driver):
+    interval = driver.POLL_INTERVAL
+    seen = []
+    for _ in range(10):
+        interval = driver.next_poll_interval(interval, True, False)
+        seen.append(interval)
+
+    assert seen[0] == driver.POLL_INTERVAL * 2
+    assert seen == sorted(seen), "backoff must be monotonic"
+    assert max(seen) == driver.MAX_POLL_INTERVAL, "backoff must reach the ceiling"
+    assert all(i <= driver.MAX_POLL_INTERVAL for i in seen)
+
+
+def test_poll_interval_jumps_to_ceiling_when_workspace_is_gone(driver):
+    """A deleted workspace is never coming back — don't crawl up to the cap."""
+    assert driver.next_poll_interval(driver.POLL_INTERVAL, True, True) == driver.MAX_POLL_INTERVAL
+
+
+def test_workspace_gone_flag_set_on_404(driver, monkeypatch):
+    import io
+    import urllib.error
+
+    def raise_404(*args, **kwargs):
+        raise urllib.error.HTTPError(
+            "http://backend:8000/api/v1/mcp/messages",
+            404,
+            "Not Found",
+            {},
+            io.BytesIO(b'{"detail":"Workspace not found"}'),
+        )
+
+    monkeypatch.setattr(driver.urllib.request, "urlopen", raise_404)
+    assert driver.get_unseen_messages() is None
+    assert driver._workspace_gone is True
+
+
+def test_workspace_gone_flag_cleared_on_success(driver, monkeypatch):
+    driver._workspace_gone = True
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self):
+            return b'{"messages": []}'
+
+    monkeypatch.setattr(driver.urllib.request, "urlopen", lambda *a, **k: FakeResponse())
+    assert driver.get_unseen_messages() == []
+    assert driver._workspace_gone is False
+
+
+def test_generic_http_error_is_not_treated_as_deleted_workspace(driver, monkeypatch):
+    """A 500 is transient; it must back off, not assume the workspace is gone."""
+    import io
+    import urllib.error
+
+    def raise_500(*args, **kwargs):
+        raise urllib.error.HTTPError(
+            "http://backend:8000/api/v1/mcp/messages", 500, "Server Error", {},
+            io.BytesIO(b'{"detail":"boom"}'),
+        )
+
+    monkeypatch.setattr(driver.urllib.request, "urlopen", raise_500)
+    assert driver.get_unseen_messages() is None
+    assert driver._workspace_gone is False

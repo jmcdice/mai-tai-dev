@@ -20,6 +20,10 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production")
 os.environ.setdefault("DEBUG", "false")
 # The scheduler loop is driven explicitly in tests via tick()
 os.environ.setdefault("SCHEDULER_ENABLED", "false")
+# The startup reaper reads live workspace IDs from the DB and removes any agent
+# container not in that set. Against the (empty) test DB that would delete every
+# real agent container on the developer's machine.
+os.environ["AGENT_REAPER_ENABLED"] = "false"
 
 import pytest
 from fastapi.testclient import TestClient

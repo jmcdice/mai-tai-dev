@@ -151,22 +151,61 @@ failure this layout exists to prevent.
 - No temporary fixes. Find root causes.
 INSTRUCTIONS_EOF
 
-# 5. Clone repo for coder agents
+# 5. Clone repo for coder agents.
+#
+# Outcome is recorded in ${STATUS_FILE} so the backend can report a container
+# that came up but failed provisioning as *degraded* rather than healthy, and
+# appended to the instructions so the agent knows its own repo is missing
+# instead of describing an empty directory as if that were the assignment.
+STATUS_FILE="${HOME}/.bootstrap-status"
+echo '{"clone":"skipped"}' > "${STATUS_FILE}"
+
 if [ "${AGENT_TEMPLATE}" = "coder" ] && [ -n "${REPO_URL:-}" ]; then
   echo "[mai-tai-agent] Cloning repository: ${REPO_URL}"
 
   if [ -n "${GITHUB_TOKEN:-}" ]; then
-    git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
-    git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "git@github.com:"
+    # --add on BOTH: same config key, so without it the second call replaces
+    # the first and the https:// rewrite — the one repo_url actually uses —
+    # is silently lost. Private clones then fail with "Repository not found".
+    git config --global --add url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+    git config --global --add url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "git@github.com:"
   fi
 
-  cd /home/agent
+  cd "${HOME}"
   rm -rf "${WORKDIR}"
-  if git clone "${REPO_URL}" "${WORKDIR}" 2>&1; then
+  CLONE_LOG="$(mktemp)"
+  if git clone "${REPO_URL}" "${WORKDIR}" > "${CLONE_LOG}" 2>&1; then
     echo "[mai-tai-agent] Repository cloned successfully"
+    echo '{"clone":"ok"}' > "${STATUS_FILE}"
   else
-    echo "[mai-tai-agent] WARNING: Failed to clone repo, creating empty workspace"
+    # Strip any credential that leaked into git's error output before it
+    # lands in a status file the API will hand back to the browser.
+    CLONE_ERR="$(tail -c 400 "${CLONE_LOG}" | tr -d '\r' | tr '\n' ' ')"
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+      CLONE_ERR="${CLONE_ERR//${GITHUB_TOKEN}/***}"
+    fi
+    echo "[mai-tai-agent] ERROR: Failed to clone repo: ${CLONE_ERR}"
+    echo "[mai-tai-agent] Continuing with an empty workspace (agent will be marked degraded)"
     mkdir -p "${WORKDIR}"
+    CLONE_ERR_JSON="$(printf '%s' "${CLONE_ERR}" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+    printf '{"clone":"failed","repo_url":"%s","error":"%s"}\n' \
+      "${REPO_URL}" "${CLONE_ERR_JSON}" > "${STATUS_FILE}"
+
+    cat >> "${INSTRUCTIONS_TMP}" << CLONE_FAIL_EOF
+
+## ⚠️ Your repository failed to clone
+You were configured to work on \`${REPO_URL}\`, but the clone failed:
+
+\`\`\`
+${CLONE_ERR}
+\`\`\`
+
+\`${WORKDIR}\` is an EMPTY directory, not that repo. Do not describe it as if it
+were the project, and do not start building something new in it. If the human
+asks you about the codebase, tell them the clone failed and quote the error
+above — the usual cause is a private repo with a missing or unauthorised
+GitHub token in Settings.
+CLONE_FAIL_EOF
   fi
   cd "${WORKDIR}"
 

@@ -399,7 +399,17 @@ export async function stopAgent(token: string, workspaceId: string): Promise<{ s
   return api(`/api/v1/workspaces/${workspaceId}/agent/stop`, { method: 'POST', token });
 }
 
-export async function getAgentContainerStatus(token: string, workspaceId: string): Promise<{ status: string; running: boolean; container?: string }> {
+export async function getAgentContainerStatus(token: string, workspaceId: string): Promise<{
+  status: string;
+  running: boolean;
+  container?: string;
+  degraded?: boolean;
+  problems?: string[];
+  oom_killed?: boolean;
+  restart_count?: number;
+  mem_limit?: number | null;
+  bootstrap?: { clone?: string; repo_url?: string; error?: string } | null;
+}> {
   return api(`/api/v1/workspaces/${workspaceId}/agent/container-status`, { token });
 }
 
@@ -531,10 +541,13 @@ export async function deleteApiKey(token: string, workspaceId: string, keyId: st
 
 // Agent Status
 export interface AgentStatus {
-  status: 'connected' | 'idle' | 'offline';
+  // 'degraded' = the container is up but failed provisioning (repo clone
+  // failed, OOM-killed). Chatting still works; the agent cannot do its job.
+  status: 'connected' | 'idle' | 'offline' | 'degraded';
   last_activity: string | null;
   seconds_since_activity?: number;
   message: string;
+  problems?: string[];
 }
 
 export async function getAgentStatus(token: string, workspaceId: string): Promise<AgentStatus> {

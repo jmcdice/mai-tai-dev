@@ -291,7 +291,9 @@ export default function WorkspacePage() {
                 {agentStatus && (
                   <span
                     className={`ml-1 h-2 w-2 rounded-full ${
-                      agentStatus.status === 'connected'
+                      agentStatus.status === 'degraded'
+                        ? 'bg-destructive'
+                        : agentStatus.status === 'connected'
                         ? 'bg-success'
                         : agentStatus.status === 'idle'
                         ? 'bg-warning'
