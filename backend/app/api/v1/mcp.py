@@ -34,6 +34,20 @@ from app.services.scheduler import preview_runs_local
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
 
+def resolve_agent_name(auth: ApiKeyAuth) -> str:
+    """Display name for messages posted through this API key.
+
+    A workspace-scoped key was named for one specific agent, so its name is
+    the most precise label available. A user-level key is shared by every
+    agent the user runs — labelling all of them with the key's name ("Default
+    Agent Key") makes a multi-agent transcript unreadable, so fall back to the
+    workspace name, which is what the human actually called this agent.
+    """
+    if auth.api_key.workspace_id is not None:
+        return auth.api_key.name
+    return auth.workspace.name or auth.api_key.name
+
+
 @router.get("/auth/verify")
 async def verify_api_key(
     auth: ApiKeyAuth = Depends(get_api_key_auth),
@@ -69,7 +83,7 @@ async def send_message(
     message = Message(
         workspace_id=auth.workspace_id,
         user_id=None,  # MCP agents don't have a user ID
-        agent_name=auth.api_key.name,  # Use API key name as agent name
+        agent_name=resolve_agent_name(auth),
         content=data.content,
         message_metadata=data.metadata or {"source": "mcp", "api_key": auth.api_key.name},
     )

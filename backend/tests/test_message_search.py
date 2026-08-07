@@ -65,7 +65,7 @@ def test_search_includes_agent_messages(client, user_a):
         headers=mcp_headers(user_a),
     )
     assert resp.json()["total"] == 1
-    assert resp.json()["results"][0]["sender_name"] == "Default Agent Key"
+    assert resp.json()["results"][0]["sender_name"] == "My Workspace"
 
 
 def test_search_query_validation(client, user_a):

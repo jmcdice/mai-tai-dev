@@ -162,6 +162,7 @@ def _maybe_wake_agent(workspace: Workspace, owner: User | None) -> str:
         template=config.template,
         github_token=get_user_secret(settings, "github_token") if config.template == "coder" else None,
         repo_url=config.repo_url,
+        mem_limit=config.mem_limit,
     )
     if result.get("status") in ("started", "already_running"):
         return "delivered (agent woken)" if result["status"] == "started" else "delivered"

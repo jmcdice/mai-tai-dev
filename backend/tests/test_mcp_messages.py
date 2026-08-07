@@ -25,7 +25,10 @@ def test_agent_sends_message(client, user_a):
     )
     assert resp.status_code == 201
     body = resp.json()
-    assert body["agent_name"] == "Default Agent Key"
+    # A user-level key is shared by every agent the user runs, so the key's
+    # own name ("Default Agent Key") labelled all of them identically. The
+    # workspace name is what the human actually called this agent.
+    assert body["agent_name"] == "My Workspace"
     assert body["user_id"] is None
 
     # Visible in the workspace message list
@@ -110,3 +113,46 @@ def test_agent_message_content_not_modified(client, user_a):
     resp = client.get("/api/v1/mcp/messages", headers=mcp_headers(user_a))
     agent_msgs = [m for m in resp.json()["messages"] if m["user_id"] is None]
     assert agent_msgs[0]["content"] == "plain agent message"
+
+
+def test_agent_name_uses_workspace_name_not_shared_key_name(client, user_a):
+    """Two agents on one user-level key must not share a label (issue #43)."""
+    resp = client.post(
+        "/api/v1/workspaces",
+        json={"name": "WinPlan", "workspace_type": "agent"},
+        headers=auth_headers(user_a["token"]),
+    )
+    assert resp.status_code == 201
+    other_ws = resp.json()["id"]
+
+    client.post(
+        "/api/v1/mcp/messages",
+        json={"content": "from the first agent"},
+        headers=mcp_headers(user_a),
+    )
+    resp = client.post(
+        "/api/v1/mcp/messages",
+        json={"content": "from the second agent"},
+        headers={"X-API-Key": user_a["api_key"], "X-Workspace-ID": other_ws},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["agent_name"] == "WinPlan"
+
+
+def test_workspace_scoped_key_keeps_its_own_name(client, user_a):
+    """A key named for one specific agent is more precise than the workspace."""
+    resp = client.post(
+        f"/api/v1/workspaces/{user_a['workspace_id']}/api-keys",
+        json={"name": "Nightly Report Bot"},
+        headers=auth_headers(user_a["token"]),
+    )
+    assert resp.status_code == 201, resp.text
+    scoped_key = resp.json()["key"]
+
+    resp = client.post(
+        "/api/v1/mcp/messages",
+        json={"content": "report ready"},
+        headers={"X-API-Key": scoped_key, "X-Workspace-ID": user_a["workspace_id"]},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["agent_name"] == "Nightly Report Bot"

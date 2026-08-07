@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.concurrency import run_in_threadpool
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,8 +30,10 @@ from app.services.agents import (
     resolve_auth_env,
     start_agent,
     stop_agent,
+    template_mem_limit,
     get_agent_status as get_container_status,
     get_agent_logs,
+    get_agent_problems,
 )
 
 logger = logging.getLogger(__name__)
@@ -103,6 +106,7 @@ async def get_agent_templates(
             "id": key,
             "label": tmpl["label"],
             "description": tmpl["description"],
+            "default_mem_limit": template_mem_limit(key),
         }
     return {"templates": templates}
 
@@ -187,8 +191,21 @@ async def delete_workspace(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    """Delete a workspace."""
+    """Delete a workspace and tear down its agent container."""
     workspace = await check_workspace_access(workspace_id, db, current_user)
+
+    # Stop the agent BEFORE the row goes away. Skipping this stranded the
+    # container: `restart: unless-stopped` kept it alive indefinitely, polling
+    # a workspace that no longer existed. Best-effort — a Docker outage must
+    # not block the delete, and startup reconciliation reaps whatever is left.
+    # Threadpooled: docker-py is blocking and the stop carries a 30s grace so
+    # the agent can flush its memory, which would otherwise stall the loop.
+    if workspace.workspace_type == "agent":
+        try:
+            await run_in_threadpool(stop_agent, workspace_id, remove_memory=True)
+        except Exception:
+            logger.exception("Failed to stop agent for deleted workspace %s", workspace_id)
+
     await db.delete(workspace)
     await db.commit()
 
@@ -412,8 +429,12 @@ async def get_agent_status(
     - Connected (green): Activity within 7 minutes
     - Idle (yellow): Activity 7-10 minutes ago
     - Offline (gray): No activity for 10+ minutes or never
+
+    A container that came up but failed provisioning (repo clone failed, being
+    OOM-killed) is reported as `degraded` regardless of how chatty it is —
+    talking to the API is not the same as being able to do the job.
     """
-    await check_workspace_access(workspace_id, db, current_user)
+    workspace = await check_workspace_access(workspace_id, db, current_user)
 
     # Query workspace_agent_activity table for this workspace
     result = await db.execute(
@@ -423,17 +444,27 @@ async def get_agent_status(
     )
     activity = result.scalar_one_or_none()
 
+    problems = (
+        await run_in_threadpool(get_agent_problems, workspace_id)
+        if workspace.workspace_type == "agent"
+        else []
+    )
+
     if not activity:
         return {
-            "status": "offline",
+            "status": "degraded" if problems else "offline",
             "last_activity": None,
-            "message": "No agent connected",
+            "message": problems[0] if problems else "No agent connected",
+            "problems": problems,
         }
 
     now = datetime.utcnow()
     seconds_since_activity = (now - activity.last_activity_at).total_seconds()
 
-    if seconds_since_activity < 420:  # 7 minutes
+    if problems:
+        status_str = "degraded"
+        message = problems[0]
+    elif seconds_since_activity < 420:  # 7 minutes
         status_str = "connected"
         message = "Agent is connected"
     elif seconds_since_activity < 600:  # 10 minutes
@@ -448,6 +479,7 @@ async def get_agent_status(
         "last_activity": activity.last_activity_at.isoformat() + "Z",
         "seconds_since_activity": int(seconds_since_activity),
         "message": message,
+        "problems": problems,
     }
 
 
@@ -520,6 +552,7 @@ async def start_agent_endpoint(
         template=config.template,
         github_token=github_token,
         repo_url=repo_url,
+        mem_limit=config.mem_limit,
     )
 
     if result["status"] == "error":

@@ -44,10 +44,19 @@ MCP_CONFIG = os.environ.get("AGENT_MCP_CONFIG", "/tmp/mcp-config.json")
 POLL_INTERVAL = float(os.environ.get("AGENT_POLL_INTERVAL", "3"))
 TURN_TIMEOUT = int(os.environ.get("AGENT_TURN_TIMEOUT", "3600"))
 FLUSH_TIMEOUT = int(os.environ.get("AGENT_FLUSH_TIMEOUT", "25"))
+# Ceiling for the poll backoff. A driver whose workspace was deleted used to
+# poll at the normal interval forever — ~1,260 failed requests an hour, per
+# stranded container, with nothing in the UI to reveal it. The container can't
+# simply exit (restart_policy: unless-stopped brings it straight back), so it
+# backs off instead.
+MAX_POLL_INTERVAL = float(os.environ.get("AGENT_MAX_POLL_INTERVAL", "300"))
 
 STATE_FILE = MEMORY_DIR / "state" / "driver.json"
 
 _shutdown = False
+# Set when the API reports this workspace no longer exists. Not transient:
+# no amount of retrying brings a deleted workspace back.
+_workspace_gone = False
 
 
 def log(msg: str) -> None:
@@ -61,6 +70,7 @@ def log(msg: str) -> None:
 
 def _request(method: str, path: str, params: dict | None = None, body: dict | None = None) -> dict | None:
     """Call the Mai-Tai API. Returns parsed JSON, or None on failure."""
+    global _workspace_gone
     url = f"{API_URL}{path}"
     if params:
         url += "?" + urllib.parse.urlencode(params)
@@ -77,17 +87,35 @@ def _request(method: str, path: str, params: dict | None = None, body: dict | No
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
+            _workspace_gone = False
             return json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
-        log(f"API {method} {path} -> HTTP {e.code}: {e.read().decode()[:200]}")
+        detail = e.read().decode()[:200]
+        log(f"API {method} {path} -> HTTP {e.code}: {detail}")
+        if e.code == 404 and "Workspace not found" in detail:
+            if not _workspace_gone:
+                log(
+                    f"workspace {WORKSPACE_ID} no longer exists — backing off to "
+                    f"{MAX_POLL_INTERVAL:.0f}s polls. This container is orphaned "
+                    "and can be removed."
+                )
+            _workspace_gone = True
     except Exception as e:
         log(f"API {method} {path} failed: {e}")
     return None
 
 
-def get_unseen_messages() -> list[dict]:
+def get_unseen_messages() -> list[dict] | None:
+    """Unseen messages, or None if the poll itself failed.
+
+    The distinction matters: an empty list means "nothing new, poll again
+    shortly"; None means the API is unreachable or the workspace is gone, and
+    the caller should back off rather than hammer it.
+    """
     result = _request("GET", "/api/v1/mcp/messages", params={"unseen": "true", "limit": 50})
-    return result.get("messages", []) if result else []
+    if result is None:
+        return None
+    return result.get("messages", [])
 
 
 def acknowledge(message_ids: list[str]) -> None:
@@ -261,6 +289,34 @@ def _handle_sigterm(signum, frame):
     log("SIGTERM received — will flush and exit")
 
 
+def _sleep(seconds: float) -> None:
+    """Sleep, but wake promptly on SIGTERM.
+
+    time.sleep is auto-resumed after a signal (PEP 475), so a single long
+    sleep would swallow the 30s stop grace and cost the agent its flush turn.
+    """
+    deadline = time.monotonic() + seconds
+    while not _shutdown:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        time.sleep(min(remaining, 1.0))
+
+
+def next_poll_interval(current: float, failed: bool, workspace_gone: bool) -> float:
+    """Poll interval for the next iteration.
+
+    Steady state is POLL_INTERVAL. Failures back off exponentially to
+    MAX_POLL_INTERVAL; a deleted workspace goes straight to the ceiling,
+    because that one is never coming back.
+    """
+    if not failed:
+        return POLL_INTERVAL
+    if workspace_gone:
+        return MAX_POLL_INTERVAL
+    return min(max(current, POLL_INTERVAL) * 2, MAX_POLL_INTERVAL)
+
+
 def flush_before_exit(state: dict) -> None:
     """Give the agent one short turn to save state before the container stops."""
     session_id = state.get("session_id")
@@ -290,10 +346,19 @@ def main() -> None:
         "Send me a message and I'll pick it up within a few seconds."
     )
 
+    poll_interval = POLL_INTERVAL
+
     while not _shutdown:
         messages = get_unseen_messages()
+
+        if messages is None:
+            poll_interval = next_poll_interval(poll_interval, True, _workspace_gone)
+            _sleep(poll_interval)
+            continue
+
+        poll_interval = POLL_INTERVAL
         if not messages:
-            time.sleep(POLL_INTERVAL)
+            _sleep(poll_interval)
             continue
 
         # Ack first: a poison message must not wedge the loop forever.

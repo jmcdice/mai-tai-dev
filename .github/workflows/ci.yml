@@ -105,6 +105,9 @@ jobs:
       - name: Agent driver tests
         run: pytest agents/tests -v
 
+      - name: Agent bootstrap tests
+        run: bash agents/tests/test_bootstrap.sh
+
   security:
     name: Security Scan (Trivy)
     runs-on: ubuntu-latest
