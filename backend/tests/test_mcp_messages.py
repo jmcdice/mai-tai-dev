@@ -181,3 +181,59 @@ def test_agent_message_content_not_modified(client, user_a):
     resp = client.get("/api/v1/mcp/messages", headers=mcp_headers(user_a))
     agent_msgs = [m for m in resp.json()["messages"] if m["user_id"] is None]
     assert agent_msgs[0]["content"] == "plain agent message"
+
+
+def test_agent_name_uses_workspace_name_not_shared_key_name(client, user_a):
+    """Two agents on one user-level key must not share a label (issue #43)."""
+    resp = client.post(
+        "/api/v1/workspaces",
+        json={"name": "WinPlan", "workspace_type": "agent"},
+        headers=auth_headers(user_a["token"]),
+    )
+    assert resp.status_code == 201
+    other_ws = resp.json()["id"]
+
+    client.post(
+        "/api/v1/mcp/messages",
+        json={"content": "from the first agent"},
+        headers=mcp_headers(user_a),
+    )
+    resp = client.post(
+        "/api/v1/mcp/messages",
+        json={"content": "from the second agent"},
+        headers={"X-API-Key": user_a["api_key"], "X-Workspace-ID": other_ws},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["agent_name"] == "WinPlan"
+
+
+def test_workspace_scoped_key_still_labels_by_workspace(client, user_a):
+    """Even a key named for one agent doesn't override the workspace name.
+
+    A per-workspace key looks like a precise label, but it is the credential's
+    name, not the agent's — rotating or renaming a key would silently rename
+    the agent in the transcript. The key's name is kept in message metadata,
+    where it identifies the credential without pretending to be the speaker.
+    """
+    resp = client.post(
+        f"/api/v1/workspaces/{user_a['workspace_id']}/api-keys",
+        json={"name": "Nightly Report Bot"},
+        headers=auth_headers(user_a["token"]),
+    )
+    assert resp.status_code == 201, resp.text
+    scoped_key = resp.json()["key"]
+
+    resp = client.post(
+        "/api/v1/mcp/messages",
+        json={"content": "report ready"},
+        headers={"X-API-Key": scoped_key, "X-Workspace-ID": user_a["workspace_id"]},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["agent_name"] == "My Workspace"
+
+    resp = client.get(
+        f"/api/v1/workspaces/{user_a['workspace_id']}/messages",
+        headers=auth_headers(user_a["token"]),
+    )
+    posted = next(m for m in resp.json()["messages"] if m["content"] == "report ready")
+    assert posted["message_metadata"]["api_key"] == "Nightly Report Bot"

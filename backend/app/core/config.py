@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     # to sit well clear of the longest legitimate turn.
     watchdog_stale_minutes: int = 30
 
+    # On startup, remove agent containers whose workspace no longer exists.
+    # MUST be false anywhere the app runs against a database that isn't the
+    # real one (tests): the reaper trusts the DB as the list of live
+    # workspaces, so pointing it at an empty test DB would reap every agent
+    # container on the host.
+    agent_reaper_enabled: bool = True
+
     # Fernet key for encrypting secrets at rest (users' API keys/tokens).
     # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     # Falls back to a key derived from SECRET_KEY when unset.

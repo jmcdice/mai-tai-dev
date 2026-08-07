@@ -10,15 +10,17 @@ from app.services.agents.lifecycle import StartBlocked, StartPlan, plan_agent_st
 from app.services.agents.runtimes import RUNTIMES, RuntimeSpec, get_runtime
 from app.services.agents.spawner import (
     get_agent_logs,
+    get_agent_problems,
     get_agent_status,
     get_host_vertex_config,
     list_agents,
+    reap_orphaned_agents,
     resolve_auth_env,
     restart_agent,
     start_agent,
     stop_agent,
 )
-from app.services.agents.templates import AGENT_TEMPLATES
+from app.services.agents.templates import AGENT_TEMPLATES, template_mem_limit
 
 __all__ = [
     "AGENT_TEMPLATES",
@@ -29,11 +31,14 @@ __all__ = [
     "get_runtime",
     "plan_agent_start",
     "get_agent_logs",
+    "get_agent_problems",
     "get_agent_status",
     "get_host_vertex_config",
     "list_agents",
+    "reap_orphaned_agents",
     "resolve_auth_env",
     "restart_agent",
     "start_agent",
     "stop_agent",
+    "template_mem_limit",
 ]
