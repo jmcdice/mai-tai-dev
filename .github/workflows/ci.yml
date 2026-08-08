@@ -54,6 +54,9 @@ jobs:
       - name: Lint with ruff
         run: cd backend && ruff check .
 
+      - name: Lint admin CLI
+        run: ruff check cli
+
   backend-tests:
     name: Backend (Tests)
     runs-on: ubuntu-latest
@@ -104,6 +107,14 @@ jobs:
 
       - name: Agent driver tests
         run: pytest agents/tests -v
+
+      - name: Install admin CLI
+        # Operator tool, never published and never shipped to agents — but it
+        # reads the same schema the backend migrates, so it gets tested here.
+        run: pip install -e "cli[dev]"
+
+      - name: Admin CLI tests
+        run: pytest cli/tests -v
 
   security:
     name: Security Scan (Trivy)
