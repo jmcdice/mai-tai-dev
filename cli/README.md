@@ -53,6 +53,10 @@ Requires Python 3.11+, and on the host: `docker`, `ps`, and a running
 | `mai-tai bots stop <repo>` | Kill a supervisor window for good |
 | `mai-tai bots restart <target> [--wait N]` | Bounce a bot by repo name or workspace, then wait for its heartbeat to come back |
 | `mai-tai tail <workspace> [-n N] [-f]` | Read a workspace's conversation; `-f` follows |
+| `mai-tai config export [--scrub] [--with-env] [out]` | Write a portable copy of the whole deployment |
+| `mai-tai config inspect <bundle>` | Show what a bundle holds without restoring it |
+| `mai-tai config import <bundle> [--disable-schedules]` | Replace this host's database with a bundle's |
+| `mai-tai config check-env` | Report which `.env` keys this host is missing |
 
 `restart` and `stop` are different operations, deliberately. `restart` kills the
 `timeout` wrapper and the supervisor relaunches the bot in place — the same
@@ -77,6 +81,41 @@ silently dropped. Its **Auth** section keys off `workspace_agent_activity`, not
 workspace's agent presents, and filtering on `api_keys.workspace_id` reports
 "no keys" for a workspace that is plainly authenticating right now. It reports
 key metadata only: never the key material or its hash.
+
+## Bundles
+
+`mai-tai config export` produces a tar.gz holding `manifest.json`,
+`database.sql`, an `env.template` skeleton, and — only with `--with-env` — the
+source `.env`. The format is unchanged from `scripts/mai-tai-config.sh` and the
+version is deliberately still `2`, so a bundle written here restores on a host
+that only has the old shell script.
+
+Three things worth knowing before you rely on it:
+
+- **`--scrub` only strips `users.settings`.** Message history is not scrubbed
+  and cannot safely be — agents paste keys into chat. Every export scans the
+  dump for credential-shaped strings (`sk-ant-`, `ghp_`, private-key blocks,
+  and friends) and prints counts, never values. A non-zero count on a
+  `--scrub` bundle means it is still secret.
+- **A restored clone is live.** Schedules arrive enabled and start firing on
+  the next tick, from a host meant to be a copy. Import says so before the
+  prompt; `--disable-schedules` turns them off as part of the restore.
+- **`import` is interactive on purpose — there is no `--yes`.** It wipes every
+  workspace on the host, and the one place you never want that scriptable is a
+  machine where somebody typed the wrong path. With no stdin it aborts rather
+  than falling through to the wipe.
+
+Scrubbing happens in a throwaway copy of the database, never in the dump text
+and never as an `UPDATE` appended to the restore. A trailing `UPDATE` would
+leave the plaintext sitting in the bundle's `COPY` blocks, and those are not
+safely regex-editable. Copy → scrub → verify → dump is the only ordering where
+the bytes on disk never held a credential; the scratch database is dropped in a
+`finally`, because left behind it is unscrubbed live data under a name nobody
+would think to look at.
+
+Extraction only ever writes the four known member names. Path traversal and
+symlink attacks are impossible by construction rather than by validation — a
+tarball is not a trusted input just because you were the one who made it.
 
 ## What doctor checks
 
@@ -105,11 +144,15 @@ works, so rewriting it in Python would defeat the test. The DNS/TLS/DDNS
 scripts are thin `gcloud` and `acme.sh` wrappers with no connection to the
 mai-tai data model.
 
+Everything else has moved here. `mai-tai-agent.sh` was deleted (tmux-era agent
+runner, superseded by the Docker spawner) and `mai-tai-config.sh` became
+`mai-tai config`.
+
 ## Design notes
 
 Everything shells out — no psycopg, no docker SDK. The CLI has to work on a bare
 deployment host where docker is the only guaranteed dependency, and
-`docker exec <pg> psql` is already how `scripts/mai-tai-config.sh` talks to the
+`docker exec <pg> psql` is how the repo's scripts have always talked to the
 database.
 
 Two traps worth knowing, both encoded in `probes.py`:
@@ -127,7 +170,7 @@ them here too.
 ## Tests
 
 ```bash
-uv run --with pytest --with typer --with rich python -m pytest cli/tests -q
+uv run --project cli --with pytest python -m pytest cli/tests -q
 ```
 
 No docker or postgres required — the probe boundary is monkeypatched, so the

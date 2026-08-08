@@ -8,18 +8,23 @@ this.
 
 from __future__ import annotations
 
+import contextlib
 import os
+import shutil
 import signal
 import sys
+import tempfile
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass
+from pathlib import Path
 from typing import NoReturn
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from . import __version__, probes
+from . import __version__, bundle, probes
 from .probes import ProbeError
 
 app = typer.Typer(
@@ -28,8 +33,10 @@ app = typer.Typer(
 )
 ws_app = typer.Typer(help="Workspaces.", no_args_is_help=True)
 bots_app = typer.Typer(help="Bot sessions and agent containers.", no_args_is_help=True)
+config_app = typer.Typer(help="Move a whole deployment between hosts.", no_args_is_help=True)
 app.add_typer(ws_app, name="ws")
 app.add_typer(bots_app, name="bots")
+app.add_typer(config_app, name="config")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -704,6 +711,285 @@ def _print_message(message: probes.Message) -> None:
     console.print(f"[dim]{message.created_at}[/dim] [{color}]{message.author}[/{color}]{suffix}")
     console.print(message.content.strip(), markup=False, highlight=False)
     console.print()
+
+
+@contextlib.contextmanager
+def _staging() -> Iterator[Path]:
+    """A private scratch directory that always gets cleaned up.
+
+    Both halves of this feature spill a full database dump — plus, on export,
+    the .env — onto disk. Leaving that in /tmp after a crash is a credential
+    leak, so cleanup is a `finally`, not a courtesy.
+    """
+    stage = Path(tempfile.mkdtemp(prefix="mai-tai-bundle-"))
+    stage.chmod(0o700)
+    try:
+        yield stage
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
+
+
+def _print_counts(counts: dict) -> None:
+    if not counts:
+        return
+    width = max(len(key) for key in counts)
+    for key, value in counts.items():
+        console.print(f"  [dim]{key.ljust(width)}[/dim]  {value}")
+
+
+def _human_size(path: Path) -> str:
+    size = float(path.stat().st_size)
+    for unit in ("B", "K", "M", "G"):
+        if size < 1024 or unit == "G":
+            return f"{size:.0f}{unit}"
+        size /= 1024
+    return f"{size:.0f}G"
+
+
+@config_app.command("export")
+def config_export(
+    out: str = typer.Argument(None, help="Where to write the bundle."),
+    scrub: bool = typer.Option(False, "--scrub", help="Strip credentials from users.settings."),
+    with_env: bool = typer.Option(False, "--with-env", help="Also bundle the repo's .env."),
+) -> None:
+    """Write a portable copy of this deployment: users, workspaces, agents, history."""
+    target = Path(out) if out else Path.cwd() / bundle.default_bundle_name()
+    target = target.expanduser().resolve()
+
+    console.print(
+        f"Dumping {'scrubbed ' if scrub else ''}database from "
+        f"[bold]{probes.PG_CONTAINER}[/bold]..."
+    )
+    with _staging() as stage:
+        manifest, notes, leaks = bundle.export_bundle(
+            target, stage=stage, scrub=scrub, with_env=with_env
+        )
+
+    for note in notes:
+        console.print(f"[yellow]![/yellow] {note}")
+    console.print(f"\n[green]✓[/green] wrote {target} ({_human_size(target)}, mode 0600)\n")
+    _print_counts(manifest.counts)
+    console.print()
+
+    if scrub:
+        console.print("Scrubbed bundle — users.settings carries no credentials.")
+        console.print("On the target you'll need to:")
+        console.print("  1. Put .env in place       [dim]mai-tai config check-env[/dim]")
+        console.print("  2. Copy ~/.config/mai-tai/config so existing mt_ keys authenticate")
+        console.print("  3. Re-enter Anthropic / GitHub / LLM keys in Settings > AI")
+        _warn_about_leaks(leaks, scrubbed=True)
+        return
+
+    env_note = " and your .env" if manifest.includes_env else ""
+    err_console.print("[red]TREAT THIS FILE AS A SECRET.[/red]")
+    err_console.print(
+        f"It carries the credentials from users.settings (Anthropic/OpenAI keys, GitHub\n"
+        f"token, LLM keys){env_note}, plus full message history. Those settings are\n"
+        "Fernet-encrypted at rest, but the key derives from SECRET_KEY unless\n"
+        "ENCRYPTION_KEY is set — a bundle plus a leaked .env is plaintext. Don't commit\n"
+        "it, don't put it in cloud storage, and delete it once the move is done."
+    )
+    _warn_about_leaks(leaks, scrubbed=False)
+    console.print("\n[dim]Use --scrub to drop the credentials held in users.settings.[/dim]")
+
+
+def _warn_about_leaks(leaks: dict[str, int], *, scrubbed: bool) -> None:
+    """Report credential-shaped strings left in the dump.
+
+    --scrub only strips users.settings. Message history is not scrubbed and
+    never can be safely — agents paste keys into chat and operators paste them
+    back — so a scrubbed bundle is *not* automatically safe to hand around.
+    Saying so only when we can point at something keeps the warning meaningful.
+    """
+    if not scrubbed and not leaks:
+        return
+    console.print()
+    if not leaks:
+        err_console.print(
+            "[yellow]![/yellow] Note: --scrub does not touch message history. No "
+            "credential-shaped strings were found in it, but that is a pattern scan, "
+            "not a proof."
+        )
+        return
+    err_console.print("[red]![/red] Credential-shaped strings remain in the message history:")
+    for label, count in sorted(leaks.items(), key=lambda item: -item[1]):
+        err_console.print(f"    [red]{count:>4}[/red]  {label}")
+    err_console.print(
+        "  These are in chat content, which no scrub touches. Treat this bundle as secret "
+        "and rotate anything that actually leaked."
+    )
+
+
+@config_app.command("inspect")
+def config_inspect(
+    bundle_path: str = typer.Argument(..., metavar="BUNDLE", help="Bundle to look inside."),
+) -> None:
+    """Show what a bundle contains without restoring any of it."""
+    path = Path(bundle_path).expanduser()
+    with _staging() as stage:
+        try:
+            manifest, notes = bundle.unpack(path, stage)
+        except ProbeError as e:
+            _fail(str(e))
+        dump = stage / "database.sql"
+        dump_size = _human_size(dump) if dump.exists() else "[red]missing[/red]"
+
+    console.print(f"\n[bold]{path}[/bold]\n")
+    _kv(
+        [
+            ("format", f"v{manifest.bundle_version}"),
+            ("exported", manifest.exported_at or "—"),
+            ("source host", manifest.source_host or "—"),
+            ("schema", manifest.alembic_revision),
+            ("dump size", dump_size),
+            (
+                "secrets",
+                "[red]yes — treat as credential material[/red]"
+                if manifest.contains_secrets
+                else "[green]scrubbed[/green]",
+            ),
+            ("includes .env", "yes" if manifest.includes_env else "no"),
+            ("crypto key", manifest.crypto_fingerprint),
+        ]
+    )
+    console.print("\n[bold]Contents[/bold]")
+    _print_counts(manifest.counts)
+    for note in notes:
+        console.print(f"[yellow]![/yellow] {note}")
+    console.print()
+
+
+@config_app.command("import")
+def config_import(
+    bundle_path: str = typer.Argument(..., metavar="BUNDLE", help="Bundle to restore."),
+    disable_schedules: bool = typer.Option(
+        False,
+        "--disable-schedules",
+        help="Turn every scheduled task off after restoring (recommended for a clone).",
+    ),
+) -> None:
+    """Replace this deployment's database with a bundle's.
+
+    Destructive and interactive by design: there is no --yes. A bundle restore
+    wipes every workspace on this host, and the one place you never want that
+    to be scriptable is a machine where somebody typed the wrong path.
+    """
+    path = Path(bundle_path).expanduser()
+    with _staging() as stage:
+        try:
+            manifest, notes = bundle.unpack(path, stage)
+            bundle.check_version(manifest)
+            bundle.require_pg()
+        except ProbeError as e:
+            _fail(str(e))
+
+        for note in notes:
+            console.print(f"[yellow]![/yellow] {note}")
+
+        console.print(f"\n[bold]{path}[/bold]  [dim]v{manifest.bundle_version}, "
+                      f"from {manifest.source_host or 'unknown'} at "
+                      f"{manifest.exported_at or 'unknown'}[/dim]\n")
+        _print_counts(manifest.counts)
+        console.print()
+
+        warning = bundle.fingerprint_warning(manifest)
+        if warning:
+            err_console.print(f"[yellow]![/yellow] {warning}\n")
+
+        existing = probes.psql("select count(*) from workspaces")
+        held = existing[0][0] if existing else "?"
+        err_console.print(
+            f"[red]This REPLACES the database in {probes.PG_CONTAINER} "
+            f"({probes.PG_DB}).[/red]"
+        )
+        err_console.print(f"[red]It currently holds {held} workspace(s). They will be dropped.[/red]")
+
+        # A restored clone is live: schedules arrive enabled, and the next tick
+        # wakes agents that then do real work — send messages, hit the LAN — from
+        # a host that was only ever meant to be a copy.
+        incoming = manifest.enabled_schedules
+        if incoming and not disable_schedules:
+            err_console.print(
+                f"[yellow]![/yellow] The bundle carries {incoming} ENABLED schedule(s). This host "
+                "will start firing them as soon as the backend comes up. Re-run with "
+                "--disable-schedules if this is a clone."
+            )
+        console.print()
+
+        # Fail closed: no stdin (cron, CI) must abort, not fall through to a wipe.
+        try:
+            confirm = typer.prompt("Type 'replace' to continue", default="", show_default=False)
+        except (EOFError, typer.Abort):
+            console.print("\nNo input available. Aborted — nothing changed.")
+            raise typer.Exit(code=1) from None
+        if confirm != "replace":
+            console.print("Aborted. Nothing changed.")
+            raise typer.Exit(code=0)
+
+        console.print("Restoring...")
+        try:
+            bundle.restore(stage)
+        except ProbeError as e:
+            err_console.print(f"[red]✗[/red] {e}")
+            err_console.print("[red]The database may be in a partial state.[/red]")
+            raise typer.Exit(code=1) from None
+        console.print("[green]✓[/green] database restored")
+
+        if disable_schedules:
+            turned_off = bundle.disable_all_schedules()
+            console.print(f"[green]✓[/green] disabled {turned_off} schedule(s)")
+
+        imported_env = bundle.place_imported_env(stage)
+
+    if imported_env:
+        console.print(f"\nBundle included a .env — written to {imported_env} (mode 0600).")
+        console.print(f"[dim]Review it, then: mv {imported_env} {bundle.env_path()}[/dim]")
+
+    console.print("\n[green]Import complete.[/green] Remaining steps:")
+    console.print("  1. Ensure .env is in place   [dim]mai-tai config check-env[/dim]")
+    console.print("  2. Restart the stack         [dim]./dev.sh local up[/dim]")
+
+    # Only nag about re-entering credentials when the bundle actually dropped
+    # them; a full bundle carries them and the target is ready to go.
+    if not manifest.contains_secrets:
+        console.print("  3. Re-enter credentials in Settings > AI (this bundle was scrubbed)")
+        console.print("\n[dim]Users needing credentials re-entered:[/dim]")
+        for row in probes.psql("select email from users order by email"):
+            console.print(f"  [dim]- {row[0]}[/dim]")
+    else:
+        err_console.print(
+            f"\n[yellow]![/yellow] Delete {path} now that the move is done; it holds live secrets."
+        )
+
+
+@config_app.command("check-env")
+def config_check_env() -> None:
+    """Report which .env keys this host is missing. Exits 1 if a required one is."""
+    try:
+        results = bundle.check_env()
+    except ProbeError as e:
+        _fail(str(e))
+
+    console.print(f"Checking {bundle.env_path()}\n")
+    missing = 0
+    for required in (True, False):
+        console.print(f"  [bold]{'Required' if required else 'Optional'}:[/bold]")
+        for check in (c for c in results if c.required == required):
+            if check.present:
+                console.print(f"    [green]ok[/green]       {check.key}")
+            elif required:
+                console.print(f"    [red]MISSING[/red]  {check.key}")
+                missing += 1
+            else:
+                console.print(f"    [yellow]unset[/yellow]    {check.key}")
+        console.print()
+
+    if missing:
+        err_console.print(
+            f"[red]{missing} required key(s) missing[/red] — the stack will not come up cleanly."
+        )
+        raise typer.Exit(code=1)
+    console.print("[green]All required keys present.[/green]")
 
 
 def main() -> None:

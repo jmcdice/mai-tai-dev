@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mai-tai-admin"
-version = "0.1.0"
+version = "0.2.0"
 description = "Operator CLI for a Mai-Tai deployment"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-    {name = "Joey McDermott", email = "jmcdice@gmail.com"}
+    {name = "Joey McDonald", email = "jmcdice@gmail.com"}
 ]
 
 # Deliberately NOT published to PyPI and NOT a dependency of mai-tai-mcp.
