@@ -48,8 +48,19 @@ Requires Python 3.11+, and on the host: `docker`, `ps`, and a running
 | `mai-tai doctor` | Health checks across core containers, bots, orphans, and schedules. Exits 1 on any failure |
 | `mai-tai ws list [--archived]` | Every workspace with agent type, message counts, and last-seen |
 | `mai-tai describe <ws>` | One workspace in full: runner, agent config, settings, message stats, auth, schedules. Also `mai-tai ws describe` |
+| `mai-tai bots list` | Every bot: tmux sessions and agent containers, plus which are configured to start at boot |
+| `mai-tai bots start <repo> \| --all` | Start a supervisor window for a repo |
+| `mai-tai bots stop <repo>` | Kill a supervisor window for good |
 | `mai-tai bots restart <target> [--wait N]` | Bounce a bot by repo name or workspace, then wait for its heartbeat to come back |
 | `mai-tai tail <workspace> [-n N] [-f]` | Read a workspace's conversation; `-f` follows |
+
+`restart` and `stop` are different operations, deliberately. `restart` kills the
+`timeout` wrapper and the supervisor relaunches the bot in place — the same
+thing the 24h rotation does. `stop` kills the whole supervisor window, so
+nothing brings the bot back until you start it or the host reboots.
+
+`bots start --all` is idempotent: repos already running are reported as skipped
+and it still exits 0, so it is safe as a "make sure everything is up" call.
 
 `<target>` and `<workspace>` resolve by id prefix, exact name, or
 case-insensitive substring — `mai-tai tail devops` is enough. An ambiguous
@@ -79,6 +90,20 @@ key metadata only: never the key material or its hash.
   tool on the box.
 - **Orphans** — running `maitai-agent-*` containers with no matching workspace
 - **Schedules** — `next_run_at` in the past means the scheduler loop stalled
+
+## What stays in `scripts/`
+
+`scripts/boot-mai-tai.sh` still owns the `@reboot` path and nothing else. That
+is on purpose: cron runs it with a bare environment, and this CLI is a
+uv-installed Python tool. If booting the bots depended on that venv, a broken
+venv after a power cut would mean no bots *and* no CLI to explain why. The boot
+path needs nothing but bash, tmux, and claude.
+
+Same reasoning keeps `mai-tai-supervisor.sh` and `verify-boot-cron-env.sh` in
+shell — the latter exists specifically to prove the *bare* cron environment
+works, so rewriting it in Python would defeat the test. The DNS/TLS/DDNS
+scripts are thin `gcloud` and `acme.sh` wrappers with no connection to the
+mai-tai data model.
 
 ## Design notes
 

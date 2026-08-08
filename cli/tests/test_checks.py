@@ -7,6 +7,8 @@ wrong in production.
 
 from __future__ import annotations
 
+import shlex
+
 import pytest
 
 from mai_tai_admin import cli, probes
@@ -446,6 +448,210 @@ class TestDescribeFormatting:
         assert "\n" not in out
         assert len(out) == 40
         assert out.endswith("...")
+
+
+class TestWindowNames:
+    @pytest.mark.parametrize(
+        "repo,expected",
+        [
+            ("rando", "rando"),
+            ("test.bot-1", "test-bot-1"),  # tmux rejects '.' in window names
+            ("a:b", "a-b"),  # and ':' is its target separator
+            ("weird//name", "weird-name"),  # repeats collapse
+            ("trailing.", "trailing"),
+        ],
+    )
+    def test_sanitize_matches_the_shell_version(self, repo, expected):
+        assert probes.sanitize_window(repo) == expected
+
+
+class TestTmuxLifecycle:
+    @pytest.fixture
+    def repo_dir(self, tmp_path, monkeypatch):
+        d = tmp_path / "repos" / "rando"
+        d.mkdir(parents=True)
+        (d / ".env.mai-tai").write_text("MAI_TAI_WORKSPACE_ID=abc\n")
+        supervisor = tmp_path / "sup.sh"
+        supervisor.write_text("#!/bin/sh\n")
+        supervisor.chmod(0o755)
+        monkeypatch.setattr(probes, "SUPERVISOR_PATH", supervisor)
+        return d
+
+    def _fake_run(self, monkeypatch, returncode=0, stdout="", stderr=""):
+        calls = []
+
+        def run(cmd, timeout=30):
+            calls.append(cmd)
+            return type("P", (), {"returncode": returncode, "stdout": stdout, "stderr": stderr})
+
+        monkeypatch.setattr(probes, "_run", run)
+        return calls
+
+    def test_missing_directory(self, tmp_path, monkeypatch, repo_dir):
+        with pytest.raises(probes.ProbeError, match="directory not found"):
+            probes.tmux_start("ghost", tmp_path / "nope")
+
+    def test_missing_env_file(self, tmp_path, monkeypatch, repo_dir):
+        bare = tmp_path / "repos" / "bare"
+        bare.mkdir()
+        with pytest.raises(probes.ProbeError, match="no .env.mai-tai"):
+            probes.tmux_start("bare", bare)
+
+    def test_supervisor_must_be_executable(self, tmp_path, monkeypatch, repo_dir):
+        dud = tmp_path / "dud.sh"
+        dud.write_text("#!/bin/sh\n")
+        dud.chmod(0o644)
+        monkeypatch.setattr(probes, "SUPERVISOR_PATH", dud)
+        with pytest.raises(probes.ProbeError, match="not executable"):
+            probes.tmux_start("rando", repo_dir)
+
+    def test_already_running_is_refused(self, monkeypatch, repo_dir):
+        monkeypatch.setattr(probes, "tmux_windows", lambda: ["rando"])
+        with pytest.raises(probes.ProbeError, match="already running"):
+            probes.tmux_start("rando", repo_dir)
+
+    def test_first_bot_creates_the_session(self, monkeypatch, repo_dir):
+        monkeypatch.setattr(probes, "tmux_windows", lambda: [])
+        calls = self._fake_run(monkeypatch)
+        assert probes.tmux_start("rando", repo_dir) == "rando"
+        assert calls[0][:2] == ["tmux", "new-session"]
+
+    def test_later_bots_get_a_free_index(self, monkeypatch, repo_dir):
+        monkeypatch.setattr(probes, "tmux_windows", lambda: ["folio"])
+        monkeypatch.setattr(probes, "_next_free_window_index", lambda: 3)
+        calls = self._fake_run(monkeypatch)
+        probes.tmux_start("rando", repo_dir)
+        assert calls[0][:2] == ["tmux", "new-window"]
+        assert f"{probes.TMUX_SESSION}:3" in calls[0]
+
+    def test_repo_dir_is_quoted_into_the_command(self, monkeypatch, tmp_path):
+        spaced = tmp_path / "repos" / "my repo"
+        spaced.mkdir(parents=True)
+        (spaced / ".env.mai-tai").write_text("x=1\n")
+        supervisor = tmp_path / "sup.sh"
+        supervisor.write_text("#!/bin/sh\n")
+        supervisor.chmod(0o755)
+        monkeypatch.setattr(probes, "SUPERVISOR_PATH", supervisor)
+        monkeypatch.setattr(probes, "tmux_windows", lambda: [])
+        calls = self._fake_run(monkeypatch)
+        probes.tmux_start("my repo", spaced)
+
+        # tmux hands the string to `sh -c`, which runs `bash -lc <inner>`, which
+        # runs <inner>. Parse both layers back apart: the supervisor must end up
+        # with the directory as a single argv element, spaces and all.
+        outer = shlex.split(calls[0][-1])
+        assert outer[:2] == ["bash", "-lc"]
+        assert shlex.split(outer[2]) == [str(supervisor), str(spaced)]
+
+    def test_tmux_failure_surfaces(self, monkeypatch, repo_dir):
+        monkeypatch.setattr(probes, "tmux_windows", lambda: [])
+        self._fake_run(monkeypatch, returncode=1, stderr="no server running")
+        with pytest.raises(probes.ProbeError, match="no server running"):
+            probes.tmux_start("rando", repo_dir)
+
+    def test_stop_requires_a_running_window(self, monkeypatch):
+        monkeypatch.setattr(probes, "tmux_windows", lambda: [])
+        with pytest.raises(probes.ProbeError, match="no window"):
+            probes.tmux_stop("rando")
+
+    def test_stop_targets_by_name(self, monkeypatch):
+        monkeypatch.setattr(probes, "tmux_windows", lambda: ["test-bot-1"])
+        calls = self._fake_run(monkeypatch)
+        assert probes.tmux_stop("test.bot-1") == "test-bot-1"
+        assert calls[0][-1] == f"{probes.TMUX_SESSION}:test-bot-1"
+
+    def test_no_session_means_no_windows(self, monkeypatch):
+        self._fake_run(monkeypatch, returncode=1, stderr="no server running")
+        assert probes.tmux_windows() == []
+
+    def test_free_index_skips_used_ones(self, monkeypatch):
+        self._fake_run(monkeypatch, stdout="0\n1\n3\n")
+        assert probes._next_free_window_index() == 2
+
+
+class TestBotsCommands:
+    @pytest.fixture
+    def runner(self):
+        from typer.testing import CliRunner
+
+        return CliRunner()
+
+    def test_start_rejects_repo_and_all_together(self, runner):
+        result = runner.invoke(cli.app, ["bots", "start", "rando", "--all"])
+        assert result.exit_code == 2
+
+    def test_start_rejects_neither(self, runner):
+        result = runner.invoke(cli.app, ["bots", "start"])
+        assert result.exit_code == 2
+
+    def test_all_is_idempotent(self, runner, monkeypatch):
+        """Everything already up must exit 0, or a healthy run reads as broken."""
+        monkeypatch.setattr(probes, "boot_repos", lambda: ["rando", "folio"])
+
+        def already(repo, repo_dir):
+            raise probes.ProbeError(f"{repo}: window is already running")
+
+        monkeypatch.setattr(probes, "tmux_start", already)
+        result = runner.invoke(cli.app, ["bots", "start", "--all"])
+        assert result.exit_code == 0
+        assert "2 already up" in result.stdout
+
+    def test_a_real_failure_exits_nonzero(self, runner, monkeypatch):
+        monkeypatch.setattr(probes, "boot_repos", lambda: ["rando"])
+
+        def broken(repo, repo_dir):
+            raise probes.ProbeError(f"{repo}: directory not found")
+
+        monkeypatch.setattr(probes, "tmux_start", broken)
+        result = runner.invoke(cli.app, ["bots", "start", "--all"])
+        assert result.exit_code == 1
+        assert "1 failed" in result.stdout
+
+    def test_start_reports_the_window(self, runner, monkeypatch):
+        monkeypatch.setattr(probes, "tmux_start", lambda repo, d: "test-bot-1")
+        result = runner.invoke(cli.app, ["bots", "start", "test.bot-1"])
+        assert result.exit_code == 0
+        assert "test-bot-1" in result.stdout
+
+    def test_stop_is_not_restart(self, runner, monkeypatch):
+        monkeypatch.setattr(probes, "tmux_stop", lambda repo: "rando")
+        result = runner.invoke(cli.app, ["bots", "stop", "rando"])
+        assert result.exit_code == 0
+        assert "stay down" in result.stdout
+
+    def test_stop_unknown_repo(self, runner, monkeypatch):
+        def missing(repo):
+            raise probes.ProbeError("rando: no window 'rando' is running")
+
+        monkeypatch.setattr(probes, "tmux_stop", missing)
+        assert runner.invoke(cli.app, ["bots", "stop", "rando"]).exit_code == 2
+
+    def test_version(self, runner):
+        result = runner.invoke(cli.app, ["--version"])
+        assert result.exit_code == 0
+        assert cli.__version__ in result.stdout
+
+
+class TestSupervisorCheck:
+    def test_missing_supervisor_names_the_cli_fix(self, monkeypatch):
+        monkeypatch.setattr(probes, "boot_repos", lambda: ["rando", "folio"])
+        monkeypatch.setattr(probes, "sessions", lambda: [])
+        checks = cli._check_supervisors()
+        assert checks[0].level == "fail"
+        assert "mai-tai bots start rando" in checks[0].detail
+
+    def test_all_running(self, monkeypatch):
+        monkeypatch.setattr(probes, "boot_repos", lambda: ["rando"])
+        monkeypatch.setattr(
+            probes,
+            "sessions",
+            lambda: [probes.Session("rando", "/repos/rando", 1, 2, 3)],
+        )
+        assert cli._check_supervisors()[0].level == "ok"
+
+    def test_nothing_configured_is_not_a_check(self, monkeypatch):
+        monkeypatch.setattr(probes, "boot_repos", lambda: [])
+        assert cli._check_supervisors() == []
 
 
 class TestAgeFormatting:

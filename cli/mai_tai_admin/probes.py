@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import subprocess
 from dataclasses import dataclass, field
@@ -26,6 +27,13 @@ BOOT_REPOS_CONF = Path(
 )
 
 SUPERVISOR_MARKER = "mai-tai-supervisor.sh"
+SUPERVISOR_PATH = Path(
+    os.environ.get(
+        "MAI_TAI_SUPERVISOR", str(REPOS_ROOT / "mai-tai-dev/scripts/mai-tai-supervisor.sh")
+    )
+)
+TMUX_SESSION = os.environ.get("MAI_TAI_TMUX_SESSION", "mai-tai")
+
 AGENT_PREFIX = "maitai-agent-"
 CORE_CONTAINERS = ("maitai-postgres", "maitai-backend", "maitai-frontend")
 
@@ -186,6 +194,80 @@ def sessions() -> list[Session]:
             )
         )
     return sorted(found, key=lambda s: s.repo)
+
+
+def sanitize_window(repo: str) -> str:
+    """tmux window names cannot contain '.' or ':'. Mirrors boot-mai-tai.sh."""
+    return re.sub(r"-{2,}", "-", re.sub(r"[^A-Za-z0-9_-]", "-", repo)).rstrip("-")
+
+
+def tmux_windows() -> list[str]:
+    """Window names in the mai-tai session; empty if the session isn't running."""
+    proc = _run(["tmux", "list-windows", "-t", TMUX_SESSION, "-F", "#W"])
+    if proc.returncode != 0:
+        return []
+    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+
+
+def _next_free_window_index() -> int:
+    """Lowest unused window index.
+
+    We address windows by name, so the index only needs to be free — but tmux
+    resolves a bare `-t <session>` to the active window's index and then errors
+    with "index N in use", so an explicit free index is required.
+    """
+    proc = _run(["tmux", "list-windows", "-t", TMUX_SESSION, "-F", "#{window_index}"])
+    used = {line.strip() for line in proc.stdout.splitlines()}
+    index = 0
+    while str(index) in used:
+        index += 1
+    return index
+
+
+def tmux_start(repo: str, repo_dir: Path) -> str:
+    """Launch a supervisor window for one repo. Returns the window name.
+
+    Raises ProbeError on any precondition the supervisor would only fail on
+    later, inside a pane nobody is looking at.
+    """
+    if not repo_dir.is_dir():
+        raise ProbeError(f"{repo}: directory not found ({repo_dir})")
+    if not (repo_dir / ".env.mai-tai").exists():
+        raise ProbeError(f"{repo}: no .env.mai-tai in {repo_dir}")
+    if not os.access(SUPERVISOR_PATH, os.X_OK):
+        raise ProbeError(f"supervisor not found or not executable: {SUPERVISOR_PATH}")
+
+    window = sanitize_window(repo)
+    if window in tmux_windows():
+        raise ProbeError(f"{repo}: window {window!r} is already running")
+
+    # `bash -lc` so the login profile supplies PATH and the Vertex auth vars,
+    # exactly as boot-mai-tai.sh does it.
+    inner = f"{shlex.quote(str(SUPERVISOR_PATH))} {shlex.quote(str(repo_dir))}"
+    command = f"bash -lc {shlex.quote(inner)}"
+    if tmux_windows():
+        target = f"{TMUX_SESSION}:{_next_free_window_index()}"
+        cmd = ["tmux", "new-window", "-d", "-t", target, "-n", window, "-c", str(repo_dir), command]
+    else:
+        cmd = [
+            "tmux", "new-session", "-d", "-s", TMUX_SESSION,
+            "-n", window, "-c", str(repo_dir), command,
+        ]
+    proc = _run(cmd)
+    if proc.returncode != 0:
+        raise ProbeError(f"tmux failed to start {repo}: {proc.stderr.strip()}")
+    return window
+
+
+def tmux_stop(repo: str) -> str:
+    """Kill a repo's supervisor window. Returns the window name."""
+    window = sanitize_window(repo)
+    if window not in tmux_windows():
+        raise ProbeError(f"{repo}: no window {window!r} is running")
+    proc = _run(["tmux", "kill-window", "-t", f"{TMUX_SESSION}:{window}"])
+    if proc.returncode != 0:
+        raise ProbeError(f"tmux failed to stop {repo}: {proc.stderr.strip()}")
+    return window
 
 
 def boot_repos() -> list[str]:
