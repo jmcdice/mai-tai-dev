@@ -46,13 +46,26 @@ Requires Python 3.11+, and on the host: `docker`, `ps`, and a running
 | --- | --- |
 | `mai-tai status` | One row per workspace: runner, uptime, heartbeat age, state, schedules |
 | `mai-tai doctor` | Health checks across core containers, bots, orphans, and schedules. Exits 1 on any failure |
-| `mai-tai ws list [--archived]` | Every workspace with message counts and last-seen |
+| `mai-tai ws list [--archived]` | Every workspace with agent type, message counts, and last-seen |
+| `mai-tai describe <ws>` | One workspace in full: runner, agent config, settings, message stats, auth, schedules. Also `mai-tai ws describe` |
 | `mai-tai bots restart <target> [--wait N]` | Bounce a bot by repo name or workspace, then wait for its heartbeat to come back |
 | `mai-tai tail <workspace> [-n N] [-f]` | Read a workspace's conversation; `-f` follows |
 
 `<target>` and `<workspace>` resolve by id prefix, exact name, or
 case-insensitive substring — `mai-tai tail devops` is enough. An ambiguous
 match lists the candidates instead of guessing.
+
+The `Type` column is the agent type, not just `chat` vs `agent`: a workspace
+running the monitor template reads `agent/monitor`, pulled from
+`agent_config->>'template'`.
+
+`describe` prints `agent_config` verbatim rather than a curated subset, so a
+key the spawner starts honouring tomorrow shows up here instead of being
+silently dropped. Its **Auth** section keys off `workspace_agent_activity`, not
+`api_keys.workspace_id` — a key can be user-scoped and still be the credential a
+workspace's agent presents, and filtering on `api_keys.workspace_id` reports
+"no keys" for a workspace that is plainly authenticating right now. It reports
+key metadata only: never the key material or its hash.
 
 ## What doctor checks
 

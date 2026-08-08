@@ -54,6 +54,13 @@ def _age(secs: int | None) -> str:
     return f"{secs // 86400}d{(secs % 86400) // 3600:02d}h"
 
 
+def _countdown(secs: int | None) -> str:
+    """`_age` for a value that may be in the future."""
+    if secs is None:
+        return "—"
+    return f"in {_age(secs)}" if secs >= 0 else f"[red]{_age(-secs)} overdue[/red]"
+
+
 @dataclass
 class Runner:
     """Whatever is actually executing a workspace's agent, if anything."""
@@ -142,7 +149,7 @@ def status(
         )
         table.add_row(
             f"[dim]{ws.name}[/dim]" if ws.archived else ws.name,
-            ws.workspace_type,
+            ws.kind,
             runner.label,
             "[green]yes[/green]" if runner.up else "[red]no[/red]",
             _age(ws.heartbeat_secs),
@@ -173,7 +180,7 @@ def ws_list(
         table.add_row(
             ws.id[:8],
             ws.name,
-            ws.workspace_type,
+            ws.kind,
             str(ws.messages),
             f"{ws.schedules_enabled}/{ws.schedules_total}" if ws.schedules_total else "—",
             _age(ws.heartbeat_secs),
@@ -182,6 +189,153 @@ def ws_list(
 
     console.print(table)
     console.print(f"[dim]{len(workspaces)} workspace(s)[/dim]")
+
+
+def _kv(rows: list[tuple[str, str]], indent: str = "  ") -> None:
+    """Print aligned key/value lines. Values may contain rich markup."""
+    if not rows:
+        return
+    width = max(len(key) for key, _ in rows)
+    for key, value in rows:
+        console.print(f"{indent}[dim]{key.ljust(width)}[/dim]  {value}")
+
+
+def _runner_rows(ws: probes.Workspace, runner: Runner) -> list[tuple[str, str]]:
+    state = ws.state
+    rows = [
+        ("runner", f"{runner.label} ({runner.kind})" if runner.kind != "none" else "[dim]—[/dim]"),
+        ("up", "[green]yes[/green]" if runner.up else "[red]no[/red]"),
+        ("state", f"[{STATE_COLOR[state]}]{state}[/{STATE_COLOR[state]}]"),
+        ("heartbeat", f"{_age(ws.heartbeat_secs)} ago" if ws.heartbeat_secs is not None else "never"),
+    ]
+    if runner.container is not None:
+        rows.append(("image", runner.container.image or "—"))
+        rows.append(("uptime", runner.container.status))
+    if runner.session is not None:
+        pids = f"supervisor {runner.session.supervisor_pid}"
+        if runner.session.timeout_pid:
+            pids += f", timeout {runner.session.timeout_pid}"
+        if runner.session.claude_pid:
+            pids += f", claude {runner.session.claude_pid}"
+        rows.append(("repo", runner.session.repo_dir))
+        rows.append(("pids", pids))
+    return rows
+
+
+@app.command()
+def describe(
+    workspace: str = typer.Argument(..., help="Workspace name or id prefix."),
+) -> None:
+    """Everything known about one workspace: runner, agent config, and stats."""
+    try:
+        ws = probes.resolve_workspace(workspace)
+    except ProbeError as e:
+        _fail(str(e))
+
+    info = probes.detail(ws.id)
+    runner = _runners([ws])[ws.id]
+    stats = probes.message_stats(ws.id)
+    key = probes.auth_key(ws.id)
+    schedules = probes.schedules_for(ws.id)
+
+    archived = " [dim](archived)[/dim]" if ws.archived else ""
+    console.print(f"\n[bold]{ws.name}[/bold]{archived}  [dim]{ws.id}[/dim]")
+    if info.purpose:
+        console.print(f"[italic dim]{info.purpose.strip()}[/italic dim]")
+    console.print()
+
+    _kv(
+        [
+            ("type", ws.kind),
+            ("owner", info.owner or "—"),
+            ("created", info.created_at),
+            *_runner_rows(ws, runner),
+        ]
+    )
+
+    # agent_config is the spawner's input: runtime, model, template, repo_url.
+    # Show it verbatim rather than a curated subset, so a key we don't know
+    # about yet still shows up here instead of being silently dropped.
+    value_width = max(40, console.width - 24)
+
+    console.print("\n[bold]Agent config[/bold]")
+    if info.agent_config:
+        _kv([(k, _scalar(v, value_width)) for k, v in sorted(info.agent_config.items())])
+    else:
+        console.print("  [dim]none — not an agent workspace[/dim]")
+
+    if info.settings:
+        console.print("\n[bold]Settings[/bold]")
+        _kv([(k, _scalar(v, value_width)) for k, v in sorted(info.settings.items())])
+
+    console.print("\n[bold]Messages[/bold]")
+    _kv(
+        [
+            ("total", f"{stats.total}  [dim]({stats.from_human} human / {stats.from_agent} agent)[/dim]"),
+            ("last 24h", str(stats.last_24h)),
+            ("first", stats.first_at or "—"),
+            ("latest", stats.last_at or "—"),
+            ("busiest day", f"{stats.busiest_day} ({stats.busiest_count})" if stats.busiest_day else "—"),
+        ]
+    )
+
+    console.print("\n[bold]Auth[/bold]")
+    if key is None:
+        console.print("  [dim]this workspace has never authenticated[/dim]")
+    else:
+        scope = "workspace-scoped" if key.workspace_scoped else "[yellow]user-scoped[/yellow]"
+        if key.shared_with:
+            scope += f" — shared with {key.shared_with} other workspace(s)"
+        used = f"{_age(key.last_used_secs)} ago" if key.last_used_secs is not None else "never"
+        _kv(
+            [
+                ("key", key.name + (" [red](expired)[/red]" if key.expired else "")),
+                ("scopes", key.scopes or "none"),
+                ("scope", scope),
+                ("last used", used),
+            ]
+        )
+
+    console.print(
+        f"\n[bold]Schedules[/bold] [dim]({ws.schedules_enabled} enabled / {len(schedules)})[/dim]"
+    )
+    if not schedules:
+        console.print("  [dim]none[/dim]")
+    else:
+        table = Table(box=None, show_header=False, pad_edge=False, padding=(0, 1))
+        for sched in schedules:
+            last = f"last {_age(sched.last_run_secs)} ago" if sched.last_run_secs else "never run"
+            if sched.last_status == "error":
+                last += " [yellow](error)[/yellow]"
+            table.add_row(
+                "[green]✓[/green]" if sched.enabled else "[dim]○[/dim]",
+                sched.name + ("" if sched.wake_agent else " [dim](no-wake)[/dim]"),
+                f"[dim]{sched.cron_expression}[/dim]",
+                f"[dim]{sched.timezone}[/dim]",
+                _countdown(sched.next_in_secs) if sched.enabled else "[dim]disabled[/dim]",
+                f"[dim]{last}[/dim]",
+            )
+        console.print(table)
+    console.print()
+
+
+def _scalar(value: object, width: int = 100) -> str:
+    if value is None:
+        return "[dim]—[/dim]"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        # project_context and friends run to paragraphs. Collapse to one line
+        # and clip to the terminal, or the wrap lands back in column zero and
+        # the key/value alignment stops meaning anything.
+        collapsed = " ".join(value.split())
+        return collapsed if len(collapsed) <= width else collapsed[: width - 3] + "..."
+    return str(value)
+
+
+# Reachable both ways: `mai-tai describe X` is what you type, `mai-tai ws
+# describe X` is where you look for it after using `mai-tai ws list`.
+ws_app.command("describe")(describe)
 
 
 @dataclass

@@ -306,6 +306,148 @@ class TestMessages:
         assert probes.messages("ws-1") == []
 
 
+class TestWorkspaceKind:
+    def test_chat(self):
+        assert make_ws(workspace_type="chat").kind == "chat"
+
+    def test_agent_shows_its_template(self):
+        assert make_ws(workspace_type="agent", template="monitor").kind == "agent/monitor"
+
+    def test_agent_without_a_template(self):
+        assert make_ws(workspace_type="agent", template=None).kind == "agent"
+
+
+class TestJsonColumns:
+    @pytest.mark.parametrize("raw", ["null", "", "[1,2]", '"a string"', "not json"])
+    def test_non_objects_become_empty(self, raw):
+        assert probes._json_obj(raw) == {}
+
+    def test_object(self):
+        assert probes._json_obj('{"runtime": "claude-code"}') == {"runtime": "claude-code"}
+
+    def test_detail_tolerates_a_null_agent_config(self, monkeypatch):
+        row = ["2026-06-24 05:32", "jmcdice@gmail.com", "", "null", '{"dude_mode": true}']
+        monkeypatch.setattr(probes, "psql", lambda sql: [row])
+        info = probes.detail("ws-1")
+        assert info.agent_config == {}
+        assert info.settings == {"dude_mode": True}
+
+    def test_detail_on_a_vanished_workspace(self, monkeypatch):
+        monkeypatch.setattr(probes, "psql", lambda sql: [])
+        with pytest.raises(probes.ProbeError, match="disappeared"):
+            probes.detail("ws-1")
+
+
+class TestAuthKey:
+    ROW = ["Default Agent Key", "read,write", "3", "f", "f", "9"]
+
+    def test_reports_a_user_scoped_shared_key(self, monkeypatch):
+        """The live deployment has one user-scoped key serving every workspace.
+
+        Reading api_keys.workspace_id instead would report "no keys" for a
+        workspace that is authenticating right now.
+        """
+        monkeypatch.setattr(probes, "psql", lambda sql: [self.ROW])
+        key = probes.auth_key("ws-1")
+        assert key.workspace_scoped is False
+        assert key.shared_with == 9
+        assert key.last_used_secs == 3
+
+    def test_never_authenticated(self, monkeypatch):
+        monkeypatch.setattr(probes, "psql", lambda sql: [])
+        assert probes.auth_key("ws-1") is None
+
+    def test_sole_user_is_not_shared(self, monkeypatch):
+        monkeypatch.setattr(probes, "psql", lambda sql: [[*self.ROW[:5], "0"]])
+        assert probes.auth_key("ws-1").shared_with == 0
+
+    def test_count_never_goes_negative(self, monkeypatch):
+        # `count(*) - 1` is -1 if the join row vanishes between the subquery
+        # and the outer query.
+        monkeypatch.setattr(probes, "psql", lambda sql: [[*self.ROW[:5], "-1"]])
+        assert probes.auth_key("ws-1").shared_with == 0
+
+
+class TestSchedulesForWorkspace:
+    ROWS = [
+        ["DevOps / SRE", "Nightly sweep", "0 6 * * *", "America/Denver", "-3600", "ok", "t", "t", "82800"],
+        ["DevOps / SRE", "Old loop", "0 * * * *", "UTC", "", "", "f", "f", ""],
+    ]
+
+    def test_includes_disabled(self, monkeypatch):
+        monkeypatch.setattr(probes, "psql", lambda sql: self.ROWS)
+        found = probes.schedules_for("ws-1")
+        assert [s.enabled for s in found] == [True, False]
+        assert found[1].wake_agent is False
+        assert found[1].last_run_secs is None
+
+    def test_next_in_inverts_overdue(self, monkeypatch):
+        monkeypatch.setattr(probes, "psql", lambda sql: self.ROWS)
+        assert probes.schedules_for("ws-1")[0].next_in_secs == 3600
+
+    def test_scoped_to_the_workspace(self, monkeypatch):
+        captured = []
+
+        def fake_psql(sql):
+            captured.append(sql)
+            return []
+
+        monkeypatch.setattr(probes, "psql", fake_psql)
+        probes.schedules_for("ws-1")
+        assert "s.workspace_id = 'ws-1'" in captured[0]
+        probes.enabled_schedules()
+        assert "where s.enabled" in captured[1]
+
+
+class TestMessageStats:
+    def test_empty_workspace(self, monkeypatch):
+        monkeypatch.setattr(probes, "psql", lambda sql: [])
+        stats = probes.message_stats("ws-1")
+        assert stats.total == 0
+        assert stats.busiest_day == ""
+
+    def test_populated(self, monkeypatch):
+        def fake_psql(sql):
+            if "group by" in sql:
+                return [["2026-08-06", "39"]]
+            return [["112", "29", "83", "2026-06-24 05:33", "2026-08-06 23:49", "0"]]
+
+        monkeypatch.setattr(probes, "psql", fake_psql)
+        stats = probes.message_stats("ws-1")
+        assert (stats.total, stats.from_human, stats.from_agent) == (112, 29, 83)
+        assert (stats.busiest_day, stats.busiest_count) == ("2026-08-06", 39)
+
+
+class TestContainers:
+    def test_image_is_parsed(self, monkeypatch):
+        proc = type("P", (), {"returncode": 0, "stdout": "a\trunning\tUp 3 hours\tmai-tai-agent:latest\n", "stderr": ""})
+        monkeypatch.setattr(probes, "_run", lambda cmd, **kw: proc)
+        found = probes.containers()
+        assert found["a"].image == "mai-tai-agent:latest"
+        assert found["a"].running
+
+
+class TestDescribeFormatting:
+    @pytest.mark.parametrize(
+        "secs,expected",
+        [(None, "—"), (0, "in 0s"), (3600, "in 1h00m"), (-90, "1m overdue")],
+    )
+    def test_countdown(self, secs, expected):
+        assert expected in cli._countdown(secs)
+
+    def test_scalar_types(self):
+        assert cli._scalar(None) == "[dim]—[/dim]"
+        assert cli._scalar(True) == "true"
+        assert cli._scalar(False) == "false"
+        assert cli._scalar(3) == "3"
+
+    def test_scalar_collapses_and_clips(self):
+        out = cli._scalar("a paragraph\nwith  newlines " + "x" * 200, width=40)
+        assert "\n" not in out
+        assert len(out) == 40
+        assert out.endswith("...")
+
+
 class TestAgeFormatting:
     @pytest.mark.parametrize(
         "secs,expected",

@@ -9,10 +9,11 @@ scripts/mai-tai-config.sh).
 
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 PG_CONTAINER = os.environ.get("PG_CONTAINER", "maitai-postgres")
@@ -78,6 +79,7 @@ class Container:
     name: str
     state: str  # running, exited, created, ...
     status: str  # human string, e.g. "Up 6 days (healthy)"
+    image: str = ""
 
     @property
     def running(self) -> bool:
@@ -94,13 +96,15 @@ class Container:
 
 
 def containers() -> dict[str, Container]:
-    proc = _run(["docker", "ps", "-a", "--format", "{{.Names}}\t{{.State}}\t{{.Status}}"])
+    proc = _run(
+        ["docker", "ps", "-a", "--format", "{{.Names}}\t{{.State}}\t{{.Status}}\t{{.Image}}"]
+    )
     if proc.returncode != 0:
         raise ProbeError(f"docker ps failed: {proc.stderr.strip()}")
     found: dict[str, Container] = {}
     for line in proc.stdout.splitlines():
         parts = line.split("\t")
-        if len(parts) == 3:
+        if len(parts) == 4:
             found[parts[0]] = Container(*parts)
     return found
 
@@ -223,6 +227,9 @@ class Workspace:
     schedules_total: int
     schedules_enabled: int
     messages: int
+    # Pulled out of agent_config; both None on a plain chat workspace.
+    runtime: str | None = None
+    template: str | None = None
 
     @property
     def state(self) -> str:
@@ -234,6 +241,13 @@ class Workspace:
             return "idle"
         return "offline"
 
+    @property
+    def kind(self) -> str:
+        """`chat`, or the agent's template — what you actually want in a list."""
+        if self.workspace_type != "agent":
+            return self.workspace_type
+        return f"agent/{self.template}" if self.template else "agent"
+
 
 _WORKSPACES_SQL = """
 select w.id::text,
@@ -244,7 +258,9 @@ select w.id::text,
                               - a.last_activity_at))::text, ''),
        (select count(*) from scheduled_tasks s where s.workspace_id = w.id),
        (select count(*) from scheduled_tasks s where s.workspace_id = w.id and s.enabled),
-       (select count(*) from messages m where m.workspace_id = w.id)
+       (select count(*) from messages m where m.workspace_id = w.id),
+       coalesce(w.agent_config->>'runtime', ''),
+       coalesce(w.agent_config->>'template', '')
 from workspaces w
 left join workspace_agent_activity a on a.workspace_id = w.id
 order by w.archived, lower(w.name)
@@ -263,6 +279,8 @@ def workspaces(include_archived: bool = False) -> list[Workspace]:
             schedules_total=int(row[5]),
             schedules_enabled=int(row[6]),
             messages=int(row[7]),
+            runtime=row[8] or None,
+            template=row[9] or None,
         )
         if ws.archived and not include_archived:
             continue
@@ -305,6 +323,14 @@ class Schedule:
     timezone: str
     overdue_secs: int | None  # >0 means next_run_at is in the past
     last_status: str
+    enabled: bool = True
+    wake_agent: bool = True
+    last_run_secs: int | None = None
+
+    @property
+    def next_in_secs(self) -> int | None:
+        """Seconds until the next fire; negative once it is overdue."""
+        return None if self.overdue_secs is None else -self.overdue_secs
 
 
 _SCHEDULES_SQL = """
@@ -313,15 +339,18 @@ select w.name,
        s.cron_expression,
        s.timezone,
        coalesce(round(extract(epoch from (now() at time zone 'utc') - s.next_run_at))::text, ''),
-       coalesce(s.last_status, '')
+       coalesce(s.last_status, ''),
+       s.enabled,
+       s.wake_agent,
+       coalesce(round(extract(epoch from (now() at time zone 'utc') - s.last_run_at))::text, '')
 from scheduled_tasks s
 join workspaces w on w.id = s.workspace_id
-where s.enabled
+where {where}
 order by lower(w.name), lower(s.name)
 """
 
 
-def enabled_schedules() -> list[Schedule]:
+def _schedules(where: str) -> list[Schedule]:
     return [
         Schedule(
             workspace=row[0],
@@ -330,10 +359,22 @@ def enabled_schedules() -> list[Schedule]:
             timezone=row[3],
             overdue_secs=int(row[4]) if row[4] else None,
             last_status=row[5],
+            enabled=row[6] == "t",
+            wake_agent=row[7] == "t",
+            last_run_secs=int(row[8]) if row[8] else None,
         )
-        for row in psql(_SCHEDULES_SQL)
-        if len(row) >= 6
+        for row in psql(_SCHEDULES_SQL.format(where=where))
+        if len(row) >= 9
     ]
+
+
+def enabled_schedules() -> list[Schedule]:
+    return _schedules("s.enabled")
+
+
+def schedules_for(workspace_id: str) -> list[Schedule]:
+    """Every schedule on one workspace, disabled ones included."""
+    return _schedules(f"s.workspace_id = '{workspace_id}'")
 
 
 _MESSAGES_SQL = """
@@ -360,6 +401,144 @@ class Message:
     author: str
     message_type: str
     content: str
+
+
+@dataclass
+class Detail:
+    """The slow-moving configuration of one workspace."""
+
+    created_at: str
+    owner: str
+    purpose: str
+    agent_config: dict = field(default_factory=dict)
+    settings: dict = field(default_factory=dict)
+
+
+_DETAIL_SQL = """
+select to_char(w.created_at, 'YYYY-MM-DD HH24:MI'),
+       coalesce(u.email, ''),
+       coalesce(w.agent_purpose, ''),
+       coalesce(w.agent_config::text, '{{}}'),
+       coalesce(w.settings::text, '{{}}')
+from workspaces w
+left join users u on u.id = w.owner_id
+where w.id = '{workspace_id}'
+"""
+
+
+def _json_obj(raw: str) -> dict:
+    """Parse a jsonb column that may legitimately hold the literal `null`."""
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def detail(workspace_id: str) -> Detail:
+    rows = psql(_DETAIL_SQL.format(workspace_id=workspace_id))
+    if not rows:
+        raise ProbeError(f"workspace {workspace_id} disappeared mid-query")
+    row = rows[0]
+    return Detail(
+        created_at=row[0],
+        owner=row[1],
+        purpose=row[2],
+        agent_config=_json_obj(row[3]),
+        settings=_json_obj(row[4]),
+    )
+
+
+@dataclass
+class MessageStats:
+    total: int
+    from_human: int
+    from_agent: int
+    first_at: str
+    last_at: str
+    last_24h: int
+    busiest_day: str
+    busiest_count: int
+
+
+_MESSAGE_STATS_SQL = """
+select count(*),
+       count(*) filter (where user_id is not null),
+       count(*) filter (where user_id is null),
+       coalesce(to_char(min(created_at), 'YYYY-MM-DD HH24:MI'), ''),
+       coalesce(to_char(max(created_at), 'YYYY-MM-DD HH24:MI'), ''),
+       count(*) filter (where created_at > (now() at time zone 'utc') - interval '24 hours')
+from messages where workspace_id = '{workspace_id}'
+"""
+
+_BUSIEST_DAY_SQL = """
+select to_char(created_at, 'YYYY-MM-DD'), count(*)
+from messages where workspace_id = '{workspace_id}'
+group by 1 order by 2 desc, 1 desc limit 1
+"""
+
+
+def message_stats(workspace_id: str) -> MessageStats:
+    rows = psql(_MESSAGE_STATS_SQL.format(workspace_id=workspace_id))
+    row = rows[0] if rows else ["0", "0", "0", "", "", "0"]
+    busiest = psql(_BUSIEST_DAY_SQL.format(workspace_id=workspace_id))
+    return MessageStats(
+        total=int(row[0]),
+        from_human=int(row[1]),
+        from_agent=int(row[2]),
+        first_at=row[3],
+        last_at=row[4],
+        last_24h=int(row[5]),
+        busiest_day=busiest[0][0] if busiest else "",
+        busiest_count=int(busiest[0][1]) if busiest else 0,
+    )
+
+
+@dataclass
+class ApiKey:
+    name: str
+    scopes: str
+    last_used_secs: int | None
+    expired: bool
+    workspace_scoped: bool
+    shared_with: int  # how many OTHER workspaces authenticate with this key
+
+
+# Keyed off workspace_agent_activity, not api_keys.workspace_id: a key can be
+# user-scoped (workspace_id NULL) and still be the credential a workspace's
+# agent actually presents. Filtering on api_keys.workspace_id reports "no keys"
+# for a workspace that is plainly authenticating right now.
+_AUTH_SQL = """
+select coalesce(k.name, '(unnamed)'),
+       coalesce(array_to_string(k.scopes, ','), ''),
+       coalesce(round(extract(epoch from (now() at time zone 'utc') - k.last_used_at))::text, ''),
+       coalesce((k.expires_at < (now() at time zone 'utc'))::text, 'f'),
+       (k.workspace_id is not null)::text,
+       (select count(*) - 1 from workspace_agent_activity a2 where a2.api_key_id = k.id)::text
+from workspace_agent_activity a
+join api_keys k on k.id = a.api_key_id
+where a.workspace_id = '{workspace_id}'
+"""
+
+
+def auth_key(workspace_id: str) -> ApiKey | None:
+    """The key this workspace's agent last authenticated with, if any.
+
+    Never returns the key material or its hash — only the metadata an operator
+    needs to answer "what is this agent using, and who else uses it?".
+    """
+    rows = psql(_AUTH_SQL.format(workspace_id=workspace_id))
+    if not rows or len(rows[0]) < 6:
+        return None
+    row = rows[0]
+    return ApiKey(
+        name=row[0],
+        scopes=row[1],
+        last_used_secs=int(row[2]) if row[2] else None,
+        expired=row[3] == "t",
+        workspace_scoped=row[4] == "t",
+        shared_with=max(0, int(row[5])),
+    )
 
 
 def messages(workspace_id: str, limit: int = 20, since: str | None = None) -> list[Message]:
