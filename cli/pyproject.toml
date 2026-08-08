@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mai-tai-admin"
+version = "0.1.0"
+description = "Operator CLI for a Mai-Tai deployment"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Joey McDermott", email = "jmcdice@gmail.com"}
+]
+
+# Deliberately NOT published to PyPI and NOT a dependency of mai-tai-mcp.
+# This tool drives docker and postgres directly; agents must never have it.
+classifiers = ["Private :: Do Not Upload"]
+
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[project.scripts]
+mai-tai = "mai_tai_admin.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["mai_tai_admin*"]
