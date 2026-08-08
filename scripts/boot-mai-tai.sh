@@ -1,9 +1,22 @@
 #!/usr/bin/env bash
 #
-# boot-mai-tai.sh - Manage self-healing Claude mai-tai sessions, one per repo.
+# boot-mai-tai.sh - Restore the mai-tai Claude sessions after a reboot.
 #
-# All sessions live as windows in a single tmux session named "mai-tai"
-# (one window per repo). Attach with:  tmux attach -t mai-tai
+# This is the @reboot path and nothing else. Day-to-day bot management lives in
+# the admin CLI:
+#
+#   mai-tai bots list                 what is running, and what should be
+#   mai-tai bots start <repo>|--all   start a supervisor window
+#   mai-tai bots stop  <repo>         kill one for good
+#   mai-tai bots restart <repo>       rotate one in place (supervisor relaunches)
+#
+# Why this stays a shell script: @reboot runs with a bare environment and the
+# CLI is a uv-installed Python tool. If booting the bots depended on that venv,
+# a broken venv after a power cut would mean no bots AND no CLI to say why. This
+# path deliberately needs nothing but bash, tmux and claude.
+#
+# All sessions live as windows in a single tmux session named "mai-tai" (one
+# window per repo). Attach with:  tmux attach -t mai-tai
 #   Ctrl-b w  = pick a window (agent),  Ctrl-b n/p = next/prev
 #
 # Each window runs mai-tai-supervisor.sh, which keeps Claude alive across the
@@ -13,13 +26,7 @@
 # back on their own after a reboot; this only restores the terminal side.
 #
 # USAGE:
-#   boot-mai-tai.sh                 (no args) same as --start-all; used by @reboot
-#   boot-mai-tai.sh --list          show configured repos and session status
-#   boot-mai-tai.sh --start <repo>  start one repo (e.g. folio or folio/)
-#   boot-mai-tai.sh --start-all     wait for backend, then start all configured repos
-#   boot-mai-tai.sh --stop  <repo>  stop one repo's window
-#   boot-mai-tai.sh --stop-all      stop every managed session
-#   boot-mai-tai.sh --restart <repo>
+#   boot-mai-tai.sh            start every configured repo (what @reboot runs)
 #   boot-mai-tai.sh --help
 #
 # Configured repos: ~/.config/mai-tai/boot-repos.conf (one dir per line).
@@ -42,6 +49,15 @@ set -u
 
 mkdir -p "$LOG_DIR"
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
+
+usage() { sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'; }
+
+case "${1:-}" in
+  -h|--help|help) usage; exit 0 ;;
+  "")             ;;
+  *)              log "unknown option: $1 (this script only does start-all now; see 'mai-tai bots --help')"
+                  usage; exit 2 ;;
+esac
 
 # --- Preconditions ---
 command -v claude >/dev/null 2>&1 || { log "FATAL: claude not on PATH"; exit 1; }
@@ -75,22 +91,18 @@ next_free_index() {
   echo "$i"
 }
 
-# Poll backend /health. Args: max-seconds (0 = single quick check).
+# Poll backend /health, up to HEALTH_TIMEOUT seconds.
 wait_for_backend() {
-  local max="$1"
   local url; url="$(grep -E '^MAI_TAI_API_URL=' "$MAI_TAI_CONFIG" 2>/dev/null | cut -d= -f2- | tr -d '[:space:]')"
   if [ -z "$url" ]; then log "WARN: no MAI_TAI_API_URL in $MAI_TAI_CONFIG; skipping health check."; return 0; fi
-  local code
-  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$url/health" 2>/dev/null)"
-  if [ "$code" = "200" ] || [ "$max" -eq 0 ]; then
-    [ "$code" = "200" ] && log "backend healthy ($url)." || log "WARN: backend not healthy (HTTP ${code:-none}); starting anyway (self-heals)."
-    return 0
+  if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$url/health" 2>/dev/null)" = "200" ]; then
+    log "backend healthy ($url)."; return 0
   fi
-  log "waiting for backend $url/health (up to ${max}s)..."
-  local deadline=$(( $(date +%s) + max ))
+  log "waiting for backend $url/health (up to ${HEALTH_TIMEOUT}s)..."
+  local deadline=$(( $(date +%s) + HEALTH_TIMEOUT ))
   until [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$url/health" 2>/dev/null)" = "200" ]; do
     if [ "$(date +%s)" -ge "$deadline" ]; then
-      log "WARN: backend not healthy after ${max}s; starting anyway (self-heals)."; return 0
+      log "WARN: backend not healthy after ${HEALTH_TIMEOUT}s; starting anyway (self-heals)."; return 0
     fi
     sleep 5
   done
@@ -119,63 +131,11 @@ start_one() {
   fi
 }
 
-stop_one() {
-  local name; name="$(basename "${1%/}")"
-  local win; win="$(sanitize "$name")"
-  if session_exists && window_exists "$win"; then
-    log "STOP $name -> killing window '$SESSION:$win'"
-    tmux kill-window -t "$SESSION:$win"
-  else
-    log "SKIP $name: no window '$win' running"
-  fi
-}
-
-cmd_list() {
-  echo "Configured repos (session: $SESSION)"
-  echo
-  local any=0
-  while read -r name; do
-    [ -z "$name" ] && continue
-    any=1
-    local win; win="$(sanitize "$name")"
-    local status="stopped"
-    session_exists && window_exists "$win" && status="running"
-    printf "  %-8s  %-24s  window: %s\n" "$status" "$name" "$win"
-  done < <(read_config)
-  [ "$any" -eq 0 ] && echo "  (no repos configured in $CONFIG)"
-  echo
-  if session_exists; then
-    echo "Attach:  tmux attach -t $SESSION    (Ctrl-b w = pick, Ctrl-b n/p = next/prev)"
-  else
-    echo "Session '$SESSION' not running. Start with: $0 --start-all"
-  fi
-}
-
-cmd_start_all() {
-  log "start-all beginning"
-  wait_for_backend "$HEALTH_TIMEOUT"
-  local started=0
-  while read -r name; do
-    [ -z "$name" ] && continue
-    start_one "$name" && started=$((started+1)) || true
-  done < <(read_config)
-  log "start-all done."
-  cmd_list
-}
-
-usage() { sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; }
-
-# --- Dispatch ---
-case "${1:---start-all}" in
-  --list|list)        cmd_list ;;
-  --start|start)      shift; [ $# -ge 1 ] || { log "usage: --start <repo>"; exit 2; }
-                      wait_for_backend 0; start_one "$1" ;;
-  --start-all|start-all) cmd_start_all ;;
-  --stop|stop)        shift; [ $# -ge 1 ] || { log "usage: --stop <repo>"; exit 2; }; stop_one "$1" ;;
-  --stop-all|stop-all)
-                      if session_exists; then log "stopping all: killing session '$SESSION'"; tmux kill-session -t "$SESSION"; else log "session '$SESSION' not running"; fi ;;
-  --restart|restart)  shift; [ $# -ge 1 ] || { log "usage: --restart <repo>"; exit 2; }
-                      stop_one "$1"; sleep 1; wait_for_backend 0; start_one "$1" ;;
-  -h|--help|help)     usage ;;
-  *)                  log "unknown option: $1"; usage; exit 2 ;;
-esac
+log "start-all beginning"
+wait_for_backend
+started=0
+while read -r name; do
+  [ -z "$name" ] && continue
+  start_one "$name" && started=$((started+1)) || true
+done < <(read_config)
+log "start-all done ($started repos processed). Inspect with: mai-tai bots list"

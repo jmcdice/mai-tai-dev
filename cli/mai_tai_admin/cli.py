@@ -405,7 +405,7 @@ def _check_supervisors() -> list[Check]:
                 "fail",
                 "supervisor windows missing",
                 f"configured but not running: {', '.join(missing)} "
-                "— start with scripts/boot-mai-tai.sh --start <repo>",
+                f"— start with: mai-tai bots start {missing[0]}",
             )
         ]
     return [Check("ok", "supervisors", f"{len(configured)} configured, all running")]
@@ -485,6 +485,114 @@ def doctor() -> None:
         console.print(f"[red]{fails} failed[/red], {warns} warning(s), {len(checks)} checks")
         raise typer.Exit(code=1)
     console.print(f"[green]all clear[/green] — {warns} warning(s), {len(checks)} checks")
+
+
+@bots_app.command("list")
+def bots_list() -> None:
+    """Every bot: host tmux sessions (configured or not) and agent containers."""
+    workspaces = probes.workspaces()
+    runners = _runners(workspaces)
+    by_id = {ws.id: ws for ws in workspaces}
+    configured = probes.boot_repos()
+    running_repos = {session.repo for session in probes.sessions()}
+
+    table = Table(title="Bots", title_justify="left", header_style="bold")
+    table.add_column("Bot")
+    table.add_column("Kind")
+    table.add_column("Workspace")
+    table.add_column("Boot", justify="center")
+    table.add_column("Up", justify="center")
+    table.add_column("Heartbeat", justify="right")
+
+    def row(label: str, kind: str, ws: probes.Workspace | None, boot: str, up: bool) -> None:
+        table.add_row(
+            label,
+            kind,
+            ws.name if ws else "[red]unmapped[/red]",
+            boot,
+            "[green]yes[/green]" if up else "[red]no[/red]",
+            _age(ws.heartbeat_secs) if ws else "—",
+        )
+
+    for session in probes.sessions():
+        ws_id = probes.workspace_id_for_repo_dir(session.repo_dir)
+        boot = "[green]✓[/green]" if session.repo in configured else "[dim]—[/dim]"
+        row(session.repo, "tmux", by_id.get(ws_id or ""), boot, session.alive)
+
+    # Configured but not running is the interesting case: it means a reboot or a
+    # crash lost a bot that is supposed to be up.
+    for repo in configured:
+        if repo not in running_repos:
+            ws_id = probes.repo_workspace_id(repo)
+            row(repo, "tmux", by_id.get(ws_id or ""), "[green]✓[/green]", False)
+
+    for ws in workspaces:
+        runner = runners[ws.id]
+        if runner.kind == "container":
+            row(runner.label, "container", ws, "[dim]n/a[/dim]", runner.up)
+
+    console.print(table)
+    if configured:
+        console.print(
+            f"[dim]Boot ✓ = listed in {probes.BOOT_REPOS_CONF}, started at @reboot.[/dim]"
+        )
+
+
+@bots_app.command("start")
+def bots_start(
+    repo: str = typer.Argument(None, help="Repo name under the repos root."),
+    all_configured: bool = typer.Option(False, "--all", help="Start every repo in boot-repos.conf."),
+) -> None:
+    """Start a host bot: a tmux window running the supervisor for that repo.
+
+    Agent containers are started through the API, not here — this is the tmux
+    side only.
+    """
+    if all_configured == bool(repo):
+        _fail("give a repo name or --all, not both")
+
+    repos = probes.boot_repos() if all_configured else [repo]
+    if not repos:
+        _fail(f"no repos configured in {probes.BOOT_REPOS_CONF}")
+
+    started = skipped = failed = 0
+    for name in repos:
+        try:
+            window = probes.tmux_start(name, probes.REPOS_ROOT / name)
+        except ProbeError as e:
+            # Already-running is a skip, not a failure — `bots start --all` has
+            # to stay idempotent so it can be used as "make sure they're all up"
+            # without a green run looking like a broken one.
+            if "already running" in str(e):
+                console.print(f"  [dim]skip[/dim]  {e}")
+                skipped += 1
+            else:
+                console.print(f"  [red]fail[/red]  {e}")
+                failed += 1
+            continue
+        console.print(f"  [green]start[/green] {name} → window {window!r}")
+        started += 1
+
+    console.print(f"\n{started} started, {skipped} already up, {failed} failed")
+    console.print(f"[dim]Attach with: tmux attach -t {probes.TMUX_SESSION}[/dim]")
+    if failed:
+        raise typer.Exit(code=1)
+
+
+@bots_app.command("stop")
+def bots_stop(
+    repo: str = typer.Argument(..., help="Repo name whose supervisor window to kill."),
+) -> None:
+    """Stop a host bot for good.
+
+    Not the same as `bots restart`: this kills the supervisor window, so nothing
+    brings the bot back until you start it again or the host reboots.
+    """
+    try:
+        window = probes.tmux_stop(repo)
+    except ProbeError as e:
+        _fail(str(e))
+    console.print(f"[green]✓[/green] killed window {window!r} — {repo} will stay down")
 
 
 def _wait_for_heartbeat(workspace_id: str, timeout: int) -> int | None:
