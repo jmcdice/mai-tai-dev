@@ -182,17 +182,17 @@ restart doing it.
 
 ## Migrating to Another Host
 
-`scripts/mai-tai-config.sh` moves a whole deployment — users, workspaces,
-agents, and full message history — to another machine.
+`mai-tai config` (the [admin CLI](cli/README.md)) moves a whole deployment —
+users, workspaces, agents, and full message history — to another machine.
 
 ```bash
 # On the source host
-./scripts/mai-tai-config.sh export mai-tai-backup.tar.gz
-./scripts/mai-tai-config.sh inspect mai-tai-backup.tar.gz   # peek without restoring
+mai-tai config export mai-tai-backup.tar.gz
+mai-tai config inspect mai-tai-backup.tar.gz   # peek without restoring
 
 # On the target host
-./scripts/mai-tai-config.sh check-env                       # what's missing from .env
-./scripts/mai-tai-config.sh import mai-tai-backup.tar.gz    # prompts before wiping
+mai-tai config check-env                       # what's missing from .env
+mai-tai config import mai-tai-backup.tar.gz    # prompts before wiping
 ```
 
 ### ⚠️ Treat the bundle as a secret
@@ -212,11 +212,23 @@ fingerprints both ends and warns on a mismatch before it touches the database.
 | Flag | Effect |
 |---|---|
 | *(none)* | Full fidelity — credentials included, nothing to re-enter on the target |
-| `--scrub` | Strip credentials from `users.settings`; safe to store, but you re-enter keys in **Settings → AI** |
+| `--scrub` | Strip credentials from `users.settings`; you re-enter keys in **Settings → AI** |
 | `--with-env` | Also bundle `.env`. Import writes it to `.env.imported` for review rather than overwriting |
+
+**`--scrub` is not the same as "safe to share."** It strips `users.settings`
+and nothing else. Message history is not scrubbed — agents paste keys into
+chat and operators paste them back — so every export scans the dump for
+credential-shaped strings and tells you what it found. Take that count
+seriously; on this repo's own database it found three.
 
 Password hashes and `mt_` API-key hashes are always included, so logins and
 existing agent configs keep working on the target.
+
+A restored clone is **live**. Schedules come across enabled, so on the next
+tick the target starts waking agents and doing real work — sending messages,
+reaching the LAN — from a host that was only ever meant to be a copy. Import
+warns when the bundle carries enabled schedules; `mai-tai config import
+--disable-schedules` turns them all off as part of the restore.
 
 Either way, copy `~/.config/mai-tai/config` across so existing `mt_` API keys
 still authenticate — and fix its `MAI_TAI_API_URL` to point at the target.

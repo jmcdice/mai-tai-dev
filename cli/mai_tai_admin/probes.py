@@ -2,9 +2,8 @@
 
 Everything here shells out instead of importing a postgres driver or the docker
 SDK. The CLI has to work on a bare deployment host where the only thing
-guaranteed to be installed is docker, and `docker exec <pg> psql` is already how
-the rest of the repo's scripts talk to the database (see
-scripts/mai-tai-config.sh).
+guaranteed to be installed is docker, and `docker exec <pg> psql` is how the
+repo's scripts have always talked to the database.
 """
 
 from __future__ import annotations
