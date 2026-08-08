@@ -41,6 +41,11 @@ dist/
 venv/
 env/
 
+# `uv run` in cli/ drops a lockfile. It isn't used by anything — the CLI is
+# installed with `uv tool install --editable` locally and plain pip in CI — and
+# committing a fourth lockfile just hands Trivy another file to scan.
+cli/uv.lock
+
 # Testing & Coverage
 .pytest_cache/
 .coverage
