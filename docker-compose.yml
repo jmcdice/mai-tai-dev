@@ -4,10 +4,16 @@ services:
     container_name: maitai-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-maitai}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-maitai_dev_password}
+      # No default on purpose. A baked-in default password is a published
+      # credential — the fallback that used to live here is what ended up
+      # running on the dev host, reachable from the LAN. Fail loudly instead.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-maitai}
     ports:
-      - "5433:5432"
+      # Loopback only. The agents network is deliberately routed away from
+      # postgres — but a 0.0.0.0 publish hands it straight back via the host
+      # IP, and takes the rest of the LAN along with it.
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -37,7 +43,7 @@ services:
       - CLOUD_ML_REGION=${CLOUD_ML_REGION:-global}
       - APP_ENV=${APP_ENV:-production}
       - DEBUG=${DEBUG:-false}
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-maitai}:${POSTGRES_PASSWORD:-maitai_dev_password}@postgres:5432/${POSTGRES_DB:-maitai}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-maitai}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-maitai}
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
       - CORS_ORIGINS=${CORS_ORIGINS}

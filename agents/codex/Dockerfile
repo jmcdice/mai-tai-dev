@@ -19,8 +19,13 @@
 
 FROM node:20-slim
 
-# Install system deps
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install system deps.
+# `upgrade` first: the node:20-slim base lags Debian security by weeks, and a
+# stale base is where every CRITICAL in this image has come from. Rebuild with
+# `--pull` so the base itself is fresh too.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends \
     curl \
     git \
     python3 \
@@ -28,12 +33,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install GitHub CLI
-RUN GH_VERSION=2.45.0 \
+# Install GitHub CLI.
+# Keep this current: `gh` is a static Go binary, so its CVEs are whatever Go
+# toolchain and modules it was built with. 2.45.0 carried 3 CRITICALs
+# (Go stdlib 1.21.7, grpc 1.56.3) that no apt upgrade can touch.
+RUN GH_VERSION=2.97.0 \
     && curl -sL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" \
        | tar -xz -C /tmp \
     && mv /tmp/gh_${GH_VERSION}_linux_amd64/bin/gh /usr/local/bin/gh \
     && rm -rf /tmp/gh_${GH_VERSION}_linux_amd64
+
+# Bump npm first — the npm bundled with node:20-slim vendors its own `tar`,
+# and that copy is where the remaining CRITICAL lives. Nothing else reaches it.
+# Pinned to 11: npm@latest is 12.x, which refuses to install on node 20.
+# npm 11.19 vendors tar 7.5.19, which is the fixed version.
+RUN npm install -g npm@11
 
 # Install Codex CLI globally (as root)
 RUN npm install -g @openai/codex
