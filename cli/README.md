@@ -92,6 +92,13 @@ Secrets also read from the environment — `MAI_TAI_ADMIN_EMAIL`,
 lands in argv, which is world-readable in `ps`, and piping into the hidden prompt
 does not work — `getpass` falls back to echoing and then reads EOF.
 
+**Check-in is not proof the agent can think.** Step 7 waits for a row in
+`workspace_agent_activity`, which the agent writes when its MCP client connects
+— *before* it ever calls a model. A workspace whose model is not enabled on your
+Vertex project will check in, greet you, and then fail its first real turn with
+`exit=1`. If that happens, `docker exec <agent> claude -p hi` names the model and
+says so; re-run with `--model opus` (or whatever your project has enabled).
+
 **On Vertex?** `.env.example` ships `CLAUDE_CODE_USE_VERTEX` blank, so a fresh
 install has no Vertex config even on a host with working ADC — and step 6 will
 ask for an Anthropic key it does not need. `--vertex-project <gcp-project>`
