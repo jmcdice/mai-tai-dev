@@ -36,6 +36,12 @@ services:
       - ${HOME}/.config/gcloud:/host-gcloud:ro
     environment:
       - PORT=8000
+      # Apple Silicon: /proc/cpuinfo inside a Linux VM advertises sve2, which
+      # the host does not actually implement, so OpenSSL picks an SVE2 code
+      # path and every worker dies with SIGILL the moment app.core.crypto
+      # derives a key. Pinning the capability mask forces the safe path.
+      # Read only on ARM builds of OpenSSL — a no-op on x86_64.
+      - OPENSSL_armcap=${OPENSSL_armcap:-0xfff}
       # Vertex AI fallback for agent containers. The backend reads the host's
       # ADC from the /host-gcloud mount and passes it to agents as JSON.
       - CLAUDE_CODE_USE_VERTEX=${CLAUDE_CODE_USE_VERTEX:-}
@@ -90,19 +96,37 @@ services:
       - backend
     restart: unless-stopped
 
+  # --- Edge services: opt-in via `--profile edge` -------------------------
+  #
+  # These two only make sense on a host that fronts mai-tai.dev: dnsmasq binds
+  # a specific LAN address, and caddy serves certificates issued out-of-band
+  # by acme.sh into a gitignored directory. On any other machine they cannot
+  # possibly start, and before the profile they still tried — a fresh clone
+  # came up with two containers in a permanent restart loop and no explanation
+  # of which ones were supposed to be there.
   dnsmasq:
+    profiles: ["edge"]
     build:
       context: ./infra
       dockerfile: Dockerfile.dnsmasq
     container_name: maitai-dnsmasq
     network_mode: host
+    environment:
+      # The address dnsmasq binds and hands out for *.mai-tai.dev. Must be an
+      # address that exists on this host. Deliberately not guarded with ":?"
+      # here — compose interpolates every service regardless of profile, so a
+      # required-variable guard would break the default stack for everyone.
+      # The entrypoint enforces it instead, where it only runs if the edge
+      # profile actually starts this container.
+      - DNSMASQ_LISTEN_ADDRESS=${DNSMASQ_LISTEN_ADDRESS:-}
     volumes:
-      - ./infra/dnsmasq.conf:/etc/dnsmasq.conf:ro
+      - ./infra/dnsmasq.conf.template:/etc/dnsmasq.conf.template:ro
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
 
   caddy:
+    profiles: ["edge"]
     image: caddy:latest
     container_name: maitai-caddy
     ports:
