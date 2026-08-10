@@ -452,3 +452,70 @@ class TestFindRepoRoot:
         repo = self._make_repo(tmp_path / "repo")
         monkeypatch.setattr(bundle, "REPO_ROOT", repo)
         assert bootstrap.repo_root_found() is True
+
+
+# ---------------------------------------------------------------------------
+# Writing .env. The cold install on the mini walked straight into this: a host
+# with working gcloud ADC was asked for an Anthropic key, because .env.example
+# ships the Vertex keys blank and nothing in init could fill them in.
+# ---------------------------------------------------------------------------
+class TestWriteEnvValues:
+    def test_sets_a_key_in_place(self, tmp_path):
+        env = tmp_path / ".env"
+        env.write_text("A=1\nCLAUDE_CODE_USE_VERTEX=\nB=2\n")
+        bootstrap.write_env_values({"CLAUDE_CODE_USE_VERTEX": "1"}, path=env)
+        assert env.read_text() == "A=1\nCLAUDE_CODE_USE_VERTEX=1\nB=2\n"
+
+    def test_preserves_comments_and_order(self, tmp_path):
+        env = tmp_path / ".env"
+        env.write_text("# header\n\nA=1\n# note\nB=2\n")
+        bootstrap.write_env_values({"B": "9"}, path=env)
+        assert env.read_text() == "# header\n\nA=1\n# note\nB=9\n"
+
+    def test_never_touches_secrets_it_was_not_asked_about(self, tmp_path):
+        """Rewriting .env wholesale would lock a live deployment out of its DB."""
+        env = tmp_path / ".env"
+        env.write_text("POSTGRES_PASSWORD=hunter2\nSECRET_KEY=abc\nCLOUD_ML_REGION=\n")
+        bootstrap.write_env_values({"CLOUD_ML_REGION": "global"}, path=env)
+        text = env.read_text()
+        assert "POSTGRES_PASSWORD=hunter2" in text
+        assert "SECRET_KEY=abc" in text
+
+    def test_appends_a_key_that_was_absent(self, tmp_path):
+        env = tmp_path / ".env"
+        env.write_text("A=1\n")
+        bootstrap.write_env_values({"NEW": "x"}, path=env)
+        assert env.read_text() == "A=1\nNEW=x\n"
+
+    def test_a_commented_out_key_is_not_treated_as_set(self, tmp_path):
+        env = tmp_path / ".env"
+        env.write_text("# CLOUD_ML_REGION=us-east5\n")
+        bootstrap.write_env_values({"CLOUD_ML_REGION": "global"}, path=env)
+        text = env.read_text()
+        assert "# CLOUD_ML_REGION=us-east5" in text
+        assert "CLOUD_ML_REGION=global" in text
+
+    def test_written_file_is_0600(self, tmp_path):
+        env = tmp_path / ".env"
+        env.write_text("A=1\n")
+        bootstrap.write_env_values({"A": "2"}, path=env)
+        assert env.stat().st_mode & 0o777 == 0o600
+
+    def test_configure_vertex_writes_all_three_keys(self, tmp_path, monkeypatch):
+        env = tmp_path / ".env"
+        env.write_text("CLAUDE_CODE_USE_VERTEX=\nANTHROPIC_VERTEX_PROJECT_ID=\nCLOUD_ML_REGION=\n")
+        monkeypatch.setattr(bundle, "env_path", lambda: env)
+        bootstrap.configure_vertex("my-proj", "us-east5")
+        values = dict(
+            line.split("=", 1) for line in env.read_text().splitlines() if "=" in line
+        )
+        assert values["CLAUDE_CODE_USE_VERTEX"] == "1"
+        assert values["ANTHROPIC_VERTEX_PROJECT_ID"] == "my-proj"
+        assert values["CLOUD_ML_REGION"] == "us-east5"
+
+    def test_adc_present_tracks_the_file(self, tmp_path, monkeypatch):
+        adc = tmp_path / "adc.json"
+        monkeypatch.setattr(bootstrap, "GCLOUD_ADC_PATH", adc)
+        assert bootstrap.adc_present() is False
+        adc.write_text("{}")
+        assert bootstrap.adc_present() is True

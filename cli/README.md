@@ -80,10 +80,24 @@ watchdog, see `doctor` below.
 | --- | --- |
 | `--email / --password / --name` | Account details, instead of prompting |
 | `--anthropic-key` | Model credential, instead of prompting |
+| `--vertex-project` / `--vertex-region` | Auth agents off the host's gcloud ADC instead of a key |
 | `--workspace / --template / --model` | Override the default `Supervisor` / `assistant` workspace |
 | `--skip-build` | Trust an existing `mai-tai-agent:latest` |
 | `--skip-agent` | Stop after step 6; provision no workspace |
 | `--non-interactive` | Never prompt; fail instead. For CI |
+
+Secrets also read from the environment — `MAI_TAI_ADMIN_EMAIL`,
+`MAI_TAI_ADMIN_PASSWORD`, `MAI_TAI_ADMIN_NAME`, `MAI_TAI_ANTHROPIC_KEY`,
+`MAI_TAI_VERTEX_PROJECT`. Prefer these over the flags when scripting: `--password`
+lands in argv, which is world-readable in `ps`, and piping into the hidden prompt
+does not work — `getpass` falls back to echoing and then reads EOF.
+
+**On Vertex?** `.env.example` ships `CLAUDE_CODE_USE_VERTEX` blank, so a fresh
+install has no Vertex config even on a host with working ADC — and step 6 will
+ask for an Anthropic key it does not need. `--vertex-project <gcp-project>`
+writes the three keys into `.env` and recreates the backend to pick them up. A
+*recreate*, not a restart: compose passes environment at create time, so a
+restarted container keeps the values it was born with.
 
 ## Commands
 

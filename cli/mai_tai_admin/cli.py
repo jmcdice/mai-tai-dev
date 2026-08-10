@@ -525,6 +525,12 @@ def init(  # noqa: C901 - a setup wizard is a sequence; splitting it hides the o
         bootstrap.DEFAULT_TEMPLATE, "--template", help="Agent template for that workspace."
     ),
     model: str = typer.Option(None, "--model", help="Model for the agent (default: runtime's)."),
+    vertex_project: str = typer.Option(
+        None, "--vertex-project", help="Auth agents via Vertex using this GCP project."
+    ),
+    vertex_region: str = typer.Option(
+        "global", "--vertex-region", help="Vertex region, with --vertex-project."
+    ),
     api_url: str = typer.Option(
         bootstrap.DEFAULT_API_URL, "--api-url", help="Backend URL as seen from this host."
     ),
@@ -542,6 +548,16 @@ def init(  # noqa: C901 - a setup wizard is a sequence; splitting it hides the o
     this twice is safe and tells you what the host already has.
     """
     total = 7
+
+    # Secrets come from the environment when they aren't flags. Not a
+    # convenience: `--password` lands in argv, which is world-readable in `ps`,
+    # and a hidden prompt cannot be piped — getpass falls back to echoing and
+    # then reads EOF. Env vars are the only way to script this safely.
+    email = email or os.environ.get("MAI_TAI_ADMIN_EMAIL") or None
+    password = password or os.environ.get("MAI_TAI_ADMIN_PASSWORD") or None
+    name = name or os.environ.get("MAI_TAI_ADMIN_NAME") or None
+    anthropic_key = anthropic_key or os.environ.get("MAI_TAI_ANTHROPIC_KEY") or None
+    vertex_project = vertex_project or os.environ.get("MAI_TAI_VERTEX_PROJECT") or None
 
     # Everything below reads the repo's .env or runs dev.sh out of it, so say so
     # now rather than failing three steps in. A plain `pip install ./cli` puts
@@ -649,15 +665,38 @@ def init(  # noqa: C901 - a setup wizard is a sequence; splitting it hides the o
 
     # ---- 6. model credential ---------------------------------------------
     _step(6, total, "Model credential")
-    if bootstrap.vertex_configured():
+    if vertex_project and not bootstrap.vertex_configured():
+        # .env.example ships the Vertex keys blank, so a fresh install has no
+        # Vertex config even on a host whose ADC is right there. Write it.
+        if not bootstrap.adc_present():
+            _fail(
+                f"--vertex-project was given but {bootstrap.GCLOUD_ADC_PATH} does not exist.\n"
+                "  Run: gcloud auth application-default login"
+            )
+        written = bootstrap.configure_vertex(vertex_project, vertex_region)
+        console.print(f"  [dim]wrote Vertex config to {written}, recreating backend...[/dim]")
+        try:
+            bootstrap.restart_backend()
+            bootstrap.wait_for_backend(api_url)
+        except ProbeError as e:
+            _fail(str(e))
+        _ok(f"Vertex via {vertex_project} ({vertex_region}) — no per-user key needed")
+    elif bootstrap.vertex_configured():
         _skip("host Vertex ADC is configured — agents need no per-user key")
     elif bootstrap.has_anthropic_key(token, api_url=api_url):
         _skip("this account already has an Anthropic key stored")
     else:
+        if bootstrap.adc_present():
+            # The most annoying possible outcome: a host that could use Vertex
+            # for free being asked to go find a key. Say so before asking.
+            _warn(
+                "gcloud ADC is on this host but .env has no Vertex config — "
+                "re-run with --vertex-project <gcp-project> to use it instead"
+            )
         key = anthropic_key or _prompt(
             "Anthropic API key (sk-ant-... or a Pro/Max OAuth token)",
             non_interactive,
-            "--anthropic-key is required (or configure Vertex in .env)",
+            "--anthropic-key is required (or pass --vertex-project)",
             hide_input=True,
         )
         try:

@@ -343,6 +343,75 @@ def create_user_api_key(
     return result["key"]
 
 
+def write_env_values(updates: dict[str, str], path: Path | None = None) -> Path:
+    """Set keys in the repo's .env, preserving everything else.
+
+    Same merge-in-place rule as `write_host_config`, and for a sharper reason:
+    .env holds POSTGRES_PASSWORD and SECRET_KEY for a database that already
+    exists. Rewriting the file wholesale would lock the deployment out of its
+    own data.
+    """
+    target = path or bundle.env_path()
+    lines = target.read_text().splitlines() if target.exists() else []
+    remaining = dict(updates)
+    out: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        key = stripped.partition("=")[0].strip()
+        if stripped and not stripped.startswith("#") and key in remaining:
+            out.append(f"{key}={remaining.pop(key)}")
+        else:
+            out.append(line)
+    out.extend(f"{k}={v}" for k, v in remaining.items())
+    target.write_text("\n".join(out) + "\n")
+    with contextlib.suppress(OSError):
+        target.chmod(0o600)
+    return target
+
+
+def configure_vertex(project: str, region: str = "global") -> Path:
+    """Point .env at Vertex so agents can auth off the host's ADC.
+
+    `.env.example` ships these blank, so a fresh install has no Vertex config
+    even on a host whose ADC is sitting right there — which is how a correctly
+    provisioned machine ends up being asked for an Anthropic key it does not
+    need.
+    """
+    return write_env_values(
+        {
+            "CLAUDE_CODE_USE_VERTEX": "1",
+            "ANTHROPIC_VERTEX_PROJECT_ID": project,
+            "CLOUD_ML_REGION": region,
+        }
+    )
+
+
+def adc_present() -> bool:
+    """Whether host ADC exists, regardless of what .env says about Vertex."""
+    return GCLOUD_ADC_PATH.exists()
+
+
+def restart_backend(repo_root: Path | None = None) -> None:
+    """Recreate the backend so it re-reads .env.
+
+    A plain `restart` is not enough: compose passes environment at *create*
+    time, so a restarted container keeps the values it was born with. Editing
+    .env and restarting looks like it worked and changes nothing.
+    """
+    root = repo_root or bundle.REPO_ROOT
+    proc = subprocess.run(  # noqa: S603
+        ["docker", "compose", "-f", "docker-compose.yml", "up", "-d", "--force-recreate", "backend"],
+        cwd=str(root),
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=False,
+    )
+    if proc.returncode != 0:
+        tail = (proc.stderr or proc.stdout).strip().splitlines()[-10:]
+        raise ProbeError("could not recreate the backend:\n  " + "\n  ".join(tail))
+
+
 def repo_root_found() -> bool:
     """Whether we actually resolved a checkout, rather than guessing.
 
