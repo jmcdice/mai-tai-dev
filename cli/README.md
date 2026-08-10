@@ -37,6 +37,11 @@ are specifically denied. It stays on the operator's host.
 uv tool install --editable ./cli
 ```
 
+Drop `--editable` if you are not hacking on the CLI itself. Either way, run it
+from inside the checkout: installed non-editable the package sits in its own
+venv, so it locates the repo by walking up from your working directory (or from
+`MAI_TAI_REPO_ROOT`).
+
 Requires Python 3.11+, and on the host: `docker`, `ps`, and a running
 `maitai-postgres`.
 

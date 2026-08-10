@@ -14,13 +14,21 @@ Mai-Tai is a self-hosted platform that lets you launch AI coding agents as Docke
 
 ## Quick Start
 
-**Prerequisites:** Docker, Docker Compose, Git, Python 3.11+
+**Prerequisites:** Docker, Docker Compose, Git, Python 3.11+, and
+[uv](https://docs.astral.sh/uv/getting-started/installation/)
+(`curl -LsSf https://astral.sh/uv/install.sh | sh`).
 
 ```bash
 git clone https://github.com/jmcdice/mai-tai-dev.git && cd mai-tai-dev
-pip install ./cli
+uv tool install ./cli
 mai-tai init
 ```
+
+Run `init` from inside the clone — it locates the repo by walking up from your
+working directory. `pipx install ./cli` works too; a bare `pip install` usually
+does not, because most distributions now ship Python as
+[externally managed](https://peps.python.org/pep-0668/) and refuse to install
+into it.
 
 `init` walks the whole path from a bare clone to an agent that talks back: it
 starts the stack, builds the agent image, creates your admin account, wires up
@@ -34,6 +42,12 @@ say hi to the Supervisor.
 > **Don't run `cp .env.example .env` yourself.** `dev.sh` only generates secrets
 > when `.env` is *missing*; hand-copying the example leaves `POSTGRES_PASSWORD`
 > empty and the stack refuses to start.
+
+**On Vertex AI?** Pass `--vertex-project <gcp-project>` and agents authenticate
+off the host's gcloud ADC instead of an API key. Add `--model` if your project
+only has some models enabled — the default is the runtime's, and an agent whose
+model is not enabled will connect and greet you before failing its first real
+turn. See [cli/README.md](cli/README.md#init).
 
 <details>
 <summary>Doing it by hand instead</summary>
