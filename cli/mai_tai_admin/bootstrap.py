@@ -23,6 +23,7 @@ and the fewer things that must be installed first, the better.
 from __future__ import annotations
 
 import contextlib
+import http.client
 import json
 import os
 import subprocess
@@ -134,6 +135,11 @@ def api(
         raise ProbeError(f"cannot reach the backend at {url}: {e.reason}") from None
     except TimeoutError:
         raise ProbeError(f"backend timed out after {timeout}s: {url}") from None
+    except (http.client.HTTPException, OSError) as e:
+        # RemoteDisconnected lands here, not in URLError: urllib only wraps
+        # errors from sending the request, and this one comes from reading the
+        # response. Uncaught it reaches the user as a 60-line rich traceback.
+        raise ProbeError(f"backend dropped the connection ({type(e).__name__}): {url}") from None
     return json.loads(body) if body.strip() else None
 
 
@@ -145,13 +151,25 @@ def backend_healthy(api_url: str = DEFAULT_API_URL) -> bool:
     return True
 
 
-def wait_for_backend(api_url: str = DEFAULT_API_URL, timeout: int = 180) -> bool:
-    """Poll /health until it answers. False on timeout — the caller reports."""
+def wait_for_backend(api_url: str = DEFAULT_API_URL, timeout: int = 180, stable: int = 3) -> bool:
+    """Poll /health until it answers `stable` times running.
+
+    One success is not enough during a recreate. Docker keeps the published
+    port bound while it swaps containers, so a request can be accepted and then
+    closed with no response — the old container answers /health, the next call
+    hits a dead socket and raises RemoteDisconnected. Requiring consecutive
+    successes waits for the *new* container instead of the tail of the old one.
+    """
     deadline = time.monotonic() + timeout
+    consecutive = 0
     while time.monotonic() < deadline:
         if backend_healthy(api_url):
-            return True
-        time.sleep(2)
+            consecutive += 1
+            if consecutive >= stable:
+                return True
+        else:
+            consecutive = 0
+        time.sleep(1)
     return False
 
 

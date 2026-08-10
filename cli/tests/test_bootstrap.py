@@ -8,6 +8,7 @@ the parts that can silently produce a deployment where Start Agent never works.
 
 from __future__ import annotations
 
+import http.client
 import io
 import json
 import urllib.error
@@ -519,3 +520,64 @@ class TestWriteEnvValues:
         assert bootstrap.adc_present() is False
         adc.write_text("{}")
         assert bootstrap.adc_present() is True
+
+
+# ---------------------------------------------------------------------------
+# The recreate race. Step 6 brings the backend back up on new .env values, and
+# the very next call died with a 60-line rich traceback on the mini:
+# RemoteDisconnected does not go through URLError, because urllib only wraps
+# failures from *sending* the request — this one comes from reading the reply.
+# ---------------------------------------------------------------------------
+class TestConnectionDrops:
+    def test_remote_disconnected_is_a_probe_error_not_a_traceback(self, monkeypatch):
+        def fake_urlopen(request, timeout=None):
+            raise http.client.RemoteDisconnected("Remote end closed connection without response")
+
+        monkeypatch.setattr(bootstrap.urllib.request, "urlopen", fake_urlopen)
+        with pytest.raises(ProbeError, match="dropped the connection"):
+            bootstrap.api("GET", "/api/v1/workspaces")
+
+    def test_a_bare_oserror_is_caught_too(self, monkeypatch):
+        def fake_urlopen(request, timeout=None):
+            raise ConnectionResetError("reset by peer")
+
+        monkeypatch.setattr(bootstrap.urllib.request, "urlopen", fake_urlopen)
+        with pytest.raises(ProbeError, match="dropped the connection"):
+            bootstrap.api("GET", "/health")
+
+    def test_backend_healthy_swallows_a_drop(self, monkeypatch):
+        def fake_urlopen(request, timeout=None):
+            raise http.client.RemoteDisconnected("nope")
+
+        monkeypatch.setattr(bootstrap.urllib.request, "urlopen", fake_urlopen)
+        assert bootstrap.backend_healthy() is False
+
+
+class TestWaitForBackend:
+    def test_one_lucky_answer_is_not_enough(self, monkeypatch):
+        """The old container answering /health mid-swap is exactly the trap."""
+        answers = iter([True, False, False, True, True, True])
+        monkeypatch.setattr(bootstrap, "backend_healthy", lambda url=None: next(answers))
+        monkeypatch.setattr(bootstrap.time, "sleep", lambda s: None)
+        assert bootstrap.wait_for_backend(timeout=60, stable=3) is True
+
+    def test_the_streak_resets_on_a_failure(self, monkeypatch):
+        calls = []
+
+        def flaky(url=None):
+            calls.append(1)
+            # up, up, down, then up forever. The streak has to start over, so
+            # the earliest it can return is call 6, not call 4.
+            return len(calls) != 3
+
+        monkeypatch.setattr(bootstrap, "backend_healthy", flaky)
+        monkeypatch.setattr(bootstrap.time, "sleep", lambda s: None)
+        assert bootstrap.wait_for_backend(timeout=60, stable=3) is True
+        assert len(calls) == 6
+
+    def test_gives_up_and_reports_rather_than_hanging(self, monkeypatch):
+        monkeypatch.setattr(bootstrap, "backend_healthy", lambda url=None: False)
+        ticks = iter([0, 10, 20, 30, 40, 50, 60, 70, 999])
+        monkeypatch.setattr(bootstrap.time, "monotonic", lambda: next(ticks))
+        monkeypatch.setattr(bootstrap.time, "sleep", lambda s: None)
+        assert bootstrap.wait_for_backend(timeout=60) is False

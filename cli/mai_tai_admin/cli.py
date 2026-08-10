@@ -677,9 +677,10 @@ def init(  # noqa: C901 - a setup wizard is a sequence; splitting it hides the o
         console.print(f"  [dim]wrote Vertex config to {written}, recreating backend...[/dim]")
         try:
             bootstrap.restart_backend()
-            bootstrap.wait_for_backend(api_url)
         except ProbeError as e:
             _fail(str(e))
+        if not bootstrap.wait_for_backend(api_url):
+            _fail("the backend did not come back after being recreated for Vertex.")
         _ok(f"Vertex via {vertex_project} ({vertex_region}) — no per-user key needed")
     elif bootstrap.vertex_configured():
         _skip("host Vertex ADC is configured — agents need no per-user key")
