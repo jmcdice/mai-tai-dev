@@ -40,10 +40,56 @@ uv tool install --editable ./cli
 Requires Python 3.11+, and on the host: `docker`, `ps`, and a running
 `maitai-postgres`.
 
+`mai-tai init` is the exception to that last requirement — it is the command you
+run *before* there is anything to talk to.
+
+## init
+
+```bash
+mai-tai init
+```
+
+Takes a bare `git clone` to an agent that answers you, in seven steps:
+
+1. **Host config directory** — `~/.config/mai-tai/`
+2. **Stack** — `./dev.sh local up` (generates `.env` secrets, runs migrations)
+3. **Agent image** — `docker build -t mai-tai-agent:latest`
+4. **Admin account** — registers the first user, or logs in if one exists
+5. **Agent credential** — writes the API key to `~/.config/mai-tai/config`, 0600
+6. **Model credential** — detects Vertex, or stores an `ANTHROPIC_API_KEY`
+7. **Supervisor workspace** — creates it, starts the agent, waits for a check-in
+
+Every step is skipped if it is already done, so re-running after a failure picks
+up where it stopped rather than starting over.
+
+Step 1 runs first for a reason. Compose bind-mounts `~/.config/mai-tai` into the
+backend, and Docker creates a missing bind-mount source *as root* — do it after
+`up` and the operator can no longer write their own config file.
+
+Step 5 is the one nobody discovers on their own. The backend reads
+`~/.config/mai-tai/config` off the host to authenticate the containers it
+spawns; without it every **Start Agent** click returns *"No Mai-Tai API key
+available"* and nothing in the UI says why. The write is merge-preserving,
+because `mai-tai-mcp` reads the same file.
+
+Step 7 waits on a row in `workspace_agent_activity`, not on `docker ps`. A
+running container is not a working agent — that is the entire lesson of the
+watchdog, see `doctor` below.
+
+| Flag | Use |
+| --- | --- |
+| `--email / --password / --name` | Account details, instead of prompting |
+| `--anthropic-key` | Model credential, instead of prompting |
+| `--workspace / --template / --model` | Override the default `Supervisor` / `assistant` workspace |
+| `--skip-build` | Trust an existing `mai-tai-agent:latest` |
+| `--skip-agent` | Stop after step 6; provision no workspace |
+| `--non-interactive` | Never prompt; fail instead. For CI |
+
 ## Commands
 
 | Command | What it does |
 | --- | --- |
+| `mai-tai init` | Bare clone → running stack, admin account, and a live Supervisor agent |
 | `mai-tai status` | One row per workspace: runner, uptime, heartbeat age, state, schedules |
 | `mai-tai doctor` | Health checks across core containers, bots, orphans, and schedules. Exits 1 on any failure |
 | `mai-tai ws list [--archived]` | Every workspace with agent type, message counts, and last-seen |

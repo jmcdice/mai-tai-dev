@@ -14,16 +14,57 @@ Mai-Tai is a self-hosted platform that lets you launch AI coding agents as Docke
 
 ## Quick Start
 
-**Prerequisites:** Docker, Docker Compose, Git
+**Prerequisites:** Docker, Docker Compose, Git, Python 3.11+
 
 ```bash
 git clone https://github.com/jmcdice/mai-tai-dev.git && cd mai-tai-dev
-cp .env.example .env
-# Edit .env: set SECRET_KEY, NEXTAUTH_SECRET, and your Anthropic API key
-./dev.sh local up
+pip install ./cli
+mai-tai init
 ```
 
-Visit **http://localhost:3000** — the first account created becomes admin.
+`init` walks the whole path from a bare clone to an agent that talks back: it
+starts the stack, builds the agent image, creates your admin account, wires up
+the API key the backend needs to spawn containers, and launches a first
+**Supervisor** workspace. It's idempotent — every step it finds already done, it
+skips — so it's safe to re-run on a half-finished install.
+
+Then visit **http://localhost:3000**, log in with the account you just made, and
+say hi to the Supervisor.
+
+> **Don't run `cp .env.example .env` yourself.** `dev.sh` only generates secrets
+> when `.env` is *missing*; hand-copying the example leaves `POSTGRES_PASSWORD`
+> empty and the stack refuses to start.
+
+<details>
+<summary>Doing it by hand instead</summary>
+
+```bash
+./dev.sh local up                       # generates .env secrets, migrates the DB
+docker build -t mai-tai-agent:latest -f agents/claude-code/Dockerfile .
+```
+
+Then, in the web UI, register an account and copy the API key shown once at
+registration. The backend reads that key off the host to authenticate the agent
+containers it spawns, so it has to land here:
+
+```bash
+mkdir -p ~/.config/mai-tai
+cat > ~/.config/mai-tai/config <<EOF
+MAI_TAI_API_KEY=mt_your_key_here
+MAI_TAI_API_URL=http://localhost:8000
+EOF
+chmod 600 ~/.config/mai-tai/config
+```
+
+Miss this step and every **Start Agent** click fails with *"No Mai-Tai API key
+available."* Create the directory **before** `./dev.sh local up` — compose
+bind-mounts it, and Docker will otherwise create it for you as root.
+
+Finally, give the agents a model credential: either set `ANTHROPIC_API_KEY` in
+Settings → AI, or run on Vertex (`CLAUDE_CODE_USE_VERTEX=1`), in which case
+containers fall back to the host's gcloud ADC automatically.
+
+</details>
 
 ## Agent Workspaces
 
