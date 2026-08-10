@@ -543,6 +543,16 @@ def init(  # noqa: C901 - a setup wizard is a sequence; splitting it hides the o
     """
     total = 7
 
+    # Everything below reads the repo's .env or runs dev.sh out of it, so say so
+    # now rather than failing three steps in. A plain `pip install ./cli` puts
+    # this package in site-packages, where it cannot find the checkout on its
+    # own — cwd is the only hint we get.
+    if not bootstrap.repo_root_found():
+        _fail(
+            f"{bundle.REPO_ROOT} is not a mai-tai checkout.\n"
+            "  Run `mai-tai init` from the repo root, or set MAI_TAI_REPO_ROOT."
+        )
+
     # ---- 1. host config directory, BEFORE anything starts ----------------
     # Compose bind-mounts ${HOME}/.config/mai-tai into the backend. If it does
     # not exist when the stack first comes up, Docker creates it as root and

@@ -14,7 +14,7 @@ import urllib.error
 
 import pytest
 
-from mai_tai_admin import bootstrap
+from mai_tai_admin import bootstrap, bundle
 from mai_tai_admin.probes import ProbeError
 
 
@@ -390,3 +390,65 @@ class TestWaitForCheckin:
         )
         monkeypatch.setattr(bootstrap.time, "sleep", lambda s: None)
         assert bootstrap.wait_for_checkin(self.WS, timeout=300) == 2
+
+
+# ---------------------------------------------------------------------------
+# Locating the repo. This is the bug the Mac mini caught and the dev host hid:
+# the dev host has an *editable* install, so the package sits inside the
+# checkout and `parents[2]` happens to be right. A plain `pip install ./cli` —
+# which is what the README tells a new user to run — puts the package in
+# site-packages, and every repo-relative operation then silently reads nothing.
+# ---------------------------------------------------------------------------
+class TestFindRepoRoot:
+    @staticmethod
+    def _make_repo(path):
+        path.mkdir(parents=True, exist_ok=True)
+        (path / "dev.sh").write_text("#!/bin/bash\n")
+        (path / "docker-compose.yml").write_text("services: {}\n")
+        return path
+
+    def test_env_override_wins(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MAI_TAI_REPO_ROOT", str(tmp_path / "elsewhere"))
+        assert bundle._find_repo_root() == tmp_path / "elsewhere"
+
+    def test_finds_the_repo_by_walking_up_from_cwd(self, tmp_path, monkeypatch):
+        repo = self._make_repo(tmp_path / "repo")
+        deep = repo / "a" / "b"
+        deep.mkdir(parents=True)
+        monkeypatch.delenv("MAI_TAI_REPO_ROOT", raising=False)
+        # Park the package outside any checkout, or the real repo this test
+        # runs from wins before we ever look at cwd.
+        outside = tmp_path / "outside" / "pkg" / "mai_tai_admin"
+        outside.mkdir(parents=True)
+        monkeypatch.setattr(bundle, "__file__", str(outside / "bundle.py"))
+        monkeypatch.chdir(deep)
+        assert bundle._find_repo_root() == repo.resolve()
+
+    def test_site_packages_install_still_finds_the_repo(self, tmp_path, monkeypatch):
+        """The actual regression: package outside the repo, cwd inside it."""
+        repo = self._make_repo(tmp_path / "repo")
+        site_packages = tmp_path / "venv" / "lib" / "python3.11" / "site-packages"
+        (site_packages / "mai_tai_admin").mkdir(parents=True)
+        monkeypatch.delenv("MAI_TAI_REPO_ROOT", raising=False)
+        monkeypatch.setattr(
+            bundle, "__file__", str(site_packages / "mai_tai_admin" / "bundle.py")
+        )
+        monkeypatch.chdir(repo)
+        assert bundle._find_repo_root() == repo.resolve()
+
+    def test_a_half_repo_does_not_count(self, tmp_path):
+        half = tmp_path / "half"
+        half.mkdir()
+        (half / "dev.sh").write_text("#!/bin/bash\n")  # no docker-compose.yml
+        assert not bundle._looks_like_repo(half)
+
+    def test_reports_not_found_rather_than_raising(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("MAI_TAI_REPO_ROOT", raising=False)
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(bundle, "REPO_ROOT", tmp_path)
+        assert bootstrap.repo_root_found() is False
+
+    def test_reports_found_for_a_real_checkout(self, tmp_path, monkeypatch):
+        repo = self._make_repo(tmp_path / "repo")
+        monkeypatch.setattr(bundle, "REPO_ROOT", repo)
+        assert bootstrap.repo_root_found() is True

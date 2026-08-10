@@ -343,6 +343,15 @@ def create_user_api_key(
     return result["key"]
 
 
+def repo_root_found() -> bool:
+    """Whether we actually resolved a checkout, rather than guessing.
+
+    See `bundle._find_repo_root`. A non-editable install cannot locate the repo
+    from its own path, so this is False when `init` is run from outside one.
+    """
+    return bundle._looks_like_repo(bundle.REPO_ROOT)
+
+
 def vertex_configured(env: dict[str, str] | None = None) -> bool:
     """True when the host can auth agents through Vertex with no user key.
 
