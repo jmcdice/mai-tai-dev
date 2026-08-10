@@ -18,6 +18,7 @@ from app.core.crypto import (
     is_masked_echo,
     masked_user_settings,
 )
+from app.core.scopes import DEFAULT_SCOPES
 from app.models.system_settings import SystemSetting
 from app.core.security import (
     create_access_token,
@@ -140,7 +141,7 @@ async def register(
         workspace_id=None,  # Not bound to a specific workspace
         name="Default Agent Key",
         key_hash=key_hash,
-        scopes=["read", "write"],
+        scopes=list(DEFAULT_SCOPES),
     )
     db.add(api_key)
 
@@ -399,7 +400,7 @@ async def oauth_login(
                 workspace_id=None,
                 name="Default Agent Key",
                 key_hash=key_hash,
-                scopes=["read", "write"],
+                scopes=list(DEFAULT_SCOPES),
             )
             db.add(api_key)
 

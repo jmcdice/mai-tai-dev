@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import ApiKeyAuth, get_api_key_auth, get_db
+from app.api.deps import ApiKeyAuth, get_api_key_auth, get_db, require_scope
+from app.core.scopes import READ, WRITE
 from app.core.websocket import manager as ws_manager
 from app.models.message import Message
 from app.models.user import User
@@ -38,18 +39,25 @@ router = APIRouter(prefix="/mcp", tags=["mcp"])
 async def verify_api_key(
     auth: ApiKeyAuth = Depends(get_api_key_auth),
 ) -> dict:
-    """Verify API key and return workspace info."""
+    """Verify API key and return workspace info.
+
+    Deliberately unscoped: this is the handshake, and a key that cannot even
+    ask what it is would report as "invalid credential" when it is really a
+    permissions problem. It returns the key's scopes so a client can tell the
+    difference up front, rather than discovering it one 403 at a time.
+    """
     return {
         "status": "authenticated",
         "workspace_id": str(auth.workspace_id),
         "workspace_name": auth.workspace.name,
         "api_key_name": auth.api_key.name,
+        "scopes": list(auth.api_key.scopes or []),
     }
 
 
 @router.get("/workspace", response_model=WorkspaceResponse)
 async def get_workspace(
-    auth: ApiKeyAuth = Depends(get_api_key_auth),
+    auth: ApiKeyAuth = Depends(require_scope(READ)),
 ) -> dict:
     """Get the workspace this API key is bound to."""
     return auth.workspace
@@ -62,7 +70,7 @@ async def get_workspace(
 )
 async def send_message(
     data: MessageCreate,
-    auth: ApiKeyAuth = Depends(get_api_key_auth),
+    auth: ApiKeyAuth = Depends(require_scope(WRITE)),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Send a message to the workspace (from MCP agent)."""
@@ -110,7 +118,7 @@ async def send_message(
 async def search_messages(
     q: str = Query(..., min_length=2, max_length=200, description="Search query"),
     limit: int = Query(10, le=50, ge=1),
-    auth: ApiKeyAuth = Depends(get_api_key_auth),
+    auth: ApiKeyAuth = Depends(require_scope(READ)),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Full-text search over this workspace's message history.
@@ -164,7 +172,7 @@ async def search_messages(
 )
 async def acknowledge_messages(
     data: MessageAcknowledgeRequest,
-    auth: ApiKeyAuth = Depends(get_api_key_auth),
+    auth: ApiKeyAuth = Depends(require_scope(WRITE)),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Mark messages as seen by the agent.
@@ -220,7 +228,7 @@ def _with_preview(task) -> dict:
 @router.post("/schedule-preview", response_model=AgentSchedulePreviewResponse)
 async def mcp_schedule_preview(
     data: SchedulePreviewRequest,
-    auth: ApiKeyAuth = Depends(get_api_key_auth),
+    auth: ApiKeyAuth = Depends(require_scope(READ)),
 ) -> dict:
     """Next fire times for a cron expression, without creating anything."""
     return {"next_runs": preview_runs_local(data.cron_expression, data.timezone)}
@@ -228,7 +236,7 @@ async def mcp_schedule_preview(
 
 @router.get("/scheduled-tasks", response_model=AgentScheduledTaskListResponse)
 async def mcp_list_scheduled_tasks(
-    auth: ApiKeyAuth = Depends(get_api_key_auth),
+    auth: ApiKeyAuth = Depends(require_scope(READ)),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """List this workspace's scheduled tasks."""
@@ -243,7 +251,7 @@ async def mcp_list_scheduled_tasks(
 )
 async def mcp_create_scheduled_task(
     data: AgentScheduledTaskCreate,
-    auth: ApiKeyAuth = Depends(get_api_key_auth),
+    auth: ApiKeyAuth = Depends(require_scope(WRITE)),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Create a scheduled task in this workspace."""
@@ -255,7 +263,7 @@ async def mcp_create_scheduled_task(
 async def mcp_update_scheduled_task(
     task_id: UUID,
     data: ScheduledTaskUpdate,
-    auth: ApiKeyAuth = Depends(get_api_key_auth),
+    auth: ApiKeyAuth = Depends(require_scope(WRITE)),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Update a scheduled task — enable/disable, retime, or rewrite the prompt."""
@@ -267,7 +275,7 @@ async def mcp_update_scheduled_task(
 @router.delete("/scheduled-tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def mcp_delete_scheduled_task(
     task_id: UUID,
-    auth: ApiKeyAuth = Depends(get_api_key_auth),
+    auth: ApiKeyAuth = Depends(require_scope(WRITE)),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Delete a scheduled task. Addressed by id only — never by name."""
@@ -324,7 +332,7 @@ async def list_messages(
     before: datetime | None = None,
     after: str | None = Query(None, description="Get messages after this message ID"),
     unseen: bool = Query(False, description="Only return unseen user messages"),
-    auth: ApiKeyAuth = Depends(get_api_key_auth),
+    auth: ApiKeyAuth = Depends(require_scope(READ)),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Get messages from the workspace.

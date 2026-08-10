@@ -122,11 +122,7 @@ async def fire_task(db, task: ScheduledTask, manual: bool = False) -> str:
 
 def _maybe_wake_agent(workspace: Workspace, owner: User | None) -> str:
     """Start the workspace's agent container if it isn't running."""
-    from pydantic import ValidationError
-
-    from app.core.crypto import get_user_secret
-    from app.schemas.workspace import AgentConfig
-    from app.services.agents import get_agent_status, get_runtime, resolve_auth_env, start_agent
+    from app.services.agents import StartBlocked, get_agent_status, plan_agent_start, start_agent
 
     try:
         if get_agent_status(workspace.id).get("running"):
@@ -135,34 +131,14 @@ def _maybe_wake_agent(workspace: Workspace, owner: User | None) -> str:
         logger.warning(f"scheduler: docker status check failed: {e}")
         return "delivered (agent status unknown)"
 
-    try:
-        config = AgentConfig.model_validate(workspace.agent_config or {})
-    except ValidationError:
-        return "delivered (agent config invalid — not woken)"
+    # Shared with the start-agent endpoint and the watchdog. Resolving the
+    # runtime and credential separately here is exactly how this path came to
+    # silently never wake on a Vertex deployment.
+    plan = plan_agent_start(workspace, owner)
+    if isinstance(plan, StartBlocked):
+        return f"delivered ({plan.detail} — not woken)"
 
-    runtime = get_runtime(config.runtime)
-    if runtime is None or not runtime.enabled:
-        return "delivered (runtime unavailable — not woken)"
-
-    settings = (owner.settings if owner else None) or {}
-    # Same resolution the start-agent endpoint uses, host Vertex fallback and
-    # all — a Vertex deployment stores no per-user credential, and resolving it
-    # here separately is exactly how this path came to silently never wake.
-    auth_env = resolve_auth_env(runtime, settings)
-    if not auth_env:
-        return "delivered (no credential — not woken)"
-
-    result = start_agent(
-        workspace_id=workspace.id,
-        workspace_name=workspace.name,
-        runtime=runtime.id,
-        model=config.model,
-        auth_env=auth_env,
-        purpose=workspace.agent_purpose,
-        template=config.template,
-        github_token=get_user_secret(settings, "github_token") if config.template == "coder" else None,
-        repo_url=config.repo_url,
-    )
+    result = start_agent(**plan.kwargs)
     if result.get("status") in ("started", "already_running"):
         return "delivered (agent woken)" if result["status"] == "started" else "delivered"
     return f"delivered (wake failed: {result.get('message', 'unknown')[:120]})"

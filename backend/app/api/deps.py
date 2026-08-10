@@ -2,6 +2,7 @@
 
 import hashlib
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
@@ -269,4 +270,29 @@ async def get_api_key_auth(
         await _record_workspace_activity(db, workspace.id, api_key.id)
 
         return ApiKeyAuth(api_key=api_key, workspace=workspace)
+
+
+def require_scope(scope: str) -> Callable[..., Awaitable[ApiKeyAuth]]:
+    """Dependency factory: authenticate the API key, then require `scope` on it.
+
+    Use this instead of `get_api_key_auth` on any endpoint that isn't safe for
+    every credential the deployment hands out. `get_api_key_auth` answers "is
+    this a real key, and which workspace is it for" — it deliberately says
+    nothing about what the key is allowed to do.
+
+    A key with no scopes at all is denied everything. Migration 018 backfills
+    the pre-enforcement default onto existing rows, so an empty list means
+    someone minted a deliberately powerless key, not that the column predates
+    the check.
+    """
+
+    async def dependency(auth: ApiKeyAuth = Depends(get_api_key_auth)) -> ApiKeyAuth:
+        if scope not in (auth.api_key.scopes or []):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"API key is missing the '{scope}' scope",
+            )
+        return auth
+
+    return dependency
 
