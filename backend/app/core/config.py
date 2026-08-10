@@ -50,6 +50,16 @@ class Settings(BaseSettings):
     # Workspace task scheduler (SCHEDULER_ENABLED=false to disable, e.g. in tests)
     scheduler_enabled: bool = True
 
+    # Agent liveness watchdog (WATCHDOG_ENABLED=false to disable).
+    watchdog_enabled: bool = True
+
+    # How long a running agent container may go without touching the MCP API
+    # before it counts as dead. Agents poll every ~3s while idle *and* while
+    # blocked at chat_with_human, so silence is a strong signal — but an agent
+    # deep in a long turn makes no API calls either, and 30 minutes is chosen
+    # to sit well clear of the longest legitimate turn.
+    watchdog_stale_minutes: int = 30
+
     # Fernet key for encrypting secrets at rest (users' API keys/tokens).
     # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     # Falls back to a key derived from SECRET_KEY when unset.

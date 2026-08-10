@@ -20,6 +20,9 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production")
 os.environ.setdefault("DEBUG", "false")
 # The scheduler loop is driven explicitly in tests via tick()
 os.environ.setdefault("SCHEDULER_ENABLED", "false")
+# Likewise the watchdog, via sweep() — and left running it would try to talk
+# to a Docker daemon the test environment has no business having.
+os.environ.setdefault("WATCHDOG_ENABLED", "false")
 
 import pytest
 from fastapi.testclient import TestClient

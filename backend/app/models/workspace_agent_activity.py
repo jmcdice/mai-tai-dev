@@ -29,6 +29,13 @@ class WorkspaceAgentActivity(Base):
         nullable=True
     )
 
+    # Watchdog bookkeeping. last_restart_at is load-bearing, not just a stat:
+    # the watchdog only intervenes again once last_activity_at has moved past
+    # it, which is what stops a permanently wedged agent from being restarted
+    # on a loop forever. See app/services/watchdog.py.
+    last_restart_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    restart_count: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+
     # Relationships
     workspace: Mapped["Workspace"] = relationship()
     api_key: Mapped["ApiKey"] = relationship()

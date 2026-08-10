@@ -7,12 +7,10 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
-from app.core.crypto import get_user_secret
 from app.core.websocket import manager as ws_manager
 from app.models.api_key import ApiKey
 from app.models.workspace import Workspace
@@ -20,13 +18,13 @@ from app.models.workspace_agent_activity import WorkspaceAgentActivity
 from app.models.message import Message
 from app.models.user import User
 from app.schemas.api_key import ApiKeyCreate, ApiKeyListItem, ApiKeyListResponse, ApiKeyResponse
-from app.schemas.workspace import AgentConfig, WorkspaceCreate, WorkspaceListResponse, WorkspaceResponse, WorkspaceUpdate
+from app.schemas.workspace import WorkspaceCreate, WorkspaceListResponse, WorkspaceResponse, WorkspaceUpdate
 from app.schemas.message import MessageCreate, MessageListResponse, MessageResponse
 from app.services.agents import (
     AGENT_TEMPLATES,
     RUNTIMES,
-    get_runtime,
-    resolve_auth_env,
+    StartBlocked,
+    plan_agent_start,
     start_agent,
     stop_agent,
     get_agent_status as get_container_status,
@@ -453,6 +451,21 @@ async def get_agent_status(
 
 # Agent workspace endpoints
 
+def _start_blocked_detail(blocked: StartBlocked) -> str:
+    """Turn a StartBlocked into something a person staring at the UI can act on.
+
+    The planner's `detail` reads as a lowercase fragment so it can sit inside a
+    log line; here it becomes a sentence and picks up the next step. Only the
+    first character is uppercased — str.capitalize() would flatten "Anthropic
+    API key" into "Anthropic api key".
+    """
+    sentence = blocked.detail[:1].upper() + blocked.detail[1:]
+    if blocked.code == "no_credential":
+        hint = " or configure Vertex AI on the host" if blocked.runtime_id == "claude-code" else ""
+        return f"{sentence}. Add it in Settings > AI{hint}."
+    return f"{sentence}."
+
+
 @router.post("/{workspace_id}/agent/start", status_code=status.HTTP_200_OK)
 async def start_agent_endpoint(
     workspace_id: UUID,
@@ -473,54 +486,18 @@ async def start_agent_endpoint(
             detail="Only agent workspaces can have agents started",
         )
 
-    # Parse agent config through the schema. Stored configs can predate the
-    # registry (or reference retired runtimes/templates) — surface that as a
-    # 400 the UI can act on, not a 500.
-    try:
-        config = AgentConfig.model_validate(workspace.agent_config or {})
-    except ValidationError as e:
+    # Runtime, credential and container arguments all resolve in one shared
+    # place — the scheduler's wake path and the watchdog use the same call, so
+    # "starts from the UI but never wakes on a schedule" can't come back.
+    plan = plan_agent_start(workspace, current_user)
+    if isinstance(plan, StartBlocked):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Stored agent config is not available on this server: {e.errors()[0].get('msg', 'invalid')}",
+            detail=_start_blocked_detail(plan),
         )
 
-    runtime = get_runtime(config.runtime)
-    if runtime is None or not runtime.enabled:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Agent runtime '{config.runtime}' is not available on this server.",
-        )
-
-    # Resolve (and decrypt) the credential this runtime needs, falling back to
-    # host Vertex for Claude Code. Shared with the scheduler's wake path.
-    user_settings = current_user.settings or {}
-    auth_env = resolve_auth_env(runtime, user_settings)
-    if not auth_env:
-        hint = (
-            " or configure Vertex AI on the host" if runtime.id == "claude-code" else ""
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"{runtime.credential_label} not configured. Add it in Settings > AI{hint}.",
-        )
-
-    # Get GitHub token for coder agents
-    github_token = get_user_secret(user_settings, "github_token") if config.template == "coder" else None
-    repo_url = config.repo_url if config.template == "coder" else None
-
-    # Start the Docker container
     # Mai-Tai API key is read from host's ~/.config/mai-tai/config (mounted into backend)
-    result = start_agent(
-        workspace_id=workspace.id,
-        workspace_name=workspace.name,
-        runtime=runtime.id,
-        model=config.model,
-        auth_env=auth_env,
-        purpose=workspace.agent_purpose,
-        template=config.template,
-        github_token=github_token,
-        repo_url=repo_url,
-    )
+    result = start_agent(**plan.kwargs)
 
     if result["status"] == "error":
         raise HTTPException(

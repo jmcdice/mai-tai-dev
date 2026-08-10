@@ -11,6 +11,7 @@ from slowapi.util import get_remote_address
 from app.api.v1.router import router as v1_router
 from app.core.config import get_settings
 from app.services.scheduler import run_scheduler
+from app.services.watchdog import run_watchdog
 
 settings = get_settings()
 
@@ -21,15 +22,25 @@ limiter = Limiter(key_func=get_remote_address)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Run the workspace task scheduler for the app's lifetime."""
-    if not settings.scheduler_enabled:
-        yield
-        return
+    """Run the background loops for the app's lifetime.
+
+    Two of them, separately switchable: the scheduler fires due tasks, the
+    watchdog restarts agents that have gone silent. Independent flags because
+    they fail independently — a deployment debugging a restart loop wants the
+    watchdog off without losing its cron jobs.
+    """
     stop_event = asyncio.Event()
-    scheduler_task = asyncio.create_task(run_scheduler(stop_event))
+    tasks = []
+    if settings.scheduler_enabled:
+        tasks.append(asyncio.create_task(run_scheduler(stop_event)))
+    if settings.watchdog_enabled:
+        tasks.append(asyncio.create_task(run_watchdog(stop_event)))
+
     yield
+
     stop_event.set()
-    await scheduler_task
+    for task in tasks:
+        await task
 
 
 app = FastAPI(

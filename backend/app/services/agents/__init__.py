@@ -6,6 +6,7 @@ from the registry and launches a container wired to a workspace via the
 Mai-Tai MCP server / REST API.
 """
 
+from app.services.agents.lifecycle import StartBlocked, StartPlan, plan_agent_start
 from app.services.agents.runtimes import RUNTIMES, RuntimeSpec, get_runtime
 from app.services.agents.spawner import (
     get_agent_logs,
@@ -23,7 +24,10 @@ __all__ = [
     "AGENT_TEMPLATES",
     "RUNTIMES",
     "RuntimeSpec",
+    "StartBlocked",
+    "StartPlan",
     "get_runtime",
+    "plan_agent_start",
     "get_agent_logs",
     "get_agent_status",
     "get_host_vertex_config",

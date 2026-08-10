@@ -287,6 +287,10 @@ def get_agent_status(workspace_id: UUID) -> dict:
             "status": container.status,
             "running": container.status == "running",
             "created": container.attrs.get("Created", ""),
+            # When this process last began, which is not "Created" for a
+            # container that has been restarted. The watchdog measures silence
+            # from here so a booting agent isn't mistaken for a dead one.
+            "started_at": container.attrs.get("State", {}).get("StartedAt", ""),
             "labels": container.labels,
         }
     except NotFound:
