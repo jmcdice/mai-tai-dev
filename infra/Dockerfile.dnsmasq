@@ -1,3 +1,15 @@
 FROM alpine:latest
 RUN apk add --no-cache dnsmasq
-ENTRYPOINT ["dnsmasq", "--keep-in-foreground", "--conf-file=/etc/dnsmasq.conf"]
+
+# The config is a template so the LAN address isn't baked into git. Render it
+# at start rather than at build, so one image works on any host.
+RUN printf '%s\n' \
+    '#!/bin/sh' \
+    'set -e' \
+    ': "${DNSMASQ_LISTEN_ADDRESS:?DNSMASQ_LISTEN_ADDRESS must be set}"' \
+    'sed "s|__DNSMASQ_LISTEN_ADDRESS__|$DNSMASQ_LISTEN_ADDRESS|g" \' \
+    '    /etc/dnsmasq.conf.template > /etc/dnsmasq.conf' \
+    'exec dnsmasq --keep-in-foreground --conf-file=/etc/dnsmasq.conf "$@"' \
+    > /usr/local/bin/render-and-run && chmod +x /usr/local/bin/render-and-run
+
+ENTRYPOINT ["/usr/local/bin/render-and-run"]
