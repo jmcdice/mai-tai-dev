@@ -10,15 +10,11 @@ local_cmd() {
             log_info "Starting all services..."
             docker compose -f $COMPOSE_FILE up -d
             log_info "Waiting for database to be ready..."
-            # Wait for postgres to be healthy
-            until docker compose -f $COMPOSE_FILE exec -T postgres pg_isready -U maitai > /dev/null 2>&1; do
-                sleep 1
-            done
-            # Wait for backend to be ready
+            wait_for "Postgres" 60 \
+                docker compose -f $COMPOSE_FILE exec -T postgres pg_isready -U "${POSTGRES_USER:-maitai}"
             log_info "Waiting for backend to be ready..."
-            until docker compose -f $COMPOSE_FILE exec -T backend curl -sf http://localhost:8000/health > /dev/null 2>&1; do
-                sleep 1
-            done
+            wait_for "Backend" 120 \
+                docker compose -f $COMPOSE_FILE exec -T backend curl -sf http://localhost:8000/health
             log_info "Running database migrations..."
             if docker compose -f $COMPOSE_FILE exec -T backend alembic upgrade head > /dev/null 2>&1; then
                 log_info "✓ Database ready"
@@ -42,15 +38,12 @@ local_cmd() {
             docker compose -f $COMPOSE_FILE down
             docker compose -f $COMPOSE_FILE build --no-cache
             docker compose -f $COMPOSE_FILE up -d
-            # Wait for postgres to be healthy
-            until docker compose -f $COMPOSE_FILE exec -T postgres pg_isready -U maitai > /dev/null 2>&1; do
-                sleep 1
-            done
-            # Wait for backend to be ready
+            log_info "Waiting for database to be ready..."
+            wait_for "Postgres" 60 \
+                docker compose -f $COMPOSE_FILE exec -T postgres pg_isready -U "${POSTGRES_USER:-maitai}"
             log_info "Waiting for backend to be ready..."
-            until docker compose -f $COMPOSE_FILE exec -T backend curl -sf http://localhost:8000/health > /dev/null 2>&1; do
-                sleep 1
-            done
+            wait_for "Backend" 120 \
+                docker compose -f $COMPOSE_FILE exec -T backend curl -sf http://localhost:8000/health
             log_info "Running database migrations..."
             if docker compose -f $COMPOSE_FILE exec -T backend alembic upgrade head > /dev/null 2>&1; then
                 log_info "✓ Database ready"
