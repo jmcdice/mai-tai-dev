@@ -400,6 +400,45 @@ def _check_bots(
     return checks
 
 
+def _check_turns(workspaces: list[probes.Workspace], runners: dict[str, Runner]) -> list[Check]:
+    """The gap every other check has: connected, and answering nothing.
+
+    Heartbeats prove the MCP client is attached, not that a model replies. An
+    agent pointed at a model its project hasn't enabled checks in, greets you,
+    and then fails every turn — `status` shows `connected`, `docker ps` shows
+    Up, and the whole thing reads as a working install.
+    """
+    health = probes.turn_health()
+    checks = []
+    for ws in workspaces:
+        if runners[ws.id].kind == "none":
+            continue
+        turns = health.get(ws.id)
+        if turns is None or not turns.failed:
+            continue
+        if turns.succeeded:
+            checks.append(
+                Check(
+                    "warn",
+                    f"{ws.name}: some turns failing",
+                    f"{turns.failed} of {turns.failed + turns.succeeded} replies in the "
+                    f"last 24h were errors, most recently {turns.last_failure_at}",
+                )
+            )
+        else:
+            checks.append(
+                Check(
+                    "fail",
+                    f"{ws.name}: connected but not answering",
+                    f"all {turns.failed} turn(s) in the last 24h failed, most recently "
+                    f"{turns.last_failure_at} — the agent is up and checking in but no "
+                    "reply is getting through. Often a model the project has not enabled; "
+                    f"`docker exec {runners[ws.id].label} claude -p hi` names it.",
+                )
+            )
+    return checks
+
+
 def _check_supervisors() -> list[Check]:
     configured = probes.boot_repos()
     if not configured:
@@ -474,6 +513,7 @@ def doctor() -> None:
         *_check_core(containers),
         *_check_supervisors(),
         *_check_bots(workspaces, runners),
+        *_check_turns(workspaces, runners),
         *_check_orphans(workspaces, containers),
         *_check_schedules(),
     ]
