@@ -622,6 +622,66 @@ def auth_key(workspace_id: str) -> ApiKey | None:
     )
 
 
+@dataclass
+class TurnHealth:
+    """How an agent's recent turns actually went, per workspace."""
+
+    workspace_id: str
+    failed: int
+    succeeded: int
+    last_failure_at: str
+
+
+# Both markers are posted by agents/common/driver.py — the failure notice it
+# sends when a turn raises, and the greeting it sends on boot. Matched on their
+# ASCII middles on purpose: the literals start with emoji, and shipping those
+# through `docker exec psql` in a format string is a needless encoding risk.
+_TURN_FAILED_LIKE = "%I hit an error processing that message%"
+_GREETING_LIKE = "%. Send me a message and I%"
+
+_TURN_HEALTH_SQL = """
+select workspace_id::text,
+       count(*) filter (where content like '{failed}'),
+       count(*) filter (where content not like '{failed}'
+                          and content not like '{greeting}'),
+       coalesce(to_char(max(created_at) filter (where content like '{failed}'),
+                        'YYYY-MM-DD HH24:MI'), '')
+from messages
+where agent_name is not null
+  and created_at > (now() at time zone 'utc') - interval '{hours} hours'
+group by 1
+"""
+
+
+def turn_health(hours: int = 24) -> dict[str, TurnHealth]:
+    """Per workspace: how many recent agent turns failed, and how many worked.
+
+    A check-in only proves the MCP client connected — it happens before the
+    agent ever calls a model. An agent whose model is not enabled on the
+    project will connect, greet, and then fail every real turn, which `status`
+    and the heartbeat checks both read as healthy. The driver posts a notice
+    for each failed turn, so the messages table is where that shows up.
+
+    Boot greetings are excluded from the success count. They are posted before
+    the first turn, so counting them would mark a brain-dead agent as having
+    succeeded at something.
+    """
+    sql = _TURN_HEALTH_SQL.format(
+        failed=_TURN_FAILED_LIKE, greeting=_GREETING_LIKE, hours=int(hours)
+    )
+    health = {}
+    for row in psql(sql):
+        if len(row) < 4:
+            continue
+        health[row[0]] = TurnHealth(
+            workspace_id=row[0],
+            failed=int(row[1]),
+            succeeded=int(row[2]),
+            last_failure_at=row[3],
+        )
+    return health
+
+
 def messages(workspace_id: str, limit: int = 20, since: str | None = None) -> list[Message]:
     """Most recent messages first; pass `since` (a Message.cursor) to page forward.
 

@@ -24,7 +24,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from . import __version__, bundle, probes
+from . import __version__, bootstrap, bundle, probes
 from .probes import ProbeError
 
 app = typer.Typer(
@@ -400,6 +400,45 @@ def _check_bots(
     return checks
 
 
+def _check_turns(workspaces: list[probes.Workspace], runners: dict[str, Runner]) -> list[Check]:
+    """The gap every other check has: connected, and answering nothing.
+
+    Heartbeats prove the MCP client is attached, not that a model replies. An
+    agent pointed at a model its project hasn't enabled checks in, greets you,
+    and then fails every turn — `status` shows `connected`, `docker ps` shows
+    Up, and the whole thing reads as a working install.
+    """
+    health = probes.turn_health()
+    checks = []
+    for ws in workspaces:
+        if runners[ws.id].kind == "none":
+            continue
+        turns = health.get(ws.id)
+        if turns is None or not turns.failed:
+            continue
+        if turns.succeeded:
+            checks.append(
+                Check(
+                    "warn",
+                    f"{ws.name}: some turns failing",
+                    f"{turns.failed} of {turns.failed + turns.succeeded} replies in the "
+                    f"last 24h were errors, most recently {turns.last_failure_at}",
+                )
+            )
+        else:
+            checks.append(
+                Check(
+                    "fail",
+                    f"{ws.name}: connected but not answering",
+                    f"all {turns.failed} turn(s) in the last 24h failed, most recently "
+                    f"{turns.last_failure_at} — the agent is up and checking in but no "
+                    "reply is getting through. Often a model the project has not enabled; "
+                    f"`docker exec {runners[ws.id].label} claude -p hi` names it.",
+                )
+            )
+    return checks
+
+
 def _check_supervisors() -> list[Check]:
     configured = probes.boot_repos()
     if not configured:
@@ -474,6 +513,7 @@ def doctor() -> None:
         *_check_core(containers),
         *_check_supervisors(),
         *_check_bots(workspaces, runners),
+        *_check_turns(workspaces, runners),
         *_check_orphans(workspaces, containers),
         *_check_schedules(),
     ]
@@ -492,6 +532,276 @@ def doctor() -> None:
         console.print(f"[red]{fails} failed[/red], {warns} warning(s), {len(checks)} checks")
         raise typer.Exit(code=1)
     console.print(f"[green]all clear[/green] — {warns} warning(s), {len(checks)} checks")
+
+
+def _step(n: int, total: int, title: str) -> None:
+    console.print(f"\n[bold]({n}/{total}) {title}[/bold]")
+
+
+def _ok(message: str) -> None:
+    console.print(f"  [green]✓[/green] {message}")
+
+
+def _skip(message: str) -> None:
+    console.print(f"  [dim]·[/dim] [dim]{message}[/dim]")
+
+
+def _warn(message: str) -> None:
+    console.print(f"  [yellow]![/yellow] {message}")
+
+
+@app.command()
+def init(  # noqa: C901 - a setup wizard is a sequence; splitting it hides the order
+    email: str = typer.Option(None, "--email", help="Admin account email."),
+    password: str = typer.Option(None, "--password", help="Admin password. Prompted if omitted."),
+    name: str = typer.Option(None, "--name", help="Display name for the admin account."),
+    anthropic_key: str = typer.Option(
+        None, "--anthropic-key", help="Anthropic API key for agents. Ignored when Vertex is set up."
+    ),
+    workspace_name: str = typer.Option(
+        bootstrap.DEFAULT_WORKSPACE_NAME, "--workspace", help="Name of the first agent workspace."
+    ),
+    template: str = typer.Option(
+        bootstrap.DEFAULT_TEMPLATE, "--template", help="Agent template for that workspace."
+    ),
+    model: str = typer.Option(None, "--model", help="Model for the agent (default: runtime's)."),
+    vertex_project: str = typer.Option(
+        None, "--vertex-project", help="Auth agents via Vertex using this GCP project."
+    ),
+    vertex_region: str = typer.Option(
+        "global", "--vertex-region", help="Vertex region, with --vertex-project."
+    ),
+    api_url: str = typer.Option(
+        bootstrap.DEFAULT_API_URL, "--api-url", help="Backend URL as seen from this host."
+    ),
+    skip_build: bool = typer.Option(False, "--skip-build", help="Don't build the agent image."),
+    skip_agent: bool = typer.Option(
+        False, "--skip-agent", help="Provision everything but don't start the agent."
+    ),
+    non_interactive: bool = typer.Option(
+        False, "--non-interactive", help="Never prompt; fail instead. For CI."
+    ),
+) -> None:
+    """Take a fresh clone all the way to an agent you can talk to.
+
+    Idempotent: every step checks whether it has already been done, so running
+    this twice is safe and tells you what the host already has.
+    """
+    total = 7
+
+    # Secrets come from the environment when they aren't flags. Not a
+    # convenience: `--password` lands in argv, which is world-readable in `ps`,
+    # and a hidden prompt cannot be piped — getpass falls back to echoing and
+    # then reads EOF. Env vars are the only way to script this safely.
+    email = email or os.environ.get("MAI_TAI_ADMIN_EMAIL") or None
+    password = password or os.environ.get("MAI_TAI_ADMIN_PASSWORD") or None
+    name = name or os.environ.get("MAI_TAI_ADMIN_NAME") or None
+    anthropic_key = anthropic_key or os.environ.get("MAI_TAI_ANTHROPIC_KEY") or None
+    vertex_project = vertex_project or os.environ.get("MAI_TAI_VERTEX_PROJECT") or None
+
+    # Everything below reads the repo's .env or runs dev.sh out of it, so say so
+    # now rather than failing three steps in. A plain `pip install ./cli` puts
+    # this package in site-packages, where it cannot find the checkout on its
+    # own — cwd is the only hint we get.
+    if not bootstrap.repo_root_found():
+        _fail(
+            f"{bundle.REPO_ROOT} is not a mai-tai checkout.\n"
+            "  Run `mai-tai init` from the repo root, or set MAI_TAI_REPO_ROOT."
+        )
+
+    # ---- 1. host config directory, BEFORE anything starts ----------------
+    # Compose bind-mounts ${HOME}/.config/mai-tai into the backend. If it does
+    # not exist when the stack first comes up, Docker creates it as root and
+    # the operator can no longer write their own config into it. This has to
+    # happen first or not at all.
+    _step(1, total, "Host config directory")
+    try:
+        config_dir = bootstrap.ensure_host_config_dir()
+    except OSError as e:
+        _fail(f"cannot create the host config directory: {e}")
+    _ok(f"{config_dir}")
+
+    # ---- 2. stack --------------------------------------------------------
+    _step(2, total, "Stack")
+    if bootstrap.stack_running() and bootstrap.backend_healthy(api_url):
+        _skip("already up")
+    else:
+        console.print("  [dim]./dev.sh local up — generating secrets, migrating...[/dim]")
+        try:
+            bootstrap.stack_up()
+        except ProbeError as e:
+            _fail(str(e))
+        if not bootstrap.wait_for_backend(api_url):
+            _fail(f"the stack started but {api_url}/health never answered.")
+        _ok("stack up, database migrated")
+
+    # ---- 3. agent image --------------------------------------------------
+    _step(3, total, "Agent image")
+    image = os.environ.get("AGENT_IMAGE", bootstrap.DEFAULT_AGENT_IMAGE)
+    if bootstrap.agent_image_exists(image):
+        _skip(f"{image} already built")
+    elif skip_build:
+        _warn(f"{image} is missing and --skip-build was passed; agents will not start")
+    else:
+        console.print(f"  [dim]building {image} — this takes a few minutes...[/dim]")
+        try:
+            bootstrap.build_agent_image(image)
+        except ProbeError as e:
+            _fail(str(e))
+        _ok(f"built {image}")
+
+    # ---- 4. admin account ------------------------------------------------
+    _step(4, total, "Admin account")
+    existing_users = bootstrap.user_count()
+    raw_api_key: str | None = None
+
+    if existing_users:
+        _skip(f"{existing_users} account(s) already exist — logging in instead")
+        email = email or _prompt("Email", non_interactive, "--email is required")
+        password = password or _prompt(
+            "Password", non_interactive, "--password is required", hide_input=True
+        )
+        try:
+            token = bootstrap.login(email, password, api_url=api_url)
+        except ProbeError as e:
+            _fail(str(e))
+        _ok(f"logged in as {email}")
+    else:
+        email = email or _prompt("Email", non_interactive, "--email is required")
+        name = name or email.split("@")[0]
+        password = password or _prompt(
+            "Choose a password", non_interactive, "--password is required", hide_input=True
+        )
+        try:
+            created = bootstrap.register(email, name, password, api_url=api_url)
+            token = bootstrap.login(email, password, api_url=api_url)
+        except ProbeError as e:
+            _fail(str(e))
+        # Register hands back the raw key exactly once. Catching it here is the
+        # difference between init working and the user hunting for it later.
+        raw_api_key = (created.get("api_key") or {}).get("key")
+        _ok(f"created {email} (first account — this one is admin)")
+
+    # ---- 5. Mai-Tai API key on the host ----------------------------------
+    _step(5, total, "Agent credential (~/.config/mai-tai/config)")
+    if bootstrap.host_config_has_key():
+        _skip("MAI_TAI_API_KEY already present")
+    else:
+        if raw_api_key is None:
+            # An existing deployment's provisioned key is unrecoverable by
+            # design — only its hash is stored — so mint a new one.
+            try:
+                raw_api_key = bootstrap.create_user_api_key(token, api_url=api_url)
+            except ProbeError as e:
+                _fail(str(e))
+        try:
+            written = bootstrap.write_host_config(
+                {"MAI_TAI_API_URL": api_url, "MAI_TAI_API_KEY": raw_api_key}
+            )
+        except OSError as e:
+            _fail(f"cannot write the host config: {e}")
+        _ok(f"wrote {written} (mode 0600)")
+        console.print("    [dim]this is the file the backend reads when it spawns an agent[/dim]")
+
+    # ---- 6. model credential ---------------------------------------------
+    _step(6, total, "Model credential")
+    if vertex_project and not bootstrap.vertex_configured():
+        # .env.example ships the Vertex keys blank, so a fresh install has no
+        # Vertex config even on a host whose ADC is right there. Write it.
+        if not bootstrap.adc_present():
+            _fail(
+                f"--vertex-project was given but {bootstrap.GCLOUD_ADC_PATH} does not exist.\n"
+                "  Run: gcloud auth application-default login"
+            )
+        written = bootstrap.configure_vertex(vertex_project, vertex_region)
+        console.print(f"  [dim]wrote Vertex config to {written}, recreating backend...[/dim]")
+        try:
+            bootstrap.restart_backend()
+        except ProbeError as e:
+            _fail(str(e))
+        if not bootstrap.wait_for_backend(api_url):
+            _fail("the backend did not come back after being recreated for Vertex.")
+        _ok(f"Vertex via {vertex_project} ({vertex_region}) — no per-user key needed")
+    elif bootstrap.vertex_configured():
+        _skip("host Vertex ADC is configured — agents need no per-user key")
+    elif bootstrap.has_anthropic_key(token, api_url=api_url):
+        _skip("this account already has an Anthropic key stored")
+    else:
+        if bootstrap.adc_present():
+            # The most annoying possible outcome: a host that could use Vertex
+            # for free being asked to go find a key. Say so before asking.
+            _warn(
+                "gcloud ADC is on this host but .env has no Vertex config — "
+                "re-run with --vertex-project <gcp-project> to use it instead"
+            )
+        key = anthropic_key or _prompt(
+            "Anthropic API key (sk-ant-... or a Pro/Max OAuth token)",
+            non_interactive,
+            "--anthropic-key is required (or pass --vertex-project)",
+            hide_input=True,
+        )
+        try:
+            bootstrap.set_anthropic_key(token, key, api_url=api_url)
+        except ProbeError as e:
+            _fail(str(e))
+        _ok("stored, encrypted at rest")
+
+    # ---- 7. workspace + agent --------------------------------------------
+    _step(7, total, f"Agent workspace {workspace_name!r}")
+    try:
+        workspace = bootstrap.find_workspace(token, workspace_name, api_url=api_url)
+        if workspace:
+            _skip(f"already exists ({str(workspace['id'])[:8]})")
+        else:
+            workspace = bootstrap.create_agent_workspace(
+                token,
+                name=workspace_name,
+                template=template,
+                model=model,
+                api_url=api_url,
+            )
+            _ok(f"created ({str(workspace['id'])[:8]}, template={template})")
+    except ProbeError as e:
+        _fail(str(e))
+
+    workspace_id = str(workspace["id"])
+    if skip_agent:
+        _skip("--skip-agent: not starting the container")
+    elif bootstrap.agent_container_running(workspace_id):
+        _skip("agent container already running")
+    else:
+        try:
+            bootstrap.start_agent(token, workspace_id, api_url=api_url)
+        except ProbeError as e:
+            _fail(str(e))
+        console.print("  [dim]waiting for the agent to check in...[/dim]")
+        # A running container is not a working agent. Wait for the heartbeat.
+        age = bootstrap.wait_for_checkin(workspace_id)
+        if age is None:
+            _warn("the container started but never checked in")
+            console.print(
+                f"    [dim]mai-tai describe {workspace_id[:8]}   "
+                f"docker logs {probes.agent_container_name(workspace_id)}[/dim]"
+            )
+        else:
+            _ok(f"agent checked in ({_age(age)} ago)")
+
+    frontend = api_url.replace(":8000", ":3000")
+    console.print(f"\n[green]Ready.[/green] Open [bold]{frontend}[/bold], sign in as {email}, "
+                  f"and say hi to {workspace_name}.")
+
+
+def _prompt(label: str, non_interactive: bool, failure: str, hide_input: bool = False) -> str:
+    """Ask, unless we were told not to. Missing stdin is a failure, not a hang."""
+    if non_interactive:
+        _fail(failure)
+    try:
+        value = typer.prompt(label, hide_input=hide_input)
+    except (EOFError, typer.Abort):
+        _fail(f"{failure} (no input available)")
+    if not value:
+        _fail(failure)
+    return value
 
 
 @bots_app.command("list")

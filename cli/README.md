@@ -37,13 +37,88 @@ are specifically denied. It stays on the operator's host.
 uv tool install --editable ./cli
 ```
 
+Drop `--editable` if you are not hacking on the CLI itself. Either way, run it
+from inside the checkout: installed non-editable the package sits in its own
+venv, so it locates the repo by walking up from your working directory (or from
+`MAI_TAI_REPO_ROOT`).
+
 Requires Python 3.11+, and on the host: `docker`, `ps`, and a running
 `maitai-postgres`.
+
+`mai-tai init` is the exception to that last requirement — it is the command you
+run *before* there is anything to talk to.
+
+## init
+
+```bash
+mai-tai init
+```
+
+Takes a bare `git clone` to an agent that answers you, in seven steps:
+
+1. **Host config directory** — `~/.config/mai-tai/`
+2. **Stack** — `./dev.sh local up` (generates `.env` secrets, runs migrations)
+3. **Agent image** — `docker build -t mai-tai-agent:latest`
+4. **Admin account** — registers the first user, or logs in if one exists
+5. **Agent credential** — writes the API key to `~/.config/mai-tai/config`, 0600
+6. **Model credential** — detects Vertex, or stores an `ANTHROPIC_API_KEY`
+7. **Supervisor workspace** — creates it, starts the agent, waits for a check-in
+
+Every step is skipped if it is already done, so re-running after a failure picks
+up where it stopped rather than starting over.
+
+Step 1 runs first for a reason. Compose bind-mounts `~/.config/mai-tai` into the
+backend, and Docker creates a missing bind-mount source *as root* — do it after
+`up` and the operator can no longer write their own config file.
+
+Step 5 is the one nobody discovers on their own. The backend reads
+`~/.config/mai-tai/config` off the host to authenticate the containers it
+spawns; without it every **Start Agent** click returns *"No Mai-Tai API key
+available"* and nothing in the UI says why. The write is merge-preserving,
+because `mai-tai-mcp` reads the same file.
+
+Step 7 waits on a row in `workspace_agent_activity`, not on `docker ps`. A
+running container is not a working agent — that is the entire lesson of the
+watchdog, see `doctor` below.
+
+| Flag | Use |
+| --- | --- |
+| `--email / --password / --name` | Account details, instead of prompting |
+| `--anthropic-key` | Model credential, instead of prompting |
+| `--vertex-project` / `--vertex-region` | Auth agents off the host's gcloud ADC instead of a key |
+| `--workspace / --template / --model` | Override the default `Supervisor` / `assistant` workspace |
+| `--skip-build` | Trust an existing `mai-tai-agent:latest` |
+| `--skip-agent` | Stop after step 6; provision no workspace |
+| `--non-interactive` | Never prompt; fail instead. For CI |
+
+Secrets also read from the environment — `MAI_TAI_ADMIN_EMAIL`,
+`MAI_TAI_ADMIN_PASSWORD`, `MAI_TAI_ADMIN_NAME`, `MAI_TAI_ANTHROPIC_KEY`,
+`MAI_TAI_VERTEX_PROJECT`. Prefer these over the flags when scripting: `--password`
+lands in argv, which is world-readable in `ps`, and piping into the hidden prompt
+does not work — `getpass` falls back to echoing and then reads EOF.
+
+**Check-in is not proof the agent can think.** Step 7 waits for a row in
+`workspace_agent_activity`, which the agent writes when its MCP client connects
+— *before* it ever calls a model. A workspace whose model is not enabled on your
+Vertex project will check in, greet you, and then fail its first real turn with
+`exit=1`. If that happens, `docker exec <agent> claude -p hi` names the model and
+says so; re-run with `--model opus` (or whatever your project has enabled).
+`doctor` catches this state on the next run — see **Turns** below — but `init`
+itself reports success, because at the moment it checks there is nothing wrong
+to see.
+
+**On Vertex?** `.env.example` ships `CLAUDE_CODE_USE_VERTEX` blank, so a fresh
+install has no Vertex config even on a host with working ADC — and step 6 will
+ask for an Anthropic key it does not need. `--vertex-project <gcp-project>`
+writes the three keys into `.env` and recreates the backend to pick them up. A
+*recreate*, not a restart: compose passes environment at create time, so a
+restarted container keeps the values it was born with.
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
+| `mai-tai init` | Bare clone → running stack, admin account, and a live Supervisor agent |
 | `mai-tai status` | One row per workspace: runner, uptime, heartbeat age, state, schedules |
 | `mai-tai doctor` | Health checks across core containers, bots, orphans, and schedules. Exits 1 on any failure |
 | `mai-tai ws list [--archived]` | Every workspace with agent type, message counts, and last-seen |
@@ -127,6 +202,12 @@ tarball is not a trusted input just because you were the one who made it.
   `workspace_agent_activity` shows the bot has been talking to nobody for hours.
   That is the MCP-client-drop failure mode, and it is invisible to every other
   tool on the box.
+- **Turns** — the agent is connected and still answering nothing. Every other
+  signal here proves the MCP client attached, which happens before the agent
+  ever calls a model; an agent pointed at a model the project has not enabled
+  checks in, greets you, and fails every turn. Counts failed against successful
+  replies over 24h — all failed is a failure, some failed is a warning, so one
+  transient error doesn't take a cron exit code down with it
 - **Orphans** — running `maitai-agent-*` containers with no matching workspace
 - **Schedules** — `next_run_at` in the past means the scheduler loop stalled
 

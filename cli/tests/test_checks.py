@@ -420,6 +420,95 @@ class TestMessageStats:
         assert (stats.busiest_day, stats.busiest_count) == ("2026-08-06", 39)
 
 
+class TestTurnHealth:
+    def test_parses_counts_per_workspace(self, monkeypatch):
+        monkeypatch.setattr(
+            probes, "psql", lambda sql: [["ws-1", "4", "0", "2026-08-10 23:41"], ["ws-2", "0", "9", ""]]
+        )
+        health = probes.turn_health()
+        assert (health["ws-1"].failed, health["ws-1"].succeeded) == (4, 0)
+        assert health["ws-1"].last_failure_at == "2026-08-10 23:41"
+        assert (health["ws-2"].failed, health["ws-2"].succeeded) == (0, 9)
+
+    def test_no_agent_messages_at_all(self, monkeypatch):
+        monkeypatch.setattr(probes, "psql", lambda sql: [])
+        assert probes.turn_health() == {}
+
+    def test_query_matches_the_driver_markers_in_ascii(self, monkeypatch):
+        """The literals carry emoji; the SQL must not."""
+        seen = {}
+        monkeypatch.setattr(probes, "psql", lambda sql: seen.setdefault("sql", sql) and [])
+        probes.turn_health()
+        sql = seen["sql"]
+        assert "I hit an error processing that message" in sql
+        assert "Send me a message and I" in sql
+        assert sql.isascii()
+
+    def test_window_is_configurable_and_not_injectable(self, monkeypatch):
+        seen = {}
+        monkeypatch.setattr(probes, "psql", lambda sql: seen.setdefault("sql", sql) and [])
+        probes.turn_health(hours=72)
+        assert "interval '72 hours'" in seen["sql"]
+
+
+class TestTurnChecks:
+    """`doctor`'s blind spot: connected, checking in, answering nothing."""
+
+    def _health(self, monkeypatch, **rows):
+        monkeypatch.setattr(
+            probes,
+            "turn_health",
+            lambda *a, **kw: {
+                ws: probes.TurnHealth(ws, f, s, "2026-08-10 23:41") for ws, (f, s) in rows.items()
+            },
+        )
+
+    def test_every_turn_failing_is_a_failure(self, monkeypatch):
+        ws = make_ws(name="Supervisor", heartbeat_secs=2)
+        self._health(monkeypatch, **{ws.id: (5, 0)})
+
+        checks = cli._check_turns([ws], {ws.id: runner()})
+
+        assert len(checks) == 1
+        assert checks[0].level == "fail"
+        assert "connected but not answering" in checks[0].title
+        # The one-line diagnosis, because nothing else on the box names the cause.
+        assert "claude -p hi" in checks[0].detail
+
+    def test_a_healthy_agent_emits_nothing(self, monkeypatch):
+        ws = make_ws(heartbeat_secs=2)
+        self._health(monkeypatch, **{ws.id: (0, 12)})
+        assert cli._check_turns([ws], {ws.id: runner()}) == []
+
+    def test_some_failures_among_successes_is_only_a_warning(self, monkeypatch):
+        ws = make_ws(heartbeat_secs=2)
+        self._health(monkeypatch, **{ws.id: (2, 6)})
+
+        checks = cli._check_turns([ws], {ws.id: runner()})
+
+        assert checks[0].level == "warn"
+        assert "2 of 8" in checks[0].detail
+
+    def test_workspace_with_no_runner_is_skipped(self, monkeypatch):
+        ws = make_ws(workspace_type="chat", heartbeat_secs=None)
+        self._health(monkeypatch, **{ws.id: (3, 0)})
+        assert cli._check_turns([ws], {ws.id: runner(kind="none", up=False)}) == []
+
+    def test_silent_workspace_is_not_reported(self, monkeypatch):
+        """No agent messages in the window is not evidence of a broken agent."""
+        ws = make_ws(heartbeat_secs=2)
+        self._health(monkeypatch)
+        assert cli._check_turns([ws], {ws.id: runner()}) == []
+
+    def test_a_healthy_bot_check_does_not_hide_it(self, monkeypatch):
+        """The exact deception: heartbeat fresh, so _check_bots says ok."""
+        ws = make_ws(name="Supervisor", heartbeat_secs=2)
+        self._health(monkeypatch, **{ws.id: (5, 0)})
+
+        assert cli._check_bots([ws], {ws.id: runner()})[0].level == "ok"
+        assert cli._check_turns([ws], {ws.id: runner()})[0].level == "fail"
+
+
 class TestContainers:
     def test_image_is_parsed(self, monkeypatch):
         proc = type("P", (), {"returncode": 0, "stdout": "a\trunning\tUp 3 hours\tmai-tai-agent:latest\n", "stderr": ""})

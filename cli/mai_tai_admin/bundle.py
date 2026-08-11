@@ -38,9 +38,42 @@ from .probes import ProbeError
 
 BUNDLE_VERSION = 2
 
-# The repo whose .env we read and write. Resolved from this file so an editable
-# install keeps working; overridable for tests and odd layouts.
-REPO_ROOT = Path(os.environ.get("MAI_TAI_REPO_ROOT", str(Path(__file__).resolve().parents[2])))
+def _looks_like_repo(path: Path) -> bool:
+    """Cheap structural test for "this is a mai-tai checkout"."""
+    return (path / "dev.sh").is_file() and (path / "docker-compose.yml").is_file()
+
+
+def _find_repo_root() -> Path:
+    """Locate the repo whose .env we read and whose dev.sh we run.
+
+    Resolving from `__file__` alone only works for an *editable* install, where
+    the package still sits inside the checkout. A plain `pip install ./cli`
+    copies it to site-packages, where `parents[2]` is the interpreter's lib
+    directory — so `.env` reads as empty and `dev.sh` is nowhere. That failure
+    is quiet in the worst way: `vertex_configured()` returns False on a host
+    that is perfectly set up for Vertex, and `init` prompts for a model key
+    nobody needs.
+
+    So: honour the override, try the packaged location, then walk up from cwd —
+    which is where an operator running `mai-tai init` actually is.
+    """
+    override = os.environ.get("MAI_TAI_REPO_ROOT")
+    if override:
+        return Path(override)
+    packaged = Path(__file__).resolve().parents[2]
+    if _looks_like_repo(packaged):
+        return packaged
+    cwd = Path.cwd()
+    for candidate in (cwd, *cwd.parents):
+        if _looks_like_repo(candidate):
+            return candidate
+    # Nothing found. Return the packaged guess so error messages still name a
+    # path, rather than raising from module import.
+    return packaged
+
+
+# The repo whose .env we read and write. Overridable for tests and odd layouts.
+REPO_ROOT = _find_repo_root()
 
 # Throwaway database used to scrub secrets without touching the live one.
 SCRATCH_DB = f"{probes.PG_DB}_export_scrub"

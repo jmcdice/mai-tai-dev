@@ -14,16 +14,71 @@ Mai-Tai is a self-hosted platform that lets you launch AI coding agents as Docke
 
 ## Quick Start
 
-**Prerequisites:** Docker, Docker Compose, Git
+**Prerequisites:** Docker, Docker Compose, Git, Python 3.11+, and
+[uv](https://docs.astral.sh/uv/getting-started/installation/)
+(`curl -LsSf https://astral.sh/uv/install.sh | sh`).
 
 ```bash
 git clone https://github.com/jmcdice/mai-tai-dev.git && cd mai-tai-dev
-cp .env.example .env
-# Edit .env: set SECRET_KEY, NEXTAUTH_SECRET, and your Anthropic API key
-./dev.sh local up
+uv tool install ./cli
+mai-tai init
 ```
 
-Visit **http://localhost:3000** — the first account created becomes admin.
+Run `init` from inside the clone — it locates the repo by walking up from your
+working directory. `pipx install ./cli` works too; a bare `pip install` usually
+does not, because most distributions now ship Python as
+[externally managed](https://peps.python.org/pep-0668/) and refuse to install
+into it.
+
+`init` walks the whole path from a bare clone to an agent that talks back: it
+starts the stack, builds the agent image, creates your admin account, wires up
+the API key the backend needs to spawn containers, and launches a first
+**Supervisor** workspace. It's idempotent — every step it finds already done, it
+skips — so it's safe to re-run on a half-finished install.
+
+Then visit **http://localhost:3000**, log in with the account you just made, and
+say hi to the Supervisor.
+
+> **Don't run `cp .env.example .env` yourself.** `dev.sh` only generates secrets
+> when `.env` is *missing*; hand-copying the example leaves `POSTGRES_PASSWORD`
+> empty and the stack refuses to start.
+
+**On Vertex AI?** Pass `--vertex-project <gcp-project>` and agents authenticate
+off the host's gcloud ADC instead of an API key. Add `--model` if your project
+only has some models enabled — the default is the runtime's, and an agent whose
+model is not enabled will connect and greet you before failing its first real
+turn. See [cli/README.md](cli/README.md#init).
+
+<details>
+<summary>Doing it by hand instead</summary>
+
+```bash
+./dev.sh local up                       # generates .env secrets, migrates the DB
+docker build -t mai-tai-agent:latest -f agents/claude-code/Dockerfile .
+```
+
+Then, in the web UI, register an account and copy the API key shown once at
+registration. The backend reads that key off the host to authenticate the agent
+containers it spawns, so it has to land here:
+
+```bash
+mkdir -p ~/.config/mai-tai
+cat > ~/.config/mai-tai/config <<EOF
+MAI_TAI_API_KEY=mt_your_key_here
+MAI_TAI_API_URL=http://localhost:8000
+EOF
+chmod 600 ~/.config/mai-tai/config
+```
+
+Miss this step and every **Start Agent** click fails with *"No Mai-Tai API key
+available."* Create the directory **before** `./dev.sh local up` — compose
+bind-mounts it, and Docker will otherwise create it for you as root.
+
+Finally, give the agents a model credential: either set `ANTHROPIC_API_KEY` in
+Settings → AI, or run on Vertex (`CLAUDE_CODE_USE_VERTEX=1`), in which case
+containers fall back to the host's gcloud ADC automatically.
+
+</details>
 
 ## Agent Workspaces
 

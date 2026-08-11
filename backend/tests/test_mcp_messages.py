@@ -25,7 +25,10 @@ def test_agent_sends_message(client, user_a):
     )
     assert resp.status_code == 201
     body = resp.json()
-    assert body["agent_name"] == "Default Agent Key"
+    # The workspace, not the API key. One user-scoped key backs every
+    # workspace, so keying off the key name labels every agent on the host
+    # "Default Agent Key".
+    assert body["agent_name"] == "My Workspace"
     assert body["user_id"] is None
 
     # Visible in the workspace message list
@@ -36,6 +39,74 @@ def test_agent_sends_message(client, user_a):
     assert resp.status_code == 200
     contents = [m["content"] for m in resp.json()["messages"]]
     assert "Task complete!" in contents
+
+
+def test_agent_name_follows_the_workspace_rename(client, user_a):
+    client.patch(
+        f"/api/v1/workspaces/{user_a['workspace_id']}",
+        json={"name": "Supervisor"},
+        headers=auth_headers(user_a["token"]),
+    )
+    resp = client.post(
+        "/api/v1/mcp/messages",
+        json={"content": "online"},
+        headers=mcp_headers(user_a),
+    )
+    assert resp.json()["agent_name"] == "Supervisor"
+
+
+def test_agent_name_prefers_the_settings_override(client, user_a):
+    """`settings.agent_name` is what the web UI already writes and displays."""
+    client.patch(
+        f"/api/v1/workspaces/{user_a['workspace_id']}",
+        json={"name": "Supervisor", "settings": {"agent_name": "His Dudeness"}},
+        headers=auth_headers(user_a["token"]),
+    )
+    resp = client.post(
+        "/api/v1/mcp/messages",
+        json={"content": "abiding"},
+        headers=mcp_headers(user_a),
+    )
+    assert resp.json()["agent_name"] == "His Dudeness"
+
+
+def test_blank_settings_override_falls_back_to_the_workspace(client, user_a):
+    client.patch(
+        f"/api/v1/workspaces/{user_a['workspace_id']}",
+        json={"name": "Supervisor", "settings": {"agent_name": "   "}},
+        headers=auth_headers(user_a["token"]),
+    )
+    resp = client.post(
+        "/api/v1/mcp/messages",
+        json={"content": "online"},
+        headers=mcp_headers(user_a),
+    )
+    assert resp.json()["agent_name"] == "Supervisor"
+
+
+def test_two_workspaces_on_one_key_are_told_apart(client, user_a):
+    """The bug itself: one user-scoped key, two agents, two distinct names."""
+    resp = client.post(
+        "/api/v1/workspaces",
+        json={"name": "DevOps", "workspace_type": "agent"},
+        headers=auth_headers(user_a["token"]),
+    )
+    assert resp.status_code == 201, resp.text
+    second = resp.json()["id"]
+
+    key = user_a["api_key"]
+    first = client.post(
+        "/api/v1/mcp/messages",
+        json={"content": "from the first"},
+        headers={"X-API-Key": key, "X-Workspace-ID": user_a["workspace_id"]},
+    )
+    other = client.post(
+        "/api/v1/mcp/messages",
+        json={"content": "from the second"},
+        headers={"X-API-Key": key, "X-Workspace-ID": second},
+    )
+    assert first.json()["agent_name"] == "My Workspace"
+    assert other.json()["agent_name"] == "DevOps"
 
 
 def test_unseen_acknowledge_cycle(client, user_a):
