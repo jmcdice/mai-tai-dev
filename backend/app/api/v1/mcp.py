@@ -35,6 +35,24 @@ from app.services.scheduler import preview_runs_local
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
 
+def _agent_display_name(auth: ApiKeyAuth) -> str:
+    """What to label a message this agent posts.
+
+    Not the API key's name. Keys used to be created per workspace, so the key
+    name was a decent stand-in for the agent — but a single user-scoped key now
+    backs every workspace, and every agent on the host ends up posting as
+    "Default Agent Key". The workspace is the thing the operator actually named.
+
+    `settings.agent_name` comes first because that is the override the web UI
+    already writes and displays; the key name survives in message metadata.
+    """
+    settings = auth.workspace.settings or {}
+    custom = settings.get("agent_name")
+    if isinstance(custom, str) and custom.strip():
+        return custom.strip()[:255]
+    return auth.workspace.name
+
+
 @router.get("/auth/verify")
 async def verify_api_key(
     auth: ApiKeyAuth = Depends(get_api_key_auth),
@@ -77,7 +95,7 @@ async def send_message(
     message = Message(
         workspace_id=auth.workspace_id,
         user_id=None,  # MCP agents don't have a user ID
-        agent_name=auth.api_key.name,  # Use API key name as agent name
+        agent_name=_agent_display_name(auth),
         content=data.content,
         message_metadata=data.metadata or {"source": "mcp", "api_key": auth.api_key.name},
     )
