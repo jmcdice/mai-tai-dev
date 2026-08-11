@@ -103,6 +103,9 @@ does not work — `getpass` falls back to echoing and then reads EOF.
 Vertex project will check in, greet you, and then fail its first real turn with
 `exit=1`. If that happens, `docker exec <agent> claude -p hi` names the model and
 says so; re-run with `--model opus` (or whatever your project has enabled).
+`doctor` catches this state on the next run — see **Turns** below — but `init`
+itself reports success, because at the moment it checks there is nothing wrong
+to see.
 
 **On Vertex?** `.env.example` ships `CLAUDE_CODE_USE_VERTEX` blank, so a fresh
 install has no Vertex config even on a host with working ADC — and step 6 will
@@ -199,6 +202,12 @@ tarball is not a trusted input just because you were the one who made it.
   `workspace_agent_activity` shows the bot has been talking to nobody for hours.
   That is the MCP-client-drop failure mode, and it is invisible to every other
   tool on the box.
+- **Turns** — the agent is connected and still answering nothing. Every other
+  signal here proves the MCP client attached, which happens before the agent
+  ever calls a model; an agent pointed at a model the project has not enabled
+  checks in, greets you, and fails every turn. Counts failed against successful
+  replies over 24h — all failed is a failure, some failed is a warning, so one
+  transient error doesn't take a cron exit code down with it
 - **Orphans** — running `maitai-agent-*` containers with no matching workspace
 - **Schedules** — `next_run_at` in the past means the scheduler loop stalled
 
