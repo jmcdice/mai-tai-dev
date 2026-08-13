@@ -200,7 +200,7 @@ export default function SchedulesSheet({ workspaceId, open, onClose }: Props) {
       setEditing(null);
       refresh();
     } catch (e) {
-      toast({ title: 'Could not save schedule', description: String((e as Error).message || e), variant: 'destructive' });
+      toast({ title: 'Could not save scheduled task', description: String((e as Error).message || e), variant: 'destructive' });
     } finally {
       setIsBusy(false);
     }
@@ -272,10 +272,10 @@ export default function SchedulesSheet({ workspaceId, open, onClose }: Props) {
           {editing !== null ? (
             <button onClick={() => setEditing(null)} className="flex items-center gap-1 text-muted-foreground hover:text-foreground">
               <ArrowLeftIcon className="h-5 w-5" />
-              <span className="text-sm">Schedules</span>
+              <span className="text-sm">Scheduled tasks</span>
             </button>
           ) : (
-            <h2 className="text-lg font-semibold text-foreground">Schedules</h2>
+            <h2 className="text-lg font-semibold text-foreground">Scheduled tasks</h2>
           )}
           <button onClick={onClose} className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground">
             <XMarkIcon className="h-5 w-5" />
@@ -288,8 +288,9 @@ export default function SchedulesSheet({ workspaceId, open, onClose }: Props) {
               {/* List */}
               {tasks.length === 0 ? (
                 <p className="px-2 py-8 text-center text-sm text-faint">
-                  No schedules in this workspace yet. A schedule fires a prompt into this
-                  chat on a repeating clock, and your agent picks it up automatically.
+                  No scheduled tasks in this workspace yet. A scheduled task fires a prompt
+                  into this chat on a repeating clock, and your agent picks it up
+                  automatically.
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -298,7 +299,7 @@ export default function SchedulesSheet({ workspaceId, open, onClose }: Props) {
                       {/* Enabled dot */}
                       <button
                         onClick={() => toggle(task)}
-                        aria-label={task.enabled ? 'Pause schedule' : 'Resume schedule'}
+                        aria-label={task.enabled ? 'Pause scheduled task' : 'Resume scheduled task'}
                         className="flex h-8 w-8 shrink-0 items-center justify-center"
                       >
                         <span className={`h-3.5 w-3.5 rounded-full ${task.enabled ? 'bg-green-500' : 'bg-border-strong'}`} />
@@ -327,7 +328,7 @@ export default function SchedulesSheet({ workspaceId, open, onClose }: Props) {
                 onClick={() => openEditor('new')}
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-medium text-primary-foreground hover:opacity-90"
               >
-                <PlusIcon className="h-4 w-4" /> New schedule
+                <PlusIcon className="h-4 w-4" /> New scheduled task
               </button>
             </>
           ) : (
@@ -403,7 +404,7 @@ export default function SchedulesSheet({ workspaceId, open, onClose }: Props) {
                   disabled={isBusy || !name.trim() || !prompt.trim()}
                   className="w-full rounded-xl bg-primary py-3 font-medium text-primary-foreground disabled:opacity-50"
                 >
-                  {editing === 'new' ? 'Create schedule' : 'Save changes'}
+                  {editing === 'new' ? 'Create scheduled task' : 'Save changes'}
                 </button>
 
                 {editing !== 'new' && (

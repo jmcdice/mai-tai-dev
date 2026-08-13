@@ -351,8 +351,8 @@ export default function WorkspacePage() {
             <Button
               buttonType="ghost"
               buttonSize="sm"
-              aria-label="Schedules"
-              title="Schedules"
+              aria-label="Scheduled tasks"
+              title="Scheduled tasks"
               onClick={() => setShowSchedules(true)}
             >
               <ClockIcon className="h-5 w-5" />
