@@ -100,5 +100,8 @@ def plan_agent_start(workspace: Workspace, owner: User | None) -> StartPlan | St
             "template": config.template,
             "github_token": get_user_secret(settings, "github_token") if is_coder else None,
             "repo_url": config.repo_url if is_coder else None,
+            # None means "use the template default" — a coder agent needs far
+            # more than the 512m that suits a chat bot (issue #40).
+            "mem_limit": config.mem_limit,
         },
     )

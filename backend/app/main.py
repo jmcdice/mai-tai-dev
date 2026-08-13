@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -7,11 +8,14 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from sqlalchemy import select
 
 from app.api.v1.router import router as v1_router
 from app.core.config import get_settings
 from app.services.scheduler import run_scheduler
 from app.services.watchdog import run_watchdog
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -20,15 +24,44 @@ settings = get_settings()
 limiter = Limiter(key_func=get_remote_address)
 
 
+async def _reap_orphaned_agents() -> None:
+    """Remove agent containers left behind by deleted workspaces.
+
+    Deletion now stops the agent first, but that only helps from here on:
+    containers stranded before the fix — or by a backend that died mid-delete —
+    stay up under `restart: unless-stopped` and poll a workspace that no longer
+    exists. Reconciling at startup is what actually clears them.
+    """
+    if not settings.agent_reaper_enabled:
+        return
+
+    from app.db.session import AsyncSessionLocal
+    from app.models.workspace import Workspace
+    from app.services.agents import reap_orphaned_agents
+
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(Workspace.id))
+            live_ids = {str(row[0]) for row in result.all()}
+        reaped = await asyncio.to_thread(reap_orphaned_agents, live_ids)
+        if reaped:
+            logger.info("Reaped %d orphaned agent container(s): %s", len(reaped), ", ".join(reaped))
+    except Exception:
+        # Never let reconciliation keep the API from coming up.
+        logger.exception("Orphaned agent reconciliation failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Run the background loops for the app's lifetime.
+    """Reconcile stray agent containers, then run the background loops.
 
-    Two of them, separately switchable: the scheduler fires due tasks, the
+    Two loops, separately switchable: the scheduler fires due tasks, the
     watchdog restarts agents that have gone silent. Independent flags because
     they fail independently — a deployment debugging a restart loop wants the
     watchdog off without losing its cron jobs.
     """
+    await _reap_orphaned_agents()
+
     stop_event = asyncio.Event()
     tasks = []
     if settings.scheduler_enabled:

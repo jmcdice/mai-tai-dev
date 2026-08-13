@@ -23,6 +23,10 @@ os.environ.setdefault("SCHEDULER_ENABLED", "false")
 # Likewise the watchdog, via sweep() — and left running it would try to talk
 # to a Docker daemon the test environment has no business having.
 os.environ.setdefault("WATCHDOG_ENABLED", "false")
+# The startup reaper reads live workspace IDs from the DB and removes any agent
+# container not in that set. Against the (empty) test DB that would delete every
+# real agent container on the developer's machine.
+os.environ["AGENT_REAPER_ENABLED"] = "false"
 
 import pytest
 from fastapi.testclient import TestClient

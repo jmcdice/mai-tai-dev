@@ -74,6 +74,8 @@ export default function WorkspaceSwitcher({
   const getStatusColor = (status?: AgentStatus) => {
     if (!status) return 'bg-surface2';
     switch (status.status) {
+      case 'degraded':
+        return 'bg-destructive';
       case 'connected':
         return 'bg-success';
       case 'idle':
