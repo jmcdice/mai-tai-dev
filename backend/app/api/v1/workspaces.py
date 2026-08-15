@@ -170,16 +170,77 @@ async def update_workspace(
         workspace.name = data.name
     if data.settings is not None:
         workspace.settings = data.settings
-    if data.archived is not None:
-        workspace.archived = data.archived
     if data.agent_purpose is not None:
         workspace.agent_purpose = data.agent_purpose
     if data.agent_config is not None:
         workspace.agent_config = data.agent_config.model_dump()
+
+    archiving = data.archived is True and not workspace.archived
+    unarchiving = data.archived is False and workspace.archived
+    if data.archived is not None:
+        workspace.archived = data.archived
     workspace.updated_at = datetime.utcnow()
+
+    # Archiving has to reach the container, not just the row. An archived
+    # workspace drops out of every list the UI and CLI show, but its agent
+    # keeps running and keeps billing: Halo Craft sat archived for weeks with
+    # a live bot rotating against it, invisible to `bots list` because the
+    # workspace query filters archived rows out. Stop it here, and stop it
+    # BEFORE the commit so a Docker failure cannot leave the pair inconsistent
+    # in the direction that hides the problem.
+    if archiving and workspace.workspace_type == "agent":
+        # remove_memory is deliberately NOT set: archive is reversible, so the
+        # memory volume is exactly the state we are preserving for unarchive.
+        # Only deletion is allowed to take it.
+        #
+        # This one refuses rather than degrading, which is the opposite of the
+        # delete path. Delete must proceed because the user wants the row gone
+        # and reconciliation can clean up later; archive that "succeeds" while
+        # the agent keeps running produces a workspace you cannot see and a
+        # bot you are still paying for. Better to say so and let them retry.
+        try:
+            await run_in_threadpool(stop_agent, workspace_id)
+        except Exception:
+            logger.exception("Failed to stop agent while archiving workspace %s", workspace_id)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "Could not stop this workspace's agent, so it was not archived — "
+                    "archiving it now would hide a container that is still running. "
+                    "Check Docker and try again."
+                ),
+            ) from None
 
     await db.commit()
     await db.refresh(workspace)
+
+    # Unarchiving restarts from the preserved volume, so the agent comes back
+    # with its memory rather than as a stranger. Best-effort on purpose: the
+    # workspace is already un-archived and visible, and a start failure here
+    # (no credential, model not enabled, Docker down) is recoverable from the
+    # UI's own start button, which reports the reason properly. Blocking the
+    # unarchive on it would leave the row hidden with no way to reach that
+    # button.
+    if unarchiving and workspace.workspace_type == "agent":
+        try:
+            plan = plan_agent_start(workspace, current_user)
+            if isinstance(plan, StartBlocked):
+                logger.warning(
+                    "Unarchived workspace %s but could not start its agent: %s",
+                    workspace_id,
+                    _start_blocked_detail(plan),
+                )
+            else:
+                result = await run_in_threadpool(lambda: start_agent(**plan.kwargs))
+                if result.get("status") == "error":
+                    logger.warning(
+                        "Unarchived workspace %s but its agent failed to start: %s",
+                        workspace_id,
+                        result.get("message"),
+                    )
+        except Exception:
+            logger.exception("Failed to restart agent for unarchived workspace %s", workspace_id)
+
     return workspace
 
 

@@ -19,6 +19,7 @@ from app.services.agents.spawner import (
     restart_agent,
     start_agent,
     stop_agent,
+    stop_archived_agents,
 )
 from app.services.agents.templates import AGENT_TEMPLATES, template_mem_limit
 
@@ -40,5 +41,6 @@ __all__ = [
     "restart_agent",
     "start_agent",
     "stop_agent",
+    "stop_archived_agents",
     "template_mem_limit",
 ]

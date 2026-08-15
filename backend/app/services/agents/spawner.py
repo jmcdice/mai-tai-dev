@@ -498,6 +498,58 @@ def reap_orphaned_agents(live_workspace_ids: set[str]) -> list[str]:
     return reaped
 
 
+def stop_archived_agents(archived_workspace_ids: set[str]) -> list[str]:
+    """Stop agent containers belonging to archived workspaces.
+
+    The archive endpoint stops the container itself, so this only catches what
+    slipped through: workspaces archived before that existed, and archives
+    where the backend died between the stop and the commit. Halo Craft is the
+    worked example — archived for weeks with a live agent still rotating
+    against it, invisible because every workspace listing filters archived rows
+    out. An archived workspace you cannot see is exactly the one whose runaway
+    agent nobody notices.
+
+    Unlike `reap_orphaned_agents`, this NEVER touches the memory volume.
+    Archiving is reversible and that volume is the state unarchive restores.
+
+    Args:
+        archived_workspace_ids: Workspace UUIDs (as strings) that are archived.
+
+    Returns:
+        Names of the containers that were stopped.
+    """
+    if not archived_workspace_ids:
+        return []
+
+    try:
+        client = _get_docker_client()
+        containers = client.containers.list(all=True, filters={"label": "mai-tai.agent=true"})
+    except (DockerException, APIError) as e:
+        logger.warning(f"Archived-agent sweep skipped, Docker unavailable: {e}")
+        return []
+
+    stopped: list[str] = []
+    for container in containers:
+        workspace_id = container.labels.get("mai-tai.workspace-id", "")
+        if workspace_id not in archived_workspace_ids:
+            continue
+        try:
+            # Same 30s grace as a normal stop, so the agent flushes memory --
+            # which matters more here than usual, since that memory is what
+            # unarchive brings back.
+            container.stop(timeout=30)
+            container.remove()
+            stopped.append(container.name)
+            logger.info(
+                f"Stopped agent container {container.name} "
+                f"(workspace {workspace_id} is archived; memory volume kept)"
+            )
+        except (NotFound, APIError) as e:
+            logger.warning(f"Could not stop archived agent container {container.name}: {e}")
+
+    return stopped
+
+
 def get_agent_logs(workspace_id: UUID, tail: int = 100) -> str:
     """Get recent logs from an agent container."""
     client = _get_docker_client()

@@ -8,6 +8,7 @@ import { useNotificationSound } from '@/hooks/use-notification-sound';
 import Button from '@/components/Common/Button';
 import Modal from '@/components/Common/Modal';
 import {
+  ApiError,
   updateWorkspace,
   archiveWorkspace,
   unarchiveWorkspace,
@@ -40,6 +41,7 @@ export default function WorkspaceSettings({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showProjectContextModal, setShowProjectContextModal] = useState(false);
   const [projectContext, setProjectContext] = useState('');
@@ -125,16 +127,27 @@ export default function WorkspaceSettings({
     }
   };
 
+  // Archiving an agent workspace stops its container first, which can take up
+  // to the Docker stop grace period. Hold the button until the server answers,
+  // and pass its message through — archive refuses outright if the container
+  // won't stop, and "Failed to update workspace" doesn't tell you that.
   const handleToggleArchive = async () => {
-    if (!token || !workspace) return;
+    if (!token || !workspace || isArchiving) return;
+    setIsArchiving(true);
     try {
       const updated = workspace.archived
         ? await unarchiveWorkspace(token, workspaceId)
         : await archiveWorkspace(token, workspaceId);
       onWorkspaceUpdate(updated);
       toast({ title: updated.archived ? 'Workspace archived' : 'Workspace unarchived' });
-    } catch {
-      toast({ variant: 'destructive', title: 'Failed to update workspace' });
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'Failed to update workspace',
+        description: err instanceof ApiError ? err.message : undefined,
+      });
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -396,16 +409,27 @@ export default function WorkspaceSettings({
               </p>
               <p className="text-sm text-muted-foreground">
                 {workspace?.archived
-                  ? 'Restore this workspace to active status'
-                  : 'Hide this workspace from the main list'}
+                  ? isAgentWorkspace
+                    ? 'Restore this workspace and start its agent back up'
+                    : 'Restore this workspace to active status'
+                  : isAgentWorkspace
+                    ? 'Hide this workspace and shut its agent down — memory is kept'
+                    : 'Hide this workspace from the main list'}
               </p>
             </div>
             <Button
               buttonType={workspace?.archived ? 'primary' : 'ghost'}
               buttonSize="sm"
               onClick={handleToggleArchive}
+              disabled={isArchiving}
             >
-              {workspace?.archived ? 'Unarchive' : 'Archive'}
+              {isArchiving
+                ? workspace?.archived
+                  ? 'Unarchiving...'
+                  : 'Archiving...'
+                : workspace?.archived
+                  ? 'Unarchive'
+                  : 'Archive'}
             </Button>
           </div>
 
