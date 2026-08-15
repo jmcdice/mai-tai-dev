@@ -736,11 +736,109 @@ class TestSupervisorCheck:
             "sessions",
             lambda: [probes.Session("rando", "/repos/rando", 1, 2, 3)],
         )
+        # Pin the drift probe so this test stays about "are they running" and
+        # does not depend on a supervisor script existing on the test host.
+        monkeypatch.setattr(probes, "supervisor_version_on_disk", lambda: None)
         assert cli._check_supervisors()[0].level == "ok"
 
     def test_nothing_configured_is_not_a_check(self, monkeypatch):
         monkeypatch.setattr(probes, "boot_repos", lambda: [])
         assert cli._check_supervisors() == []
+
+
+class TestSupervisorDrift:
+    """bash parses the whole script up front, so a running supervisor keeps
+    executing the text it started with. mai-tai-dev ran pre-#37 code for a week
+    and cold-greeted every night; nothing noticed. These cover the noticing."""
+
+    def sessions(self, *repos):
+        return [probes.Session(r, f"/repos/{r}", 100 + i, 200, 300) for i, r in enumerate(repos)]
+
+    def test_up_to_date_reports_the_version(self, monkeypatch):
+        monkeypatch.setattr(probes, "supervisor_version_on_disk", lambda: 2)
+        monkeypatch.setattr(probes, "supervisor_running_version", lambda repo, pid: 2)
+        checks = cli._check_supervisor_drift(self.sessions("rando", "folio"))
+        assert [c.level for c in checks] == ["ok"]
+        assert "v2" in checks[0].detail
+
+    def test_older_running_version_warns_and_names_the_fix(self, monkeypatch):
+        monkeypatch.setattr(probes, "supervisor_version_on_disk", lambda: 3)
+        monkeypatch.setattr(
+            probes, "supervisor_running_version", lambda repo, pid: 1 if repo == "rando" else 3
+        )
+        checks = cli._check_supervisor_drift(self.sessions("rando", "folio"))
+        assert [c.level for c in checks] == ["warn"]
+        assert "rando (v1)" in checks[0].detail
+        assert "folio" not in checks[0].detail
+        assert "mai-tai bots restart rando" in checks[0].detail
+
+    def test_unstamped_supervisor_is_drift(self, monkeypatch):
+        """No state file means it started before the stamp existed — which is
+        precisely the week-old-code case, not a reason to stay quiet."""
+        monkeypatch.setattr(probes, "supervisor_version_on_disk", lambda: 2)
+        monkeypatch.setattr(probes, "supervisor_running_version", lambda repo, pid: None)
+        checks = cli._check_supervisor_drift(self.sessions("mai-tai-dev"))
+        assert checks[0].level == "warn"
+        assert "mai-tai-dev (unstamped)" in checks[0].detail
+
+    def test_unreadable_script_is_silent(self, monkeypatch):
+        """Can't read the script => no opinion. Never invent drift."""
+        monkeypatch.setattr(probes, "supervisor_version_on_disk", lambda: None)
+        assert cli._check_supervisor_drift(self.sessions("rando")) == []
+
+    def test_newer_running_version_is_not_drift(self, monkeypatch):
+        """Someone restarted onto a newer script than this checkout has."""
+        monkeypatch.setattr(probes, "supervisor_version_on_disk", lambda: 2)
+        monkeypatch.setattr(probes, "supervisor_running_version", lambda repo, pid: 5)
+        assert cli._check_supervisor_drift(self.sessions("rando"))[0].level == "ok"
+
+
+class TestSupervisorVersionProbes:
+    def test_reads_version_from_the_script(self, tmp_path, monkeypatch):
+        script = tmp_path / "sup.sh"
+        script.write_text("#!/usr/bin/env bash\nset -uo pipefail\n\nSUPERVISOR_VERSION=7\n")
+        monkeypatch.setattr(probes, "SUPERVISOR_PATH", script)
+        assert probes.supervisor_version_on_disk() == 7
+
+    def test_unstamped_script_reads_none(self, tmp_path, monkeypatch):
+        script = tmp_path / "sup.sh"
+        script.write_text("#!/usr/bin/env bash\necho hi\n")
+        monkeypatch.setattr(probes, "SUPERVISOR_PATH", script)
+        assert probes.supervisor_version_on_disk() is None
+
+    def test_missing_script_reads_none(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(probes, "SUPERVISOR_PATH", tmp_path / "nope.sh")
+        assert probes.supervisor_version_on_disk() is None
+
+    def test_ignores_a_commented_mention(self, tmp_path, monkeypatch):
+        """The header talks about SUPERVISOR_VERSION; only the assignment counts."""
+        script = tmp_path / "sup.sh"
+        script.write_text("# BUMP SUPERVISOR_VERSION=99 when you change this\nSUPERVISOR_VERSION=4\n")
+        monkeypatch.setattr(probes, "SUPERVISOR_PATH", script)
+        assert probes.supervisor_version_on_disk() == 4
+
+    def test_running_version_from_state_file(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(probes, "SUPERVISOR_LOG_DIR", tmp_path)
+        (tmp_path / "supervisor-rando.state").write_text(
+            "version=3\npid=4242\nrepo_dir=/repos/rando\nstarted=2026-08-14 09:00:00\n"
+        )
+        assert probes.supervisor_running_version("rando", 4242) == 3
+
+    def test_state_file_for_a_dead_pid_is_ignored(self, tmp_path, monkeypatch):
+        """A supervisor restarted by hand leaves the old file behind. Trusting
+        it would report the new process as running code it never parsed."""
+        monkeypatch.setattr(probes, "SUPERVISOR_LOG_DIR", tmp_path)
+        (tmp_path / "supervisor-rando.state").write_text("version=3\npid=1111\n")
+        assert probes.supervisor_running_version("rando", 4242) is None
+
+    def test_missing_state_file_is_none(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(probes, "SUPERVISOR_LOG_DIR", tmp_path)
+        assert probes.supervisor_running_version("rando", 4242) is None
+
+    def test_garbled_state_file_is_none(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(probes, "SUPERVISOR_LOG_DIR", tmp_path)
+        (tmp_path / "supervisor-rando.state").write_text("version=notanumber\npid=4242\n")
+        assert probes.supervisor_running_version("rando", 4242) is None
 
 
 class TestAgeFormatting:

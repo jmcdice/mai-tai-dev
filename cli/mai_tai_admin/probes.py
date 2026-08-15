@@ -31,6 +31,9 @@ SUPERVISOR_PATH = Path(
         "MAI_TAI_SUPERVISOR", str(REPOS_ROOT / "mai-tai-dev/scripts/mai-tai-supervisor.sh")
     )
 )
+SUPERVISOR_LOG_DIR = Path(
+    os.environ.get("MAI_TAI_LOG_DIR", str(SUPERVISOR_PATH.parent.parent / "logs"))
+)
 TMUX_SESSION = os.environ.get("MAI_TAI_TMUX_SESSION", "mai-tai")
 
 AGENT_PREFIX = "maitai-agent-"
@@ -193,6 +196,43 @@ def sessions() -> list[Session]:
             )
         )
     return sorted(found, key=lambda s: s.repo)
+
+
+def supervisor_version_on_disk() -> int | None:
+    """SUPERVISOR_VERSION declared in the supervisor script, or None if absent."""
+    try:
+        text = SUPERVISOR_PATH.read_text()
+    except OSError:
+        return None
+    match = re.search(r"^SUPERVISOR_VERSION=(\d+)", text, re.MULTILINE)
+    return int(match.group(1)) if match else None
+
+
+def supervisor_running_version(repo: str, supervisor_pid: int) -> int | None:
+    """Version a running supervisor actually parsed, from its state file.
+
+    bash reads the whole script into memory before running it, so a supervisor
+    keeps executing the text it started with no matter how the file changes
+    underneath. That is how mai-tai-dev ran a week-old copy unnoticed. The
+    state file is the only record of what is really in that process.
+
+    Returns None when the file is missing (a supervisor from before the stamp
+    existed, which is itself drift) or belongs to a different, older process.
+    """
+    state = SUPERVISOR_LOG_DIR / f"supervisor-{repo}.state"
+    try:
+        fields = dict(
+            line.split("=", 1) for line in state.read_text().splitlines() if "=" in line
+        )
+    except OSError:
+        return None
+    if fields.get("pid") != str(supervisor_pid):
+        # Stale file from a supervisor that has since been replaced.
+        return None
+    try:
+        return int(fields["version"])
+    except (KeyError, ValueError):
+        return None
 
 
 def sanitize_window(repo: str) -> str:

@@ -197,6 +197,16 @@ tarball is not a trusted input just because you were the one who made it.
 - **Core containers** — postgres, backend, frontend running and healthy
 - **Supervisors** — every repo in `boot-repos.conf` has a live session, and every
   live session has a `claude` process under it
+- **Supervisor script drift** — a running supervisor is executing an older
+  `mai-tai-supervisor.sh` than the one on disk. bash parses the whole loop into
+  memory before running it, so editing that file changes nothing about a
+  supervisor that is already up, and until now nothing noticed: mai-tai-dev's
+  supervisor ran a week-old copy and cold-greeted every night because it had
+  never picked up the resume fix. Each supervisor records the
+  `SUPERVISOR_VERSION` it actually parsed in
+  `logs/supervisor-<repo>.state`; this compares that against the script. A warning
+  here means a `mai-tai bots restart <repo>` is owed — bump `SUPERVISOR_VERSION`
+  whenever you change the supervisor's behaviour so it fires
 - **Bots** — the one that matters: a runner that is *up* while its heartbeat is
   stale. Both `ps` and `docker ps` call this healthy; only
   `workspace_agent_activity` shows the bot has been talking to nobody for hours.
@@ -221,7 +231,18 @@ path needs nothing but bash, tmux, and claude.
 
 Same reasoning keeps `mai-tai-supervisor.sh` and `verify-boot-cron-env.sh` in
 shell — the latter exists specifically to prove the *bare* cron environment
-works, so rewriting it in Python would defeat the test. The DNS/TLS/DDNS
+works, so rewriting it in Python would defeat the test.
+`scripts/claude-trust-folder.py` is the one exception the supervisor calls out
+to, because a safe read-modify-write of shared JSON is not something to write in
+bash. It pre-accepts Claude Code's workspace-trust dialog for a repo. Host bots
+run Claude interactively on a pane TTY, so they *do* get that dialog (Docker
+agents use `-p` and never see it), and a bot has nobody to press "1. Yes" — the
+pane stays up, the process stays alive, and the bot is simply deaf. Claude Code
+2.1.232 started prompting where 2.1.231 had not and took out three bots for four
+hours. There is no CLI flag or settings key for folder trust; the only lever is
+`projects[<dir>].hasTrustDialogAccepted` in `~/.claude.json`. The script is
+best-effort by design and always exits 0 — a trust preflight that stops a bot
+from booting is worse than the dialog it prevents. The DNS/TLS/DDNS
 scripts are thin `gcloud` and `acme.sh` wrappers with no connection to the
 mai-tai data model.
 
