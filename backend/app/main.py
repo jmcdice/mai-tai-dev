@@ -25,27 +25,46 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 async def _reap_orphaned_agents() -> None:
-    """Remove agent containers left behind by deleted workspaces.
+    """Reconcile agent containers against the workspaces that should have them.
 
-    Deletion now stops the agent first, but that only helps from here on:
-    containers stranded before the fix — or by a backend that died mid-delete —
-    stay up under `restart: unless-stopped` and poll a workspace that no longer
-    exists. Reconciling at startup is what actually clears them.
+    Two ways a container outlives its reason to exist:
+
+    Deleted workspaces. Deletion now stops the agent first, but that only helps
+    from here on: containers stranded before the fix — or by a backend that
+    died mid-delete — stay up under `restart: unless-stopped` and poll a
+    workspace that no longer exists. These are removed, memory volume included.
+
+    Archived workspaces. Archiving now stops the agent too, with the same
+    caveat for anything archived earlier. These are stopped but their memory
+    volume is KEPT, because unarchive restores from it. This is the invisible
+    case: an archived workspace is filtered out of every listing, so its
+    runaway agent is the one nobody notices.
     """
     if not settings.agent_reaper_enabled:
         return
 
     from app.db.session import AsyncSessionLocal
     from app.models.workspace import Workspace
-    from app.services.agents import reap_orphaned_agents
+    from app.services.agents import reap_orphaned_agents, stop_archived_agents
 
     try:
         async with AsyncSessionLocal() as db:
-            result = await db.execute(select(Workspace.id))
-            live_ids = {str(row[0]) for row in result.all()}
+            result = await db.execute(select(Workspace.id, Workspace.archived))
+            rows = result.all()
+        live_ids = {str(row[0]) for row in rows}
+        archived_ids = {str(row[0]) for row in rows if row[1]}
+
         reaped = await asyncio.to_thread(reap_orphaned_agents, live_ids)
         if reaped:
             logger.info("Reaped %d orphaned agent container(s): %s", len(reaped), ", ".join(reaped))
+
+        stopped = await asyncio.to_thread(stop_archived_agents, archived_ids)
+        if stopped:
+            logger.info(
+                "Stopped %d agent container(s) for archived workspace(s): %s",
+                len(stopped),
+                ", ".join(stopped),
+            )
     except Exception:
         # Never let reconciliation keep the API from coming up.
         logger.exception("Orphaned agent reconciliation failed")
