@@ -27,16 +27,39 @@
 # quickly falls back to a cold start, since a poisoned transcript would
 # otherwise wedge the loop resuming into the same crash forever.
 #
+# TRUST PREFLIGHT: Claude asks "is this a project you trust?" the first time it
+# runs interactively in a directory, and a bot has nobody to answer it -- the
+# pane sits on the highlighted "1. Yes" forever, alive but deaf. We set the
+# per-project flag just before each launch, when this repo's own bot is down.
+# See scripts/claude-trust-folder.py for why that is the only available lever.
+#
+# VERSION STAMP: bash parses this whole loop into memory at start, so editing
+# this file does NOT change a supervisor that is already running -- mai-tai-dev
+# ran a week-old copy of this script without anything noticing. Each supervisor
+# records the version it actually launched with in its state file, so
+# `mai-tai doctor` can compare that against the version on disk and say so.
+# BUMP SUPERVISOR_VERSION whenever you change behaviour here.
+#
 # USAGE: mai-tai-supervisor.sh <repo-dir>
 # ENV:   MAI_TAI_ROTATE_AFTER  max session lifetime (default 24h; 0 disables)
 #        MAI_TAI_NO_RESUME     set to 1 to always cold-start (debugging)
+#        MAI_TAI_NO_TRUST      set to 1 to skip the trust preflight
+#        MAI_TAI_LOG_DIR       where logs/state go (default <this repo>/logs)
 #
 set -uo pipefail
 
+SUPERVISOR_VERSION=2
+
 REPO_DIR="${1:?usage: mai-tai-supervisor.sh <repo-dir>}"
 REPO_NAME="$(basename "$REPO_DIR")"
-LOG_DIR="/home/joey/repos/mai-tai-dev/logs"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Default to this checkout's own logs/ rather than a hardcoded path, so the
+# supervisor works from any clone and not just /home/joey/repos/mai-tai-dev.
+LOG_DIR="${MAI_TAI_LOG_DIR:-$(dirname "$SCRIPT_DIR")/logs}"
 LOG="$LOG_DIR/session-$REPO_NAME.log"
+STATE_FILE="$LOG_DIR/supervisor-$REPO_NAME.state"
+TRUST_HELPER="$SCRIPT_DIR/claude-trust-folder.py"
+TRUST_LOCK="$LOG_DIR/.claude-trust.lock"
 ROTATE_AFTER="${MAI_TAI_ROTATE_AFTER:-24h}"
 
 # Ensure PATH + Vertex auth env are present even if launched outside a login
@@ -73,6 +96,37 @@ can_resume=0
 
 stamp() { date '+%Y-%m-%d %H:%M:%S'; }
 
+# Record which version of this script the running process actually parsed, so
+# drift from the file on disk is visible instead of silent. Rewritten on every
+# start; left behind on exit (a stale file with a dead pid is itself a clue).
+write_state() {
+  printf 'version=%s\npid=%s\nrepo_dir=%s\nscript=%s\nstarted=%s\n' \
+    "$SUPERVISOR_VERSION" "$$" "$REPO_DIR" "${BASH_SOURCE[0]}" "$(stamp)" \
+    > "$STATE_FILE" 2>/dev/null || true
+}
+
+# Pre-accept the workspace-trust dialog for this repo. Best-effort by design:
+# a failure here must never stop the bot from starting, it just means we may
+# wedge on the dialog the way we always did.
+ensure_trusted() {
+  [ "${MAI_TAI_NO_TRUST:-0}" = "1" ] && return 0
+  [ -f "$TRUST_HELPER" ] || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+
+  local out
+  if command -v flock >/dev/null 2>&1; then
+    out="$(flock "$TRUST_LOCK" python3 "$TRUST_HELPER" "$REPO_DIR" 2>&1)"
+  else
+    out="$(python3 "$TRUST_HELPER" "$REPO_DIR" 2>&1)"
+  fi
+  # Only log when we actually changed something or hit a problem; "already
+  # trusted" is the steady state and would just be noise every rotation.
+  case "$out" in
+    "ok: already trusted") ;;
+    *) echo "[$(stamp)] $REPO_NAME trust preflight: $out" >> "$LOG" ;;
+  esac
+}
+
 # Run Claude, bounded by ROTATE_AFTER when set.
 #
 # `--foreground` is REQUIRED: without it, `timeout` runs claude in a separate
@@ -101,9 +155,11 @@ run_claude() {
 
 # Claude runs directly on the pane TTY (no pipe) so the window stays interactive.
 # The full transcript lives in the mai-tai workspace/DB; we only log lifecycle.
+write_state
 while true; do
   if [ "$can_resume" = "1" ]; then mode="resume"; else mode="fresh"; fi
-  echo "=== [$(stamp)] starting claude for $REPO_NAME ($mode, rotate after ${ROTATE_AFTER:-off}) ===" >> "$LOG"
+  echo "=== [$(stamp)] starting claude for $REPO_NAME (v$SUPERVISOR_VERSION, $mode, rotate after ${ROTATE_AFTER:-off}) ===" >> "$LOG"
+  ensure_trusted
   start=$SECONDS
   run_claude
   rc=$?

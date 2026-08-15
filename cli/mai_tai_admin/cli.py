@@ -443,7 +443,8 @@ def _check_supervisors() -> list[Check]:
     configured = probes.boot_repos()
     if not configured:
         return []
-    running = {session.repo for session in probes.sessions()}
+    sessions = probes.sessions()
+    running = {session.repo for session in sessions}
     missing = [repo for repo in configured if repo not in running]
     if missing:
         return [
@@ -454,7 +455,37 @@ def _check_supervisors() -> list[Check]:
                 f"— start with: mai-tai bots start {missing[0]}",
             )
         ]
-    return [Check("ok", "supervisors", f"{len(configured)} configured, all running")]
+    checks = [Check("ok", "supervisors", f"{len(configured)} configured, all running")]
+    return checks + _check_supervisor_drift(sessions)
+
+
+def _check_supervisor_drift(sessions: list[probes.Session]) -> list[Check]:
+    """Flag supervisors executing an older script than the one on disk.
+
+    bash holds the parsed loop in memory, so editing mai-tai-supervisor.sh does
+    nothing to a supervisor that is already running, and nothing used to notice:
+    mai-tai-dev's ran pre-#37 code for a week and cold-greeted every night.
+    A restart is what picks up a change, and this is what tells you one is owed.
+    """
+    on_disk = probes.supervisor_version_on_disk()
+    if on_disk is None:
+        return []
+    stale = [
+        f"{s.repo} (v{v})" if v is not None else f"{s.repo} (unstamped)"
+        for s in sessions
+        for v in [probes.supervisor_running_version(s.repo, s.supervisor_pid)]
+        if v is None or v < on_disk
+    ]
+    if not stale:
+        return [Check("ok", "supervisor version", f"all running v{on_disk}")]
+    return [
+        Check(
+            "warn",
+            "supervisor script drift",
+            f"disk is v{on_disk}; still running old code: {', '.join(stale)} "
+            f"— restart with: mai-tai bots restart {stale[0].split(' ')[0]}",
+        )
+    ]
 
 
 def _check_orphans(
